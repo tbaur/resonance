@@ -34,6 +34,16 @@
           "jsonpath": "$.version"
         },
         {
+          "type": "json",
+          "path": "frontend/package-lock.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "frontend/package-lock.json",
+          "jsonpath": "$.packages[\"\"].version"
+        },
+        {
           "type": "toml",
           "path": "backend/pyproject.toml",
           "jsonpath": "$.project.version"

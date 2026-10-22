@@ -61,7 +61,7 @@ When behavior users or operators can see changes, update the matching docs in th
 | Supported versions / vuln process | [SECURITY.md](SECURITY.md) |
 | Release process or forcing a version (`Release-As`) | [RELEASING.md](RELEASING.md) |
 
-[release-please](RELEASING.md) generates `CHANGELOG.md` — do not hand-edit it for routine releases. release-please manages all released version strings, in `.release-please-manifest.json`, `backend/app/__init__.py`, `frontend/src/version.ts`, `frontend/package.json`, `backend/pyproject.toml`, and the root `pyproject.toml`.
+[release-please](RELEASING.md) generates `CHANGELOG.md` — do not hand-edit it for routine releases. release-please manages all released version strings, in `.release-please-manifest.json`, `backend/app/__init__.py`, `frontend/src/version.ts`, `frontend/package.json` and its lockfile, `backend/pyproject.toml`, and the root `pyproject.toml`.
 
 ## Development setup
 
