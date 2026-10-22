@@ -1,0 +1,320 @@
+import { Link } from 'react-router';
+import { api } from '@/api/client';
+import type { PlayerStatus } from '@/api/types';
+import {
+  IconNext,
+  IconPause,
+  IconPlay,
+  IconPrev,
+  IconSpeaker,
+  IconStop,
+} from '@/components/house/HouseIcons';
+import { volumePeerGroup } from '@/lib/deviceGroups';
+import {
+  deviceEndpoint,
+  endpointsMatch,
+  formatDeviceHardware,
+  formatDeviceHost,
+} from '@/lib/endpoint';
+import { createLatestValueSender, type LatestValueSender } from '@/lib/latestValueSender';
+import { joinMeta } from '@/lib/meta';
+import { audibleDevices, ownVolumePatch, unmuteTitle } from '@/lib/mute';
+import { displaySyncRole } from '@/lib/syncGraph';
+import { DRAG_VOLUME_HOLD_MS, useFleetStore } from '@/store/fleetStore';
+import { memo, useEffect, useRef, useState } from 'react';
+
+function isPlaying(state: string): boolean {
+  return state === 'play' || state === 'stream';
+}
+
+function isIdle(device: PlayerStatus): boolean {
+  if (device.track.trim()) return false;
+  return device.state === 'stop' || device.state === '' || device.state === 'pause';
+}
+
+function nowPlaying(device: PlayerStatus): { primary: string; secondary: string; idle: boolean } {
+  if (isIdle(device) && !device.track.trim()) {
+    const state =
+      device.state === 'pause' ? 'Paused' : device.state === 'stop' || !device.state ? 'Idle' : device.state;
+    return {
+      primary: state,
+      secondary: device.service && device.service !== 'Library/Input' ? device.service : '',
+      idle: true,
+    };
+  }
+  const primary = device.track || (isPlaying(device.state) ? 'Playing' : 'Paused');
+  const secondary = joinMeta(device.artist, device.service);
+  return { primary, secondary, idle: false };
+}
+
+function primaryNameFor(device: PlayerStatus, devices: PlayerStatus[]): string | null {
+  if (device.sync_role !== 'synced' || !device.master) return null;
+  const primary = devices.find((d) => endpointsMatch(deviceEndpoint(d), device.master));
+  return primary?.name ?? device.master;
+}
+
+function volumesAreLinked(devices: PlayerStatus[], deviceId: string): boolean {
+  const me = devices.find((d) => d.id === deviceId);
+  if (!me || me.muted) return false;
+  const group = volumePeerGroup(me);
+  if (group === 'independent') return false;
+  const peers = audibleDevices(devices.filter((d) => volumePeerGroup(d) === group));
+  return peers.length > 1 && peers.every((d) => d.volume === peers[0].volume);
+}
+
+function followedName(devices: PlayerStatus[], deviceId: string, sync: ReturnType<typeof useFleetStore.getState>['sync']): string | null {
+  const me = devices.find((d) => d.id === deviceId);
+  if (!me) return null;
+  const role = displaySyncRole(me, sync);
+  if (role !== 'synced') return null;
+  return primaryNameFor({ ...me, sync_role: role }, devices);
+}
+
+/**
+ * Compact fixed-column fleet row — keeps controls aligned across players.
+ * Below the tablet breakpoint the same markup is laid out as a room card.
+ */
+export const PlayerRow = memo(function PlayerRow({ deviceId }: { deviceId: string }) {
+  const device = useFleetStore((s) => s.devices.find((d) => d.id === deviceId));
+  const sync = useFleetStore((s) => s.sync);
+  const volumesLinked = useFleetStore((s) => volumesAreLinked(s.devices, deviceId));
+  const follows = useFleetStore((s) => followedName(s.devices, deviceId, s.sync));
+  const control = useFleetStore((s) => s.control);
+  const toggleMute = useFleetStore((s) => s.toggleMute);
+  const holdVolume = useFleetStore((s) => s.holdVolume);
+  const commitTimer = useRef<number | undefined>(undefined);
+  const latestLevel = useRef(device?.volume ?? 0);
+  const senderRef = useRef<LatestValueSender<number> | null>(null);
+  const draggingRef = useRef(false);
+  const movedRef = useRef(false);
+  const [dragging, setDragging] = useState(false);
+  const [dragVolume, setDragVolume] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!dragging && device) {
+      latestLevel.current = device.volume;
+    }
+  }, [device, dragging]);
+
+  useEffect(() => {
+    const sender = createLatestValueSender<number>({
+      send: (level) => {
+        const current = useFleetStore.getState().devices.find((d) => d.id === deviceId);
+        return control(deviceId, () => api.setVolume(deviceId, level), ownVolumePatch(current, level));
+      },
+      onIdle: () => {
+        if (!draggingRef.current) setDragVolume(null);
+      },
+    });
+    senderRef.current = sender;
+    // Unmounting mid-drag (sort change, rescan) must not fire a late volume write.
+    return () => {
+      if (commitTimer.current) window.clearTimeout(commitTimer.current);
+      sender.cancel();
+    };
+  }, [control, deviceId]);
+
+  if (!device) return null;
+  const displayVolume = dragVolume ?? device.volume;
+  const role = displaySyncRole(device, sync);
+  const synced = role === 'synced';
+  const playing = isPlaying(device.state);
+  const np = nowPlaying(device);
+
+  const flushVolume = (level: number) => {
+    latestLevel.current = level;
+    senderRef.current?.push(level);
+  };
+
+  const onVolumeInput = (level: number) => {
+    latestLevel.current = level;
+    setDragVolume(level);
+    if (commitTimer.current) window.clearTimeout(commitTimer.current);
+    commitTimer.current = window.setTimeout(() => {
+      commitTimer.current = undefined;
+      flushVolume(level);
+    }, 80);
+  };
+
+  const endDrag = () => {
+    draggingRef.current = false;
+    setDragging(false);
+    if (commitTimer.current) {
+      window.clearTimeout(commitTimer.current);
+      commitTimer.current = undefined;
+    }
+    // A tap on a muted row would otherwise unmute it at 0 and lose its unmute level.
+    if (movedRef.current) flushVolume(latestLevel.current);
+    else setDragVolume(null);
+  };
+
+  const onMuteClick = () => void toggleMute(device.id);
+  const muteButton = (
+    <button
+      type="button"
+      className="btn btn-compact btn-mute fleet-btn"
+      data-action="mute"
+      data-muted={device.muted ? 'true' : 'false'}
+      title={unmuteTitle(device)}
+      onClick={onMuteClick}
+    >
+      <IconSpeaker muted={device.muted} />
+      <span className="fleet-btn-label">{device.muted ? 'Unmute' : 'Mute'}</span>
+    </button>
+  );
+
+  return (
+    <div
+      className="fleet-row"
+      role="row"
+      data-sync={role}
+      data-idle={np.idle ? 'true' : 'false'}
+    >
+      <div className="fleet-cell fleet-cell-player" role="cell">
+        <div className="fleet-player-line">
+          <span
+            className="status-dot"
+            data-online={device.status === 'online'}
+            data-stale={device.stale ? 'true' : 'false'}
+            aria-label={device.stale ? 'stale' : device.status}
+          />
+          <Link className="fleet-player-name" to={`/player/${device.id}`}>
+            {device.name}
+          </Link>
+        </div>
+        <div className="fleet-player-hardware">{formatDeviceHardware(device)}</div>
+        <div className="fleet-player-meta">
+          {role !== 'standalone' && (
+            <span className="badge" data-role={role}>
+              {role}
+            </span>
+          )}
+          <span className="fleet-player-ip">{formatDeviceHost(device)}</span>
+        </div>
+      </div>
+
+      <div className="fleet-cell fleet-cell-playing" role="cell">
+        {synced && follows ? (
+          <div className="fleet-track fleet-follows" title={`Follows ${follows}`}>
+            Follows {follows}
+          </div>
+        ) : np.idle ? (
+          <div className="fleet-track fleet-idle">{np.primary}</div>
+        ) : (
+          <>
+            <div className="fleet-track" title={np.primary}>
+              {np.primary}
+            </div>
+            {np.secondary ? (
+              <div className="fleet-subtitle" title={np.secondary}>
+                {np.secondary}
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
+
+      <div
+        className="fleet-cell fleet-cell-transport"
+        role="cell"
+        aria-label={`Transport for ${device.name}`}
+      >
+        {synced ? (
+          <div className="fleet-synced-hint">{muteButton}</div>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="btn btn-compact fleet-btn"
+              data-action="prev"
+              onClick={() => void control(device.id, () => api.back(device.id))}
+            >
+              <IconPrev />
+              <span className="fleet-btn-label">Prev</span>
+            </button>
+            <button
+              type="button"
+              className="btn btn-compact btn-primary fleet-btn"
+              data-action="play"
+              onClick={() =>
+                void control(
+                  device.id,
+                  () => (playing ? api.pause(device.id) : api.play(device.id)),
+                  { state: playing ? 'pause' : 'play' },
+                )
+              }
+            >
+              {playing ? <IconPause /> : <IconPlay />}
+              <span className="fleet-btn-label">{playing ? 'Pause' : 'Play'}</span>
+            </button>
+            <button
+              type="button"
+              className="btn btn-compact fleet-btn"
+              data-action="stop"
+              onClick={() =>
+                void control(device.id, () => api.stop(device.id), { state: 'stop' })
+              }
+            >
+              <IconStop />
+              <span className="fleet-btn-label">Stop</span>
+            </button>
+            <button
+              type="button"
+              className="btn btn-compact fleet-btn"
+              data-action="next"
+              onClick={() => void control(device.id, () => api.skip(device.id))}
+            >
+              <IconNext />
+              <span className="fleet-btn-label">Next</span>
+            </button>
+            {muteButton}
+          </>
+        )}
+      </div>
+
+      <div
+        className="fleet-cell fleet-cell-volume"
+        role="cell"
+        data-muted={device.muted ? 'true' : 'false'}
+      >
+        <input
+          id={`vol-${device.id}`}
+          type="range"
+          min={0}
+          max={100}
+          value={displayVolume}
+          aria-label={`Volume for ${device.name}`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={displayVolume}
+          onPointerDown={() => {
+            draggingRef.current = true;
+            movedRef.current = false;
+            setDragging(true);
+            setDragVolume(device.volume);
+            holdVolume(device.id, DRAG_VOLUME_HOLD_MS);
+          }}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onChange={(e) => {
+            movedRef.current = true;
+            onVolumeInput(Number(e.target.value));
+          }}
+        />
+        <span className="volume-value">{displayVolume}</span>
+        {volumesLinked ? (
+          <span
+            className="volume-linked"
+            title={
+              volumePeerGroup(device) === 'ci-s2'
+                ? 'NAD CI S2 players share this volume'
+                : 'Bluesound players share this volume'
+            }
+          >
+            link
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+});

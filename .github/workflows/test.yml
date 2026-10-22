@@ -1,0 +1,91 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [ main ]
+  merge_group:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13", "3.14", "3.15"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      # Same targets as local `make check`; the venv uses the matrix python3.
+      - name: Install
+        run: make backend/.venv/.installed
+      - name: Lint
+        run: make lint-backend
+      - name: Test
+        run: make test-backend
+      - name: pip-audit
+        run: backend/.venv/bin/pip-audit --progress-spinner off
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        run: make frontend/node_modules/.installed
+      - name: Audit
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=moderate
+      # Everything but react, react-dom, react-router and zustand is a dev
+      # dependency here, so the gate above covers very little. Dev-tree
+      # advisories are often unfixable upstream and must not block unrelated
+      # PRs, but they should not be invisible either: report and continue.
+      - name: Audit dev tree (advisory only)
+        continue-on-error: true
+        working-directory: frontend
+        run: npm audit --audit-level=moderate
+      - name: Lint
+        run: make lint-frontend
+      - name: Test
+        run: make test-frontend
+      - name: Build
+        run: make build
+
+  # Branch protection requires this one check, so the Python matrix can change
+  # without editing the required check names.
+  tests-passed:
+    name: Tests passed
+    if: always()
+    needs: [ backend, frontend ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every test job to succeed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "::error::A test job ended with result: $result"
+              exit 1
+            fi
+          done

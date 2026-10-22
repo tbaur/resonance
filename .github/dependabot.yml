@@ -1,0 +1,59 @@
+# Dependabot keeps dependencies current. Frontend npm and backend pip are updated
+# separately; github-actions are grouped weekly. Minor and patch updates are
+# grouped to reduce PR noise.
+# See: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+      prefix-development: "chore"
+    groups:
+      # @vitest/coverage-v8 pins an exact peer on the matching vitest version,
+      # so bumping either one alone can never install (npm ERESOLVE). Group them
+      # across all update types. Must stay above the catch-all: Dependabot
+      # assigns a dependency to the first group whose patterns match.
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+      # Batch only low-risk patch/minor updates so they stay easy to review.
+      # Major bumps (e.g. vite, eslint, typescript) arrive as their own
+      # PRs and get evaluated and migrated deliberately.
+      frontend:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore"
+    groups:
+      backend:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"

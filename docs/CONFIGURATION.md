@@ -1,0 +1,115 @@
+# Configuration
+
+All settings are environment variables with the `RESONANCE_` prefix. Copy [.env.example](../.env.example) to `.env` in the **repo root** (or export variables in your shell) before starting the backend. The settings loader resolves the repo-root `.env` even when uvicorn is started from `backend/` (cwd-relative `.env` is also accepted as a fallback).
+
+Default settings are for local development: bind localhost, discover via mDNS+LSDP, long-poll player Status, and throttle both outbound BluOS calls and inbound mutating API requests (plus expensive GETs such as `/api/v1/fleet/upgrades`).
+
+Local UI is Vite on **port 8765** (`make run` / `frontend` `npm run dev`). CORS defaults match that origin. The API defaults to **port 8000**. `make serve` puts the UI and API on one port, **8780** (`SERVE_PORT`), so CORS does not apply to it.
+
+BluOS control paths follow Custom Integration API **v1.7** (queue via `/Playlist`, capture inputs via `/Settings?id=capture`, Bluetooth via `/audiomodes`, audio/player settings via `/Settings?id=audio|player`). Device diagnostics and upgrade checks use the player web UI on port 80 (`/diagnostics`, `/upgrade`). Setting writes use the reverse-engineered web UI `POST /settings` form (same path as the native control panel).
+
+## Network exposure
+
+BluOS players have no authentication — each device already exposes control on the LAN (and Resonance consolidates that). There is nothing extra to configure for device auth.
+
+- **Default (`RESONANCE_HOST=127.0.0.1`):** only this machine can reach Resonance.
+- **LAN bind (`0.0.0.0`):** same practical exposure as opening any player's BluOS UI to the network. Set `RESONANCE_API_TOKEN` so API calls require a Bearer token; put the matching value in `frontend/.env` as `VITE_API_TOKEN` (Vite does not read the repo-root `.env`); tighten `RESONANCE_CORS_ORIGINS`; set `RESONANCE_ENABLE_OPENAPI=false` if you do not want `/api/docs` on the LAN.
+- **Do not** expose Resonance to the internet.
+
+BluOS control calls go only to discovered private IPs (see `RESONANCE_ALLOW_NON_PRIVATE_IPS`). Cover art is the exception. A player-relative cover is fetched from that player. Apple Music art may follow one redirect to `*.mzstatic.com` over HTTPS. TIDAL connect names `resources.tidal.com` directly, and an `http://` URL for that host is fetched over HTTPS. The path has to look like a cover, the response has to be an image, and the body is capped at `RESONANCE_MAX_XML_SIZE`. A second redirect and any other host are refused. Control-call redirects stay on the player. The browser loads the cover from the Resonance server.
+
+## Server
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `RESONANCE_HOST` | `127.0.0.1` | Bind address |
+| `RESONANCE_PORT` | `8000` | Bind port |
+| `RESONANCE_LOG_LEVEL` | `INFO` | Log level |
+| `RESONANCE_CORS_ORIGINS` | `http://127.0.0.1:8765,http://localhost:8765` | Allowed CORS origins (comma-separated) |
+| `RESONANCE_API_TOKEN` | *(empty)* | When set, require `Authorization: Bearer …`, `X-API-Token`, or the `resonance_session` cookie for `/api/v1/*` (health/ready/version exempt). The SSE stream authenticates the same way; a `?token=` query is not accepted. The token does not lock players on the LAN; they have no auth. It locks a Resonance server that is reachable from a network that cannot reach the players. `POST /api/v1/session` with the bearer token sets the cookie (an HMAC of the token, not the token). Dev may still set `VITE_API_TOKEN` in `frontend/.env` |
+| `RESONANCE_TRUSTED_PROXIES` | *(empty)* | Comma-separated peer IPs allowed to supply `X-Forwarded-For` for API rate-limit keys |
+| `RESONANCE_STATIC_DIR` | *(empty)* | SPA dist directory for single-process serve (path relative to uvicorn cwd) |
+| `RESONANCE_ENABLE_OPENAPI` | auto | OpenAPI/Swagger; auto-off when binding beyond localhost |
+
+`make run` reads `RESONANCE_HOST` and `RESONANCE_PORT` through the backend's settings loader, so it follows the same precedence as the API. It also passes the port to Vite so the dev proxy follows it. When `RESONANCE_HOST` is `0.0.0.0`, the health probe and the UI proxy still use `127.0.0.1`.
+
+`make serve` uses `RESONANCE_HOST` but listens on the make variable `SERVE_PORT` (default `8780`) instead of `RESONANCE_PORT`, so it does not collide with `make run`. Set it on the command line or in the environment (`make serve SERVE_PORT=9000`). `.env` does not set it, because the API does not read it.
+
+Binding beyond loopback with an empty `RESONANCE_API_TOKEN` logs an `insecure_bind` warning at startup. On the player LAN that is the same exposure as the players themselves. The token matters when Resonance is the only service a caller can reach.
+
+## Discovery
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `RESONANCE_DISCOVERY_METHOD` | `both` | `mdns`, `lsdp`, or `both` (merge) |
+| `RESONANCE_DISCOVERY_TIMEOUT` | `5` | Discovery window (seconds) |
+| `RESONANCE_DISCOVERY_CACHE_TTL` | `300` | How often the **poller** re-browses a non-empty fleet. Mute/volume/skip use the live snapshot and never wait on this window |
+| `RESONANCE_EMPTY_FLEET_REDISCOVERY_SECONDS` | `30` | How often the **poller** re-browses when the fleet is empty. `GET /devices` does not scan; use **Rescan** for an on-demand browse |
+| `RESONANCE_DISCOVERED_GRACE_TTL` | `60` | Control grace after a player drops from discovery |
+| `RESONANCE_SSE_KEEPALIVE_SECONDS` | `15` | SSE keepalive interval |
+| `RESONANCE_SSE_QUEUE_SIZE` | `32` | Per-subscriber SSE queue size (drop-oldest under backpressure) |
+| `RESONANCE_ALLOW_NON_PRIVATE_IPS` | `false` | Escape hatch — allow non-private device IPs (unsafe) |
+| `RESONANCE_BLUOS_PORT` | `11000` | Default BluOS HTTP port. CI secondary zones use their own port (e.g. `11010`) from the mDNS SRV record or the LSDP announce |
+| `RESONANCE_WEB_UI_PORT` | `80` | Device web UI port (diagnostics, upgrade, setting writes) |
+
+Players are keyed as canonical `ip:port`. Only endpoints that answer `/SyncStatus` are kept in the fleet.
+
+- **mDNS** browses primary players (`_musc._tcp.local.`) and CI secondary zones (`_musp._tcp.local.`, e.g. NAD CI S2).
+- **LSDP** listens on UDP 11430 and sends its query to the broadcast address of each network interface. It asks for primary players (class `0x0001`), secondary zones (class `0x0003`), and hubs (class `0x0008`). A zone's port comes from the `port` value in its announce. LSDP skips a secondary zone that announces no port, and it does not guess `11010`, `11020`, and so on.
+- **Stereo-pair slaves** (`_musz`, LSDP class `0x0006`) are left out on purpose. The primary controls them and the BluOS app hides them, so listing them would add rooms that do not exist.
+- **Player IDs** come from the MAC that LSDP announces, when LSDP heard the player. A zone on a port other than `11000` gets `-<port>` added, so the zones of one chassis keep separate IDs. A player that only mDNS found gets an ID hashed from its address.
+
+### Multi-zone and volume UI
+
+NAD CI multi-zone chassis expose each zone as its own BluOS endpoint (often `:11010`, `:11011`, …). The fleet UI shows zone numbers next to the model name. **Bluesound** volume applies to bluesound.com players (Nodes/Pulse) with 20 / 48 / 60 chips; **NAD CI S2** volume applies only to CI S2 zones with 42 / 50 / 60 / 70 chips. Other brands (NAD C658) are not on either house slider.
+
+### Sync / orphan groups
+
+`POST /api/v1/sync/enable` groups **free (standalone) rooms only** under the chosen primary — it never pulls followers out of existing groups. `POST /api/v1/sync/break` and `POST /api/v1/sync/remove` dissolve runtime groups; break returns per-link succeeded/failed counts (502 only when every link fails). When the primary has left discovery, secondaries that still report a master are surfaced as orphan groups (Sync panel lead name **Offline primary**, role chip `offline`). Break/remove then use reparent-ungroup against **other free/standalone** online endpoints (never members of another group). See [RUNBOOK.md](RUNBOOK.md) **Multi-room sync notes**.
+
+### Bluetooth
+
+`GET /api/v1/devices/{id}/bluetooth` returns `supported: false` when the model is known-unsupported, the capture probe reports no Bluetooth, **or the probe hard-fails** — not a 502. `POST` to set a mode returns **404** `bluetooth_unsupported` in those same cases (including probe hard-fail). The player detail UI hides the Bluetooth section when unsupported.
+
+## Polling and device HTTP
+
+Each online player has a Status etag long-poll (Custom Integration API v1.7). The connection is held until playback/volume/grouping changes or `RESONANCE_STATUS_LONG_POLL_SECONDS` elapses. `secs` is interpolated in the UI and does not wake the poll. `/SyncStatus` is fetched when Status `<syncStat>` changes (required for per-follower volume). Long-polls do not take a `RESONANCE_MAX_CONCURRENT_DEVICE_CALLS` slot. A house or per-player control cancels that held read (waits up to `RESONANCE_CONTROL_INTERRUPT_WAIT_SECONDS`) so `/Volume` and `/Skip` are not queued behind the 100s hold. Offline rooms are omitted from mute-all / volume-all so a dead player cannot stall the rest behind `RESONANCE_DEVICE_HTTP_TIMEOUT`. Connect failures still use `RESONANCE_DEVICE_HTTP_TIMEOUT` so a powered-off player is not waited out for 100s.
+
+Discovery (mDNS/LSDP + enrich) runs at startup, on **Rescan**, when the fleet is empty (`RESONANCE_EMPTY_FLEET_REDISCOVERY_SECONDS`), and in the poller when `RESONANCE_DISCOVERY_CACHE_TTL` expires. `GET /devices`, `GET /sync`, and house control read the in-memory snapshot.
+
+Drop history (`GET /api/v1/fleet/health`, House page Health, player 12-hour presence) is **in-memory for this process** — it resets when the server restarts. A miss only counts as a drop after that player was seen online. Device `:80/diagnostics` and `/upgrade` are not in the poll loop; the player page aborts those scrapes on leave so they cannot starve Skip.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `RESONANCE_POLL_INTERVAL` | `3` | Retry delay after a missed Status long-poll (before circuit slow-poll) |
+| `RESONANCE_STATUS_LONG_POLL_SECONDS` | `100` | `/Status?timeout=` hold time (v1.7 recommended 100s; minimum 10s) |
+| `RESONANCE_LONG_POLL_READ_SLACK_SECONDS` | `5` | Extra HTTP read time so httpx does not cut off the player at exactly `timeout=` |
+| `RESONANCE_LONG_POLL_GAP_SECONDS` | `1` | Minimum spacing between consecutive `/Status` GETs on the same player (v1.7 requires ≥ 1s) |
+| `RESONANCE_DEVICE_HTTP_TIMEOUT` | `3` | Connect/control HTTP timeout (long-poll read timeout is separate) |
+| `RESONANCE_MAX_CONCURRENT_DEVICE_CALLS` | `20` | Cap concurrent BluOS HTTP calls |
+| `RESONANCE_CONTROL_RATE_LIMIT_SECONDS` | `0.1` | Per **device endpoint** (`ip:port`) spacing for outbound BluOS control and web-UI writes |
+| `RESONANCE_CONTROL_INTERRUPT_WAIT_SECONDS` | `0.25` | Max wait after cancelling a Status long-poll before the control HTTP call proceeds |
+| `RESONANCE_API_RATE_LIMIT_SECONDS` | `0.05` | Minimum spacing per **HTTP client IP + method + path** for mutating API requests and expensive GETs (`/api/v1/fleet/upgrades`). Excess requests return **429** (they do not wait). Cheap in-memory GETs such as `/api/v1/devices` and `/api/v1/sync` are not throttled so overlapping UI loads (mount, Strict Mode, in-flight reload) cannot fail. Outbound BluOS control still uses sleep-based spacing (`RESONANCE_CONTROL_RATE_LIMIT_SECONDS`). Behind a reverse proxy, set `RESONANCE_TRUSTED_PROXIES` so `X-Forwarded-For` is honored |
+| `RESONANCE_CIRCUIT_FAILURE_THRESHOLD` | `5` | Failures before slow-poll |
+| `RESONANCE_CIRCUIT_SLOW_POLL_SECONDS` | `15` | Slow-poll interval after circuit open |
+| `RESONANCE_FLEET_UPGRADES_CACHE_SECONDS` | `30` | Cache TTL for `GET /api/v1/fleet/upgrades` |
+
+## XML hardening
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `RESONANCE_MAX_XML_SIZE` | `1048576` | Max bytes for a BluOS XML body or a cover image |
+| `RESONANCE_MAX_XML_DEPTH` | `20` | Max XML depth |
+| `RESONANCE_MAX_XML_ELEMENTS` | `10000` | Max XML elements |
+
+## Common adjustments
+
+- **Single-process deploy:** `make serve`, or `make build` and then set `RESONANCE_STATIC_DIR=../frontend/dist` from `backend/` (the path is relative to the uvicorn working directory). See [RUNBOOK.md](RUNBOOK.md).
+- **Discovery trouble:** try `RESONANCE_DISCOVERY_METHOD=lsdp` or increase `RESONANCE_DISCOVERY_TIMEOUT`.
+- **Slow VPN/firewall:** increase `RESONANCE_DEVICE_HTTP_TIMEOUT` (connect/control) or `RESONANCE_STATUS_LONG_POLL_SECONDS` (Status hold).
+
+## See also
+
+- [RUNBOOK.md](RUNBOOK.md) — start commands, health endpoints, failures, logs
+- [SECURITY.md](../SECURITY.md) — vulnerability reporting
+- [README.md](../README.md) — project overview

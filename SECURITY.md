@@ -1,0 +1,62 @@
+# Security Policy
+
+## Supported Versions
+
+| Version | Supported |
+| ------- | --------- |
+| 3.x     | ✅ Active support |
+| < 3.0   | ❌ Not supported |
+
+## Reporting a Vulnerability
+
+If you discover a security vulnerability, please report it responsibly:
+
+1. **Do NOT open a public issue**
+2. Use GitHub's private vulnerability reporting (Security tab), or contact the maintainer directly
+3. Include:
+   - Description of the vulnerability
+   - Steps to reproduce
+   - Potential impact
+   - Any suggested fixes
+
+## Context
+
+BluOS players have no authentication — each device already exposes control on the LAN. Resonance consolidates that surface. Operational guidance (bind address, CORS, OpenAPI) is in [docs/CONFIGURATION.md](docs/CONFIGURATION.md) under **Network exposure**.
+
+## Security Measures
+
+The backend applies:
+
+- Discovered-device targeting with a short grace TTL
+- Private IPv4 gate on BluOS calls (unless explicitly overridden)
+- Same-host validation when following BluOS HTTP redirects. Cover fetches may also use `*.mzstatic.com` over HTTPS, or `resources.tidal.com` (HTTP rewritten to HTTPS). One hop, and the response must be an image. Any other host is refused.
+- Per-device and per-client rate limiting
+- XML size/depth/element caps (including sync-control response OK checks via the hardened parser)
+- Pydantic input validation and HTTP security headers
+- Dependency auditing via Dependabot (npm, pip, GitHub Actions), dependency review on pull requests, CodeQL, `npm audit`, and `pip-audit` in CI
+
+There is **no interactive login**. Players on the LAN have no authentication of their own: a host that can reach a player can already play, change settings, and reboot it. Resonance does not add that ability. `RESONANCE_API_TOKEN` matters when someone can open Resonance and cannot route to the players (a forward, a tunnel, or another VLAN). For that case, `POST /api/v1/session` with the bearer token sets an HttpOnly `resonance_session` cookie. The cookie holds an HMAC derived from the token, not the token itself, and changing `RESONANCE_API_TOKEN` invalidates it. Mutating requests that present only the cookie must also send `X-Resonance-Request: 1`. Tokens are never accepted in the query string. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) **Network exposure**. Otherwise treat bind address and CORS as the exposure boundary. Starting with a non-loopback bind and no token logs an `insecure_bind` warning; tokens are compared as bytes in constant time, so a malformed header is rejected rather than raising.
+
+Details and variable names: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+
+Local development: `make run` (UI `:8765`, API `:8000`). Everyday single process: `make serve` (UI and API on `:8780`). Ops and health endpoints: [docs/RUNBOOK.md](docs/RUNBOOK.md).
+
+## Best Practices for Users
+
+1. Keep dependencies updated
+2. Do not commit `.env` files
+3. Do not expose Resonance to the internet
+
+## Response Timeline
+
+- **Acknowledgment**: Within 48 hours
+- **Initial assessment**: Within 1 week
+- **Fix timeline**: Depends on severity
+  - Critical: 24–48 hours
+  - High: 1 week
+  - Medium: 2 weeks
+  - Low: Next release
+
+---
+
+*Last updated: 2026-08-14*

@@ -1,0 +1,476 @@
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { FleetBar } from '@/components/GlobalVolumeControl';
+import { playerArtSrc } from '@/lib/artwork';
+import type { PlayerStatus, SyncState } from '@/api/types';
+import { LIVE_HOUSE_SESSION } from '@/lib/houseSession';
+import { useFleetStore } from '@/store/fleetStore';
+
+vi.mock('@/components/VolumeNudgeButtons', () => ({
+  VolumeNudgeButtons: () => null,
+}));
+
+function player(
+  partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name'>,
+): PlayerStatus {
+  return {
+    ip: partial.ip ?? `10.0.0.${partial.id}`,
+    model: 'NODE',
+    brand: 'Bluesound',
+    full_model: 'Bluesound NODE',
+    device_class: 'streamer',
+    mac: '',
+    status: 'online',
+    state: 'stop',
+    service: '',
+    service_id: '',
+    volume: 20,
+    muted: false,
+    db: '',
+    fw: '',
+    master: '',
+    group: '',
+    group_volume: null,
+    slaves: [],
+    sync_role: 'standalone',
+    battery: null,
+    track: '',
+    artist: '',
+    album: '',
+    quality: '',
+    stream_format: '',
+    image: '',
+    secs: 0,
+    totlen: 0,
+    can_seek: false,
+    input_type_index: '',
+    consecutive_failures: 0,
+    last_seen: 1,
+    ...partial,
+  };
+}
+
+function renderBar() {
+  return render(
+    <MemoryRouter>
+      <FleetBar />
+    </MemoryRouter>,
+  );
+}
+
+describe('FleetBar house remote art', () => {
+  beforeEach(() => {
+    useFleetStore.setState({
+      devices: [],
+      sync: null,
+      houseSession: LIVE_HOUSE_SESSION,
+      fleetMuteAll: vi.fn(),
+      fleetPauseAll: vi.fn(),
+      fleetStopAll: vi.fn(),
+      setFleetVolume: vi.fn().mockResolvedValue(undefined),
+      holdVolumes: vi.fn(),
+    });
+  });
+
+  it('shows artwork when one house stream is dominant', () => {
+    const sync: SyncState = {
+      groups: [
+        {
+          primary_id: '1',
+          primary_name: 'Zone L',
+          primary_ip: '10.0.0.1',
+          group: '',
+          slave_ids: ['2'],
+          slave_names: ['Zone M'],
+        },
+      ],
+      standalone_ids: [],
+    };
+    useFleetStore.setState({
+      devices: [
+        player({
+          id: '1',
+          name: 'Zone B',
+          state: 'play',
+          service: 'AirPlay',
+          sync_role: 'primary',
+          track: 'Track',
+          artist: 'Artist',
+          image: 'http://10.0.0.1/cover.jpg',
+        }),
+        player({
+          id: '2',
+          name: 'Zone C',
+          state: 'stream',
+          sync_role: 'synced',
+          master: '10.0.0.1:11000',
+          track: 'Track',
+          artist: 'Artist',
+        }),
+      ],
+      sync,
+    });
+
+    renderBar();
+    const art = screen.getByRole('link', {
+      name: /Now playing artwork — open Track/,
+    });
+    expect(art).toHaveAttribute('href', '/player/1');
+    expect(art.querySelector('img')).toHaveAttribute(
+      'src',
+      playerArtSrc('1', 'http://10.0.0.1/cover.jpg'),
+    );
+    expect(screen.getByText('Track — Artist')).toBeInTheDocument();
+    expect(screen.getByText('AirPlay')).toBeInTheDocument();
+    expect(screen.queryByText(/Open house/)).not.toBeInTheDocument();
+  });
+
+  it('shows stream format and bitrate under the track when available', () => {
+    useFleetStore.setState({
+      devices: [
+        player({
+          id: '1',
+          name: 'Zone M',
+          state: 'play',
+          service: 'TIDAL connect',
+          track: 'Meadow',
+          artist: 'Artist',
+          quality: 'cd',
+          stream_format: 'FLAC',
+          image: 'http://10.0.0.1/cover.jpg',
+        }),
+      ],
+      sync: null,
+    });
+
+    renderBar();
+    expect(screen.getByText('Meadow — Artist')).toBeInTheDocument();
+    expect(screen.getByText('TIDAL connect / FLAC / CD')).toBeInTheDocument();
+  });
+
+  it('shows track/service for parallel same-stream endpoints without room counts', () => {
+    useFleetStore.setState({
+      devices: [
+        player({
+          id: '1',
+          name: 'Zone A',
+          state: 'play',
+          service: 'AirPlay',
+          track: 'Daybreak',
+          artist: 'Harbor',
+          image: 'http://10.0.0.1/cover.jpg',
+        }),
+        player({
+          id: '2',
+          name: 'Zone B',
+          state: 'stream',
+          service: 'AirPlay',
+          track: 'Daybreak',
+          artist: 'Harbor',
+        }),
+      ],
+      sync: null,
+    });
+
+    renderBar();
+    expect(screen.getByText('Daybreak — Harbor')).toBeInTheDocument();
+    expect(screen.getByText('AirPlay')).toBeInTheDocument();
+    expect(screen.getByText('2 playing')).toBeInTheDocument();
+    expect(screen.queryByText(/rooms/)).not.toBeInTheDocument();
+    const art = screen.getByRole('link', {
+      name: /Now playing artwork — open Daybreak/,
+    });
+    expect(art).toHaveAttribute('href', '/player/1');
+  });
+
+  it('keeps the focused stream visible and switches it from Also playing', () => {
+    useFleetStore.setState({
+      devices: [
+        player({
+          id: '1',
+          name: 'Zone L',
+          state: 'play',
+          track: 'Party',
+          artist: 'A',
+          image: 'http://art/party.jpg',
+        }),
+        player({
+          id: '2',
+          name: 'Zone F',
+          state: 'play',
+          track: 'Quiet',
+          artist: 'B',
+          image: 'http://art/quiet.jpg',
+        }),
+      ],
+      sync: null,
+    });
+
+    renderBar();
+    expect(screen.getByRole('region', { name: 'Also playing' })).toBeInTheDocument();
+    expect(screen.getByText('1 other stream')).toBeInTheDocument();
+    expect(screen.getByText('Quiet — B').closest('p')).toHaveAttribute('title', 'Quiet — B');
+    const quietArt = screen.getByRole('link', { name: /Now playing artwork — open Quiet/ });
+    expect(quietArt.querySelector('img')).toHaveAttribute(
+      'src',
+      playerArtSrc('2', 'http://art/quiet.jpg'),
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Party/ }));
+    const partyArt = screen.getByRole('link', { name: /Now playing artwork — open Party/ });
+    expect(partyArt.querySelector('img')).toHaveAttribute(
+      'src',
+      playerArtSrc('1', 'http://art/party.jpg'),
+    );
+  });
+
+  it('puts the house remote left of volume', () => {
+    useFleetStore.setState({
+      devices: [
+        player({
+          id: '1',
+          name: 'Zone M',
+          state: 'play',
+          volume: 26,
+          track: 'Daybreak',
+        }),
+        player({
+          id: '2',
+          name: 'Zone R',
+          model: 'CI S2',
+          brand: 'NAD',
+          full_model: 'NAD CI S2',
+          volume: 60,
+        }),
+      ],
+      sync: null,
+    });
+
+    const { container } = renderBar();
+    const bar = container.querySelector('.fleet-bar');
+    expect(bar?.firstElementChild).toHaveClass('house-remote-stack');
+    expect(bar?.querySelector('.house-remote')).toBeInTheDocument();
+    expect(bar?.lastElementChild).toHaveClass('fleet-bar-rail');
+    expect(screen.getByRole('heading', { name: 'Bluesound' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'NAD CI S2' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'House' })).toBeInTheDocument();
+  });
+
+  it('sets Bluesound volume from house level chips', async () => {
+    const setFleetVolume = vi.fn().mockResolvedValue(undefined);
+    useFleetStore.setState({
+      devices: [
+        player({
+          id: '1',
+          name: 'Zone M',
+          volume: 20,
+        }),
+        player({
+          id: '2',
+          name: 'Zone R',
+          model: 'CI S2',
+          brand: 'NAD',
+          full_model: 'NAD CI S2',
+          volume: 60,
+        }),
+      ],
+      sync: null,
+      setFleetVolume,
+    });
+
+    renderBar();
+    expect(screen.getByRole('group', { name: 'Bluesound levels' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Set Bluesound volume to 20' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(screen.getByRole('button', { name: 'Set Bluesound volume to 48' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Set Bluesound volume to 60' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set Bluesound volume to 48' }));
+    await waitFor(() => expect(setFleetVolume).toHaveBeenCalledWith(48, ['1']));
+  });
+
+  it('sets NAD CI S2 volume from level chips', async () => {
+    const setFleetVolume = vi.fn().mockResolvedValue(undefined);
+    useFleetStore.setState({
+      devices: [
+        player({
+          id: '1',
+          name: 'Zone M',
+          volume: 26,
+        }),
+        player({
+          id: '2',
+          name: 'Zone R',
+          model: 'CI S2',
+          brand: 'NAD',
+          full_model: 'NAD CI S2',
+          volume: 60,
+        }),
+      ],
+      sync: null,
+      setFleetVolume,
+    });
+
+    renderBar();
+    expect(screen.getByRole('group', { name: 'NAD CI S2 levels' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Bluesound levels' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Set NAD CI S2 volume to 60' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set NAD CI S2 volume to 42' }));
+    await waitFor(() => expect(setFleetVolume).toHaveBeenCalledWith(42, ['2']));
+  });
+
+  it('keeps a group linked when one room is muted, and names the muted room', () => {
+    const ciS2 = { model: 'CI S2', brand: 'NAD', full_model: 'NAD CI S2' };
+    useFleetStore.setState({
+      devices: [
+        player({ id: '1', name: 'Zone One', ...ciS2, volume: 50 }),
+        player({ id: '2', name: 'Zone Two', ...ciS2, volume: 0, muted: true, mute_volume: 60 }),
+        player({ id: '3', name: 'Zone Three', ...ciS2, volume: 50 }),
+      ],
+      sync: null,
+    });
+
+    renderBar();
+    const panel = screen.getByRole('region', { name: 'NAD CI S2' });
+    expect(panel).toHaveTextContent('NAD CI S2 → 50');
+    expect(panel).toHaveTextContent('linked');
+    expect(panel).not.toHaveTextContent(/re-sync/i);
+    expect(within(panel).getByText('1 muted')).toHaveAttribute('title', 'Stays muted: Zone Two');
+    expect(screen.getByLabelText('Set volume on NAD CI S2 zones')).toHaveValue('50');
+  });
+
+  it('disables a group slider when every room in it is muted', () => {
+    const ciS2 = { model: 'CI S2', brand: 'NAD', full_model: 'NAD CI S2' };
+    useFleetStore.setState({
+      devices: [
+        player({ id: '1', name: 'Zone One', ...ciS2, volume: 0, muted: true, mute_volume: 50 }),
+      ],
+      sync: null,
+    });
+
+    renderBar();
+    expect(screen.getByRole('region', { name: 'NAD CI S2' })).toHaveTextContent('All muted');
+    expect(screen.getByLabelText('Set volume on NAD CI S2 zones')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Set NAD CI S2 volume to 50' })).toBeDisabled();
+  });
+
+  describe('group slider writes', () => {
+    const ciS2 = { model: 'CI S2', brand: 'NAD', full_model: 'NAD CI S2' };
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function setup(extra: PlayerStatus[] = []) {
+      const setFleetVolume = vi.fn<(level: number, deviceIds?: string[]) => Promise<void>>(
+        () => new Promise<void>((resolve) => window.setTimeout(resolve, 30)),
+      );
+      useFleetStore.setState({
+        devices: [
+          player({ id: '1', name: 'Zone One', ...ciS2, volume: 40 }),
+          player({ id: '2', name: 'Zone Two', ...ciS2, volume: 40 }),
+          ...extra,
+        ],
+        sync: null,
+        setFleetVolume,
+      });
+      renderBar();
+      return { setFleetVolume, slider: screen.getByLabelText('Set volume on NAD CI S2 zones') };
+    }
+
+    it('sends a level once when the slider is released right after the debounce', async () => {
+      const { setFleetVolume, slider } = setup();
+      fireEvent.pointerDown(slider);
+      fireEvent.change(slider, { target: { value: '45' } });
+      await vi.advanceTimersByTimeAsync(90);
+      fireEvent.pointerUp(slider);
+      await vi.advanceTimersByTimeAsync(500);
+      expect(setFleetVolume).toHaveBeenCalledTimes(1);
+      expect(setFleetVolume).toHaveBeenCalledWith(45, ['1', '2']);
+    });
+
+    it('leaves muted rooms out of the write it sends', async () => {
+      const { setFleetVolume, slider } = setup([
+        player({ id: '3', name: 'Zone Three', ...ciS2, volume: 0, muted: true, mute_volume: 50 }),
+      ]);
+      fireEvent.pointerDown(slider);
+      fireEvent.change(slider, { target: { value: '45' } });
+      fireEvent.pointerUp(slider);
+      await vi.advanceTimersByTimeAsync(500);
+      expect(setFleetVolume).toHaveBeenCalledWith(45, ['1', '2']);
+    });
+
+    it('sends nothing when the slider is tapped without moving', async () => {
+      const { setFleetVolume, slider } = setup([
+        player({ id: '3', name: 'Zone Three', ...ciS2, volume: 30 }),
+      ]);
+      fireEvent.pointerDown(slider);
+      fireEvent.pointerUp(slider);
+      await vi.advanceTimersByTimeAsync(500);
+      expect(setFleetVolume).not.toHaveBeenCalled();
+      expect(slider).toHaveValue('40');
+    });
+
+    it('keeps the dragged level when an earlier write finishes mid-drag', async () => {
+      const { setFleetVolume, slider } = setup();
+      fireEvent.pointerDown(slider);
+      fireEvent.change(slider, { target: { value: '45' } });
+      // The 45 write is still in flight when the finger moves on to 48.
+      await vi.advanceTimersByTimeAsync(90);
+      fireEvent.change(slider, { target: { value: '48' } });
+      await vi.advanceTimersByTimeAsync(200);
+      expect(slider).toHaveValue('48');
+      expect(setFleetVolume.mock.calls.map(([level]) => level)).toEqual([45, 48]);
+      fireEvent.pointerUp(slider);
+      await vi.advanceTimersByTimeAsync(500);
+      expect(setFleetVolume).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('keeps NAD C658 off house sliders and out of Bluesound writes', async () => {
+    const setFleetVolume = vi.fn().mockResolvedValue(undefined);
+    useFleetStore.setState({
+      devices: [
+        player({ id: '1', name: 'Zone E', volume: 26 }),
+        player({
+          id: '2',
+          name: 'NAD C658',
+          model: 'C658',
+          brand: 'NAD',
+          full_model: 'NAD C658',
+          volume: 56,
+        }),
+        player({
+          id: '3',
+          name: 'Zone M',
+          model: 'CI S2',
+          brand: 'NAD',
+          full_model: 'NAD CI S2',
+          volume: 60,
+        }),
+      ],
+      sync: null,
+      setFleetVolume,
+    });
+
+    renderBar();
+    expect(screen.getByRole('heading', { name: 'Bluesound' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'NAD CI S2' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'NAD C658' })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Set volume on Bluesound players'), {
+      target: { value: '20' },
+    });
+    await waitFor(() => expect(setFleetVolume).toHaveBeenCalledWith(20, ['1']));
+  });
+});
