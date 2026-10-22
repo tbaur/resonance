@@ -1,6 +1,8 @@
 name: Tests
 
 on:
+  push:
+    branches: [ main ]
   pull_request:
     branches: [ main ]
   merge_group:
@@ -9,9 +11,10 @@ on:
 permissions:
   contents: read
 
+# Every commit on main keeps its own result, so the README badge reflects it.
 concurrency:
   group: test-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 jobs:
   backend:

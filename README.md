@@ -3,9 +3,13 @@
 **Resonance for BluOS**
 
 [![Tests](https://github.com/tbaur/resonance/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/tbaur/resonance/actions/workflows/test.yml?query=branch%3Amain)
+[![CodeQL](https://github.com/tbaur/resonance/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/tbaur/resonance/actions/workflows/codeql.yml?query=branch%3Amain)
+[![Release](https://img.shields.io/github/v/release/tbaur/resonance)](https://github.com/tbaur/resonance/releases/latest)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![Node](https://img.shields.io/badge/node-22%2B-green.svg)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg)](https://www.typescriptlang.org/)
+[![mypy](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy-lang.org/)
 
 Resonance controls every BluOS player on your network: Nodes, Pulse, NAD CI zones, and the rest. It discovers the fleet (mDNS + LSDP), then keeps house-wide playback, volume, grouping, and presence live in the browser. Custom Integration API **v1.7**.
 
