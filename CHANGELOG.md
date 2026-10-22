@@ -1,6 +1,6 @@
 # Changelog
 
-## [3.0.0](https://github.com/tbaur/resonance/compare/v2.3.0...v3.0.0) (2026-10-22)
+## [3.0.0](https://github.com/tbaur/resonance/releases/tag/v3.0.0) (2026-10-22)
 
 
 ### Features
