@@ -1,4 +1,4 @@
-"""LSDP (Lenbrook Service Discovery Protocol), BluOS Custom Integration API v1.7 appendix 13."""
+"""LSDP (Lenbrook Service Discovery Protocol)."""
 
 from __future__ import annotations
 

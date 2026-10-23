@@ -11,7 +11,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg)](https://www.typescriptlang.org/)
 [![mypy](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy-lang.org/)
 
-Resonance controls every BluOS player on your network: Nodes, Pulse, NAD CI zones, and the rest. It discovers the fleet (mDNS + LSDP), then keeps house-wide playback, volume, grouping, and presence live in the browser. Custom Integration API **v1.7**.
+Resonance controls every BluOS player on your network: Nodes, Pulse, NAD CI zones, and the rest. It discovers the fleet (mDNS + LSDP), then keeps house-wide playback, volume, grouping, and presence live in the browser.
 
 ![House remote playing one stream, with two other streams underneath](docs/images/now-playing.png)
 

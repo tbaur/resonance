@@ -53,7 +53,7 @@ class BluOSMediaMixin(BluOSStatusMixin):
 
     @classmethod
     def _input_type_from_capture(cls, display_name: str, icon: str) -> str:
-        """Map capture menu labels/icons to v1.7 inputTypeIndex type tokens."""
+        """Map capture menu labels/icons to inputTypeIndex type tokens."""
         name = (display_name or "").lower()
         for needle, type_name in cls._INPUT_HINTS:
             if needle in name:
@@ -65,7 +65,7 @@ class BluOSMediaMixin(BluOSStatusMixin):
         return "analog"
 
     async def get_queue(self, ip: str) -> QueueResponse | None:
-        """Play queue via BluOS v1.7 GET /Playlist."""
+        """Play queue via GET /Playlist."""
         raw = await self._get(ip, "/Playlist", query="start=0&end=500")
         if not raw:
             return None
@@ -95,17 +95,17 @@ class BluOSMediaMixin(BluOSStatusMixin):
         return QueueResponse(items=items, count=count)
 
     async def clear_queue(self, ip: str) -> bool:
-        """Clear play queue via BluOS v1.7 GET /Clear."""
+        """Clear play queue via GET /Clear."""
         return self._ok(await self._control_get(ip, "/Clear"))
 
     async def move_queue_item(self, ip: str, from_index: int, to_index: int) -> bool:
-        """Move queue track via BluOS v1.7 GET /Move?old=&new=."""
+        """Move queue track via GET /Move?old=&new=."""
         return self._ok(
             await self._control_get(ip, "/Move", query=f"old={from_index}&new={to_index}")
         )
 
     async def get_inputs(self, ip: str) -> list[AudioInput] | None:
-        """List capture inputs via BluOS v1.7 Settings?id=capture."""
+        """List capture inputs via Settings?id=capture."""
         raw = await self._get(ip, "/Settings", query="id=capture&schemaVersion=32")
         if not raw:
             return None
@@ -181,7 +181,7 @@ class BluOSMediaMixin(BluOSStatusMixin):
         )
 
     async def get_bluetooth_info(self, ip: str) -> BluetoothResponse | None:
-        """Probe Bluetooth from capture settings (no /AudioModes GET in v1.7).
+        """Probe Bluetooth from capture settings (no /AudioModes GET).
 
         Returns ``None`` on hard failure (unreachable / unparseable). When capture
         settings load but omit ``bluetoothAutoplay``, returns ``supported=False``

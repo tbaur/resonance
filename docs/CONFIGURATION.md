@@ -6,7 +6,7 @@ Default settings are for local development: bind localhost, discover via mDNS+LS
 
 Local UI is Vite on **port 8765** (`make run` / `frontend` `npm run dev`). CORS defaults match that origin. The API defaults to **port 8000**. `make serve` puts the UI and API on one port, **8780** (`SERVE_PORT`), so CORS does not apply to it.
 
-BluOS control paths follow Custom Integration API **v1.7** (queue via `/Playlist`, capture inputs via `/Settings?id=capture`, Bluetooth via `/audiomodes`, audio/player settings via `/Settings?id=audio|player`). Device diagnostics and upgrade checks use the player web UI on port 80 (`/diagnostics`, `/upgrade`). Setting writes use the reverse-engineered web UI `POST /settings` form (same path as the native control panel).
+BluOS control paths follow the BluOS API spec (queue via `/Playlist`, capture inputs via `/Settings?id=capture`, Bluetooth via `/audiomodes`, audio/player settings via `/Settings?id=audio|player`). Device diagnostics and upgrade checks use the player web UI on port 80 (`/diagnostics`, `/upgrade`). Setting writes use the reverse-engineered web UI `POST /settings` form (same path as the native control panel).
 
 ## Network exposure
 
@@ -73,7 +73,7 @@ NAD CI multi-zone chassis expose each zone as its own BluOS endpoint (often `:11
 
 ## Polling and device HTTP
 
-Each online player has a Status etag long-poll (Custom Integration API v1.7). The connection is held until playback/volume/grouping changes or `RESONANCE_STATUS_LONG_POLL_SECONDS` elapses. `secs` is interpolated in the UI and does not wake the poll. `/SyncStatus` is fetched when Status `<syncStat>` changes (required for per-follower volume). Once Resonance knows a player's `/SyncStatus` etag, it also long-polls `/SyncStatus`, because a follower's `/Status` shows its group's playback: muting the follower, changing its volume, or moving it to another group changes only its `/SyncStatus`. Whichever hold answers first with a change ends the wait. Long-polls do not take a `RESONANCE_MAX_CONCURRENT_DEVICE_CALLS` slot. A house or per-player control cancels that held read (waits up to `RESONANCE_CONTROL_INTERRUPT_WAIT_SECONDS`) so `/Volume` and `/Skip` are not queued behind the 100s hold. Offline rooms are omitted from mute-all / volume-all so a dead player cannot stall the rest behind `RESONANCE_DEVICE_HTTP_TIMEOUT`. Connect failures still use `RESONANCE_DEVICE_HTTP_TIMEOUT` so a powered-off player is not waited out for 100s.
+Each online player has a Status etag long-poll. The connection is held until playback/volume/grouping changes or `RESONANCE_STATUS_LONG_POLL_SECONDS` elapses. `secs` is interpolated in the UI and does not wake the poll. `/SyncStatus` is fetched when Status `<syncStat>` changes (required for per-follower volume). Once Resonance knows a player's `/SyncStatus` etag, it also long-polls `/SyncStatus`, because a follower's `/Status` shows its group's playback: muting the follower, changing its volume, or moving it to another group changes only its `/SyncStatus`. Whichever hold answers first with a change ends the wait. Long-polls do not take a `RESONANCE_MAX_CONCURRENT_DEVICE_CALLS` slot. A house or per-player control cancels that held read (waits up to `RESONANCE_CONTROL_INTERRUPT_WAIT_SECONDS`) so `/Volume` and `/Skip` are not queued behind the 100s hold. Offline rooms are omitted from mute-all / volume-all so a dead player cannot stall the rest behind `RESONANCE_DEVICE_HTTP_TIMEOUT`. Connect failures still use `RESONANCE_DEVICE_HTTP_TIMEOUT` so a powered-off player is not waited out for 100s.
 
 Discovery (mDNS/LSDP + enrich) runs at startup, on **Rescan**, when the fleet is empty (`RESONANCE_EMPTY_FLEET_REDISCOVERY_SECONDS`), and in the poller when `RESONANCE_DISCOVERY_CACHE_TTL` expires. `GET /devices`, `GET /sync`, and house control read the in-memory snapshot.
 
@@ -82,9 +82,9 @@ Drop history (`GET /api/v1/fleet/health`, House page Health, player 12-hour pres
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `RESONANCE_POLL_INTERVAL` | `3` | Retry delay after a missed Status long-poll (before circuit slow-poll) |
-| `RESONANCE_STATUS_LONG_POLL_SECONDS` | `100` | `/Status?timeout=` hold time (v1.7 recommended 100s; minimum 10s) |
+| `RESONANCE_STATUS_LONG_POLL_SECONDS` | `100` | `/Status?timeout=` hold time (BluOS API spec recommends 100s; minimum 10s) |
 | `RESONANCE_LONG_POLL_READ_SLACK_SECONDS` | `5` | Extra HTTP read time so httpx does not cut off the player at exactly `timeout=` |
-| `RESONANCE_LONG_POLL_GAP_SECONDS` | `1` | Minimum spacing between consecutive `/Status` GETs on the same player (v1.7 requires ≥ 1s) |
+| `RESONANCE_LONG_POLL_GAP_SECONDS` | `1` | Minimum spacing between consecutive `/Status` GETs on the same player (BluOS API spec requires ≥ 1s) |
 | `RESONANCE_DEVICE_HTTP_TIMEOUT` | `3` | Connect/control HTTP timeout (long-poll read timeout is separate) |
 | `RESONANCE_MAX_CONCURRENT_DEVICE_CALLS` | `20` | Cap concurrent BluOS HTTP calls |
 | `RESONANCE_CONTROL_RATE_LIMIT_SECONDS` | `0.1` | Per **device endpoint** (`ip:port`) spacing for outbound BluOS control and web-UI writes |

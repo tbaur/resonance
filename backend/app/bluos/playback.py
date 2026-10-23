@@ -42,7 +42,7 @@ class BluOSPlaybackMixin(BluOSTransport):
         return await self._command(ip, "/Volume", query=f"mute={1 if mute else 0}")
 
     async def seek(self, ip: str, seconds: int) -> bool:
-        """Seek the current track via BluOS v1.7 GET /Play?seek=."""
+        """Seek the current track via GET /Play?seek=."""
         secs = max(0, min(86_400, int(seconds)))
         return await self._command(ip, "/Play", query=f"seek={secs}")
 

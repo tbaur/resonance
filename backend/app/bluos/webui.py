@@ -126,7 +126,7 @@ class BluOSWebUIMixin(BluOSTransport):
     async def reboot(self, ip: str) -> bool:
         """Restart the player via the device web UI (:80).
 
-        Custom Integration API v1.7 documents one reboot: POST /reboot with
+        The BluOS API spec documents one reboot: POST /reboot with
         yes=1. There is no separate soft path — POST /Reboot soft=1 404s on
         current firmware, and :11000 has no reboot handler.
         """
