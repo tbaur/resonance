@@ -3,4 +3,4 @@
 PRODUCT_NAME = "Resonance"
 PACKAGE_NAME = "resonance"
 
-__version__ = "3.0.1"  # x-release-please-version
+__version__ = "3.0.2"  # x-release-please-version
