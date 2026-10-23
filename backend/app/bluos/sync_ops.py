@@ -38,6 +38,19 @@ class BluOSSyncMixin(BluOSStatusMixin):
         sync = self._parse_sync(raw, ep)
         return not bool(sync.get("master"))
 
+    async def player_is_muted(self, endpoint: str) -> bool | None:
+        """Live mute from /SyncStatus. None when the player did not answer."""
+        resolved = self._resolve_target(endpoint)
+        if not resolved:
+            return None
+        ep = format_endpoint(*resolved)
+        raw = await self._get(ep, "/SyncStatus")
+        if not self._bluos_response_ok(raw, ep):
+            return None
+        assert raw is not None
+        muted = self._parse_sync(raw, ep).get("muted")
+        return muted if isinstance(muted, bool) else None
+
     async def _wait_until_ungrouped(self, slave_ep: str) -> bool:
         attempts = max(1, self._ungroup_verify_attempts)
         delay = max(0.0, self._ungroup_verify_delay)

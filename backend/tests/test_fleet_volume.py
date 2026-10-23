@@ -38,6 +38,7 @@ async def test_fleet_volume_sets_all(settings: Settings, monkeypatch: pytest.Mon
     app = create_app()
     client = BluOSClient(settings)
     client.set_volume = AsyncMock(return_value=True)  # type: ignore[method-assign]
+    client.player_is_muted = AsyncMock(return_value=False)  # type: ignore[method-assign]
     events = EventBus()
     discovery = DiscoveryService(settings, client)
     players = [
@@ -88,6 +89,7 @@ async def test_fleet_volume_filters_device_ids(
     app = create_app()
     client = BluOSClient(settings)
     client.set_volume = AsyncMock(return_value=True)  # type: ignore[method-assign]
+    client.player_is_muted = AsyncMock(return_value=False)  # type: ignore[method-assign]
     events = EventBus()
     discovery = DiscoveryService(settings, client)
     players = [
@@ -251,6 +253,50 @@ async def test_fleet_volume_with_every_room_muted_sends_nothing(
         )
     assert response.status_code == 200
     assert response.json()["skipped_muted"] == 1
+    client.set_volume.assert_not_awaited()
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_fleet_volume_skips_a_room_whose_cached_mute_is_stale(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    players = [
+        PlayerStatus(id="zone-one", ip="192.168.1.10", name="Zone One", status="online", volume=60),
+        PlayerStatus(id="zone-two", ip="192.168.1.11", name="Zone Two", status="online", volume=30),
+    ]
+    app, client, _, poller = await app_with_players(settings, monkeypatch, players=players)
+    client.set_volume = AsyncMock(return_value=True)  # type: ignore[method-assign]
+    client.player_is_muted = AsyncMock(  # type: ignore[method-assign]
+        side_effect=lambda endpoint: endpoint == "192.168.1.11:11000"
+    )
+    refreshed: list[str] = []
+    monkeypatch.setattr(poller, "schedule_refresh", refreshed.append)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as http:
+        response = await http.post("/api/v1/fleet/volume", json={"level": 50})
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["succeeded"], body["failed"], body["skipped_muted"]) == (1, 0, 1)
+    client.set_volume.assert_awaited_once_with("192.168.1.10:11000", 50)
+    assert "zone-two" in refreshed
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_fleet_volume_with_every_room_muted_live_is_not_a_failure(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app, client, _, _ = await app_with_players(settings, monkeypatch)
+    client.set_volume = AsyncMock(return_value=True)  # type: ignore[method-assign]
+    client.player_is_muted = AsyncMock(return_value=True)  # type: ignore[method-assign]
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as http:
+        response = await http.post("/api/v1/fleet/volume", json={"level": 50})
+    assert response.status_code == 200
+    assert (response.json()["succeeded"], response.json()["skipped_muted"]) == (0, 1)
     client.set_volume.assert_not_awaited()
     await client.aclose()
 

@@ -66,7 +66,9 @@ def _volume_targets(body: VolumeRequest, state: AppState) -> list[PlayerStatus]:
 async def set_fleet_volume(body: VolumeRequest, state: StateDep) -> FleetVolumeResponse:
     """Set volume on discovered players (optionally filtered by ``device_ids``).
 
-    Muted players are left alone: a BluOS level write unmutes the player.
+    Muted players are left alone: a BluOS level write unmutes the player. Each
+    player's mute is read again just before the write, because the poller's view
+    of a grouped follower can lag behind the player.
     """
     targets = _volume_targets(body, state)
     muted = [device for device in targets if device.muted]
@@ -87,6 +89,13 @@ async def set_fleet_volume(body: VolumeRequest, state: StateDep) -> FleetVolumeR
         host = endpoint_host(endpoint, default_port=default_port)
         if not host or not state.settings.is_allowed_device_ip(host):
             return FleetVolumeResult(device_id=device_id, name=name, ok=False)
+        if await state.client.player_is_muted(endpoint):
+            logger.info(
+                "fleet_volume_skipped_live_mute",
+                extra={"device_id": device_id, "device_ip": endpoint},
+            )
+            state.poller.schedule_refresh(device_id)
+            return FleetVolumeResult(device_id=device_id, name=name, ok=True, skipped_muted=True)
         logger.info(
             "control_op",
             extra={"op": "fleet_volume", "device_id": device_id, "device_ip": endpoint},
@@ -123,19 +132,26 @@ async def set_fleet_volume(body: VolumeRequest, state: StateDep) -> FleetVolumeR
     results = await asyncio.gather(
         *(set_one(d.id, d.name, d.endpoint) for d in targets)
     )
-    succeeded = sum(1 for r in results if r.ok)
-    failed = len(results) - succeeded
+    written = [r for r in results if not r.skipped_muted]
+    succeeded = sum(1 for r in written if r.ok)
+    failed = len(written) - succeeded
+    skipped_count = len(skipped) + len(results) - len(written)
     logger.info(
         "fleet_action_complete",
-        extra={"action": "volume", "succeeded": succeeded, "failed": failed},
+        extra={
+            "action": "volume",
+            "succeeded": succeeded,
+            "failed": failed,
+            "skipped_muted": skipped_count,
+        },
     )
-    if succeeded == 0:
+    if written and succeeded == 0:
         raise AppError(502, "fleet_volume_failed", "Failed to set volume on all devices")
     return FleetVolumeResponse(
         level=level,
         succeeded=succeeded,
         failed=failed,
-        skipped_muted=len(skipped),
+        skipped_muted=skipped_count,
         results=[*results, *skipped],
     )
 

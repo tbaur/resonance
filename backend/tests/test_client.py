@@ -112,6 +112,31 @@ async def test_muted_player_reports_muted_and_its_unmute_level(
 
 
 @pytest.mark.asyncio
+@respx.mock
+@pytest.mark.parametrize(
+    ("response", "expected"),
+    [
+        (httpx.Response(200, content=SYNC_STATUS_MUTED), True),
+        (httpx.Response(200, content=SYNC_STATUS), False),
+        (httpx.ConnectError("down"), None),
+    ],
+)
+async def test_player_is_muted_reads_live_syncstatus(
+    settings: Settings, response: httpx.Response | Exception, expected: bool | None
+) -> None:
+    route = respx.get("http://192.168.1.30:11010/SyncStatus")
+    if isinstance(response, Exception):
+        route.mock(side_effect=response)
+    else:
+        route.mock(return_value=response)
+    client = BluOSClient(settings)
+    try:
+        assert await client.player_is_muted("192.168.1.30:11010") is expected
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_leftover_mute_volume_on_an_audible_player_is_not_muted(
     settings: Settings,
 ) -> None:
