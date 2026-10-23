@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.2](https://github.com/tbaur/resonance/compare/v3.0.1...v3.0.2) (2026-10-23)
+
+
+### Bug Fixes
+
+* **fleet:** read each room's live mute before a house volume write ([#22](https://github.com/tbaur/resonance/issues/22)) ([bf12dbf](https://github.com/tbaur/resonance/commit/bf12dbfd92f9a2050b45dab17869ad112a9a4f7d))
+
 ## [3.0.1](https://github.com/tbaur/resonance/compare/v3.0.0...v3.0.1) (2026-10-23)
 
 
