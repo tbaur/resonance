@@ -81,6 +81,11 @@ export interface PresenceDrop {
   slow_poll: boolean;
 }
 
+/** Addresses of companion apps. An empty string means the app is not set up. */
+export interface AppLinks {
+  valence_url: string;
+}
+
 export interface FleetHealthResponse {
   started_at: number;
   observed_at: number;

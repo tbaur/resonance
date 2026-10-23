@@ -29,6 +29,16 @@ def test_config_validators() -> None:
     assert Settings().is_allowed_device_ip("::1") is False
 
 
+def test_valence_url_must_be_a_web_address() -> None:
+    assert Settings(valence_url=" https://valence.example.com ").valence_url == (
+        "https://valence.example.com"
+    )
+    assert Settings(valence_url="").valence_url == ""
+    for bad in ("javascript:alert(1)", "valence.example.com", "https://", "https://a b.example"):
+        with pytest.raises(ValidationError):
+            Settings(valence_url=bad)
+
+
 def test_settings_read_resonance_prefixed_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RESONANCE_PORT", "9123")
     monkeypatch.setenv("RESONANCE_LOG_LEVEL", "debug")

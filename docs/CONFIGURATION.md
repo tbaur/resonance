@@ -30,6 +30,7 @@ BluOS control calls go only to discovered private IPs (see `RESONANCE_ALLOW_NON_
 | `RESONANCE_TRUSTED_PROXIES` | *(empty)* | Comma-separated peer IPs allowed to supply `X-Forwarded-For` for API rate-limit keys |
 | `RESONANCE_STATIC_DIR` | *(empty)* | SPA dist directory for single-process serve (path relative to uvicorn cwd) |
 | `RESONANCE_ENABLE_OPENAPI` | auto | OpenAPI/Swagger; auto-off when binding beyond localhost |
+| `RESONANCE_VALENCE_URL` | *(empty)* | When set to an `http` or `https` address, the header shows a Valence pill that links there |
 
 `make run` reads `RESONANCE_HOST` and `RESONANCE_PORT` through the backend's settings loader, so it follows the same precedence as the API. It also passes the port to Vite so the dev proxy follows it. When `RESONANCE_HOST` is `0.0.0.0`, the health probe and the UI proxy still use `127.0.0.1`.
 

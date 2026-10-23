@@ -1,5 +1,6 @@
 import type {
   ApiErrorBody,
+  AppLinks,
   AudioInput,
   BluetoothResponse,
   DeviceSettingsResponse,
@@ -118,6 +119,7 @@ export const api = {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     }),
+  links: () => request<AppLinks>('/links'),
   listDevices: () => request<DevicesResponse>('/devices'),
   refreshDevices: () =>
     request<DevicesResponse>('/devices/refresh', { method: 'POST' }),

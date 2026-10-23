@@ -1,4 +1,4 @@
-"""Health, readiness, and version endpoints."""
+"""Health, readiness, version, and companion app endpoints."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from app import __version__
 from app.api.common import StateDep
 from app.api.errors import AppError
 from app.auth import SESSION_COOKIE, session_cookie_value
-from app.models import HealthResponse, VersionInfo
+from app.models import AppLinks, HealthResponse, VersionInfo
 
 router = APIRouter()
 
@@ -54,6 +54,11 @@ async def readyz(state: StateDep) -> HealthResponse:
 @router.get("/version", response_model=VersionInfo)
 async def version() -> VersionInfo:
     return VersionInfo(version=__version__)
+
+
+@router.get("/links", response_model=AppLinks)
+async def links(state: StateDep) -> AppLinks:
+    return AppLinks(valence_url=state.settings.valence_url)
 
 
 @router.post("/session", status_code=204)
