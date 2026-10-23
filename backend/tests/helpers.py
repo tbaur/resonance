@@ -43,6 +43,8 @@ async def app_with_players(
 
     app = create_app()
     client = BluOSClient(settings)
+    # Fleet volume reads each player's live mute; route tests have no players.
+    client.player_is_muted = AsyncMock(return_value=False)  # type: ignore[method-assign]
     events = EventBus()
     discovery = DiscoveryService(settings, client)
     devices = players or [
