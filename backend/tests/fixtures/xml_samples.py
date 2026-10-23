@@ -36,12 +36,12 @@ SYNC_STATUS_SLAVE = b"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 </SyncStatus>
 """
 
-# Muted player on firmware 4.16: no mute attribute, only muteVolume/muteDb (API v1.7 says mute="1").
+# Muted player on firmware 4.16: no mute attribute, only muteVolume/muteDb (the BluOS API spec says mute="1").
 SYNC_STATUS_MUTED = b"""<?xml version="1.0" encoding="UTF-8"?>
 <SyncStatus etag="281" syncStat="281" version="4.16.22" id="192.168.1.30:11010" db="-100" volume="0" muteVolume="50" muteDb="-40.1" name="Zone One" model="CI-S2" modelName="CI S2" class="streamer" brand="NAD" mac="02:00:00:00:00:01:11010"></SyncStatus>
 """
 
-# The documented v1.7 shape, in case a later firmware restores the attribute.
+# The shape the BluOS API spec documents, in case a later firmware restores the attribute.
 SYNC_STATUS_MUTED_DOCUMENTED = SYNC_STATUS_MUTED.replace(b'volume="0"', b'volume="0" mute="1"')
 
 STATUS_MUTED = b"""<?xml version="1.0" encoding="UTF-8"?>

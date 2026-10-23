@@ -79,7 +79,7 @@ class BluOSStatusMixin(BluOSTransport):
         if mute_raw not in ("", None):
             muted = mute_raw in {"1", "true", "True"}
         elif volume is not None:
-            # API v1.7 documents a mute attribute here, but firmware 4.16 omits it
+            # The BluOS API spec documents a mute attribute here, but firmware 4.16 omits it
             # and only adds muteVolume (with volume="0") while the player is muted.
             muted = mute_volume is not None and volume == 0
         return {

@@ -249,7 +249,7 @@ class StatusPoller:
         hold_until = now + self.settings.long_poll_gap_seconds
         tasks: list[asyncio.Task[PlayerSnapshot]] = []
         for device_id in device_ids:
-            # Stamp the v1.7 Status gap from *this* cancel. The previous cycle
+            # Stamp the Status gap from *this* cancel. The previous cycle
             # set _last_status_at at hold start, so the watcher would otherwise
             # open a new 100s poll before /Volume runs.
             self._last_status_at[device_id] = now

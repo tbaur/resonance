@@ -1,4 +1,4 @@
-"""Status etag long-poll (Custom Integration API v1.7)."""
+"""Status etag long-poll."""
 
 from __future__ import annotations
 
