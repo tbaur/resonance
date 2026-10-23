@@ -53,6 +53,7 @@ class StatusPoller:
         self._failures: dict[str, int] = {}
         self._next_due: dict[str, float] = {}
         self._status_etags: dict[str, str] = {}
+        self._sync_etags: dict[str, str] = {}
         self._sync_stats: dict[str, str] = {}
         self._sync_read_at: dict[str, float] = {}
         self._last_status_at: dict[str, float] = {}
@@ -427,6 +428,7 @@ class StatusPoller:
             sync_stat=sync_stat,
             previous=device if etag else None,
             long_poll_seconds=wait,
+            sync_etag=self._sync_etags.get(device.id) if etag else None,
         )
 
     def _mark_unreachable(self, device: PlayerStatus, exc: BaseException) -> PlayerStatus:
@@ -506,6 +508,8 @@ class StatusPoller:
             return
         if snap.status_etag:
             self._status_etags[device_id] = snap.status_etag
+        if snap.sync_etag:
+            self._sync_etags[device_id] = snap.sync_etag
         previous_sync = self._sync_stats.get(device_id)
         if snap.sync_stat:
             self._sync_stats[device_id] = snap.sync_stat
@@ -516,6 +520,7 @@ class StatusPoller:
 
     def _forget_tags(self, device_id: str) -> None:
         self._status_etags.pop(device_id, None)
+        self._sync_etags.pop(device_id, None)
         self._sync_stats.pop(device_id, None)
         self._sync_read_at.pop(device_id, None)
 
