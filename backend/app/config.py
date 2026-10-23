@@ -6,11 +6,14 @@ from functools import lru_cache
 from ipaddress import IPv4Address, ip_address
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DiscoveryMethod = Literal["mdns", "lsdp", "both"]
+
+_MAX_URL_LENGTH = 2000
 
 # Repo root `.env` (docs) plus cwd `.env` when running from backend/
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -75,6 +78,8 @@ class Settings(BaseSettings):
     bluos_port: int = Field(default=11000, ge=1, le=65535)
     web_ui_port: int = Field(default=80, ge=1, le=65535)
     static_dir: str = ""
+    # When set, the header links to Valence at this address.
+    valence_url: str = ""
 
     @field_validator("host")
     @classmethod
@@ -88,6 +93,22 @@ class Settings(BaseSettings):
             ip_address(value)
         except ValueError as exc:
             raise ValueError(f"invalid bind host: {value}") from exc
+        return value
+
+    @field_validator("valence_url")
+    @classmethod
+    def validate_valence_url(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            return value
+        parts = urlsplit(value)
+        if (
+            parts.scheme not in {"http", "https"}
+            or not parts.netloc
+            or len(value) > _MAX_URL_LENGTH
+            or any(character.isspace() for character in value)
+        ):
+            raise ValueError("valence_url must be an http or https address")
         return value
 
     @field_validator("log_level")

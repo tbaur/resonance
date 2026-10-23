@@ -200,4 +200,19 @@ async def test_health_and_version(settings: Settings, monkeypatch: pytest.Monkey
         devices = await http.get("/api/v1/devices")
         assert devices.status_code == 200
         assert len(devices.json()["devices"]) == 1
+        links = await http.get("/api/v1/links")
+        assert links.json() == {"valence_url": ""}
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_links_name_a_configured_valence(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+):
+    settings.valence_url = "https://valence.example.com"
+    app, client = await _app_with_player(settings, monkeypatch)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as http:
+        links = await http.get("/api/v1/links")
+        assert links.json() == {"valence_url": "https://valence.example.com"}
     await client.aclose()

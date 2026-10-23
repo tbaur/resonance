@@ -1022,6 +1022,17 @@ a {
   font-weight: 400;
 }
 
+.pill-link {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.pill-link:hover,
+.pill-link:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
 .btn {
   appearance: none;
   border: 1px solid var(--border);

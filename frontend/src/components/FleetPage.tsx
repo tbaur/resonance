@@ -4,6 +4,7 @@ import { FleetBar } from '@/components/GlobalVolumeControl';
 import { PlayerRow } from '@/components/PlayerCard';
 import { StatusPills } from '@/components/StatusPills';
 import { SyncPanel } from '@/components/SyncPanel';
+import { ValenceLink } from '@/components/ValenceLink';
 import {
   fleetSortLabel,
   nextFleetSortMode,
@@ -59,6 +60,7 @@ export function FleetPage() {
             discoveryMethod={discoveryMethod}
             loading={loading || refreshing}
           />
+          <ValenceLink />
           <button
             type="button"
             className="btn btn-primary header-rescan"

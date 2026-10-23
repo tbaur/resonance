@@ -380,6 +380,12 @@ class VersionInfo(BaseModel):
     name: str = PACKAGE_NAME
 
 
+class AppLinks(BaseModel):
+    """Addresses of companion apps. Empty means the app is not set up."""
+
+    valence_url: str = ""
+
+
 class HealthResponse(BaseModel):
     status: Literal["ok", "degraded", "error"]
     details: dict[str, Any] = Field(default_factory=dict)
