@@ -1,7 +1,15 @@
 /**
- * Spacing between writes from one control. The API answers 429 when the same
- * client POSTs to one path faster than RESONANCE_API_RATE_LIMIT_SECONDS (50 ms by default).
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Spacing between writes from one control.
+ *
+ * The API answers 429 when the same client POSTs to one path faster than
+ * RESONANCE_API_RATE_LIMIT_SECONDS (50 ms by default).
  */
+
 export const MIN_SEND_INTERVAL_MS = 120;
 
 export interface LatestValueSender<T> {

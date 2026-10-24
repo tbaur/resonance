@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Volume steps up and down, and stops at 0 and at 100.
+ */
+
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { VolumeNudgeButtons } from '@/components/VolumeNudgeButtons';

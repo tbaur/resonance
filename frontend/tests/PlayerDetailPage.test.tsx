@@ -1,3 +1,15 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * The player page checks for an upgrade and reboots only after confirm.
+ *
+ * Bluetooth stays hidden when the player does not
+ * support it, and uptime still shows.
+ */
+
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';

@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Names and lists the players on the focused stream,
+ * and the other streams under it.
+ */
+
 import type { PlayerStatus, SyncRole, SyncState } from '@/api/types';
 import type { HouseStreamSource } from '@/lib/fleetStatus';
 import { displaySyncRole } from '@/lib/syncGraph';

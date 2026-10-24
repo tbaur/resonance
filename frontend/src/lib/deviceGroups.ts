@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Splits rooms into volume peers. Bluesound and NAD CI S2 stay apart.
+ */
+
 import type { PlayerStatus } from '@/api/types';
 
 export type VolumePeerGroup = 'bluesound' | 'ci-s2' | 'independent';

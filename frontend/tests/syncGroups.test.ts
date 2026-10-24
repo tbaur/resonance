@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Free rooms, adding a follower without mutating the previous graph, and
+ * everyone else left standalone.
+ */
+
 import { describe, expect, it } from 'vitest';
 import type { PlayerStatus, SyncGroup } from '@/api/types';
 import {

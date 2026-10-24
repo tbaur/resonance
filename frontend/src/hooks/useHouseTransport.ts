@@ -1,3 +1,14 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Play, pause, and skip for the focused stream.
+ *
+ * Synced followers follow the lead. A room playing on its own does not.
+ */
+
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/api/client';
 import type { PlayerStatus, SyncState } from '@/api/types';

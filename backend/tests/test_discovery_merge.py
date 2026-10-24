@@ -1,3 +1,10 @@
+# Copyright (c) 2026 tbaur
+#
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for full license text
+
+"""Discovery mode both keeps a player found by mDNS and by LSDP as one room."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock

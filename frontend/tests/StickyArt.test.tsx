@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * The last image stays when the URL goes empty. No image
+ * at all shows the empty state.
+ */
+
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { StickyArt } from '@/components/StickyArt';

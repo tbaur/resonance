@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Browser calls to /api/v1. Failures become ApiError and keep the request id.
+ */
+
 import type {
   ApiErrorBody,
   AppLinks,

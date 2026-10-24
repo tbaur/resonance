@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Catches a render error and shows a generic
+ * message instead of the thrown text.
+ */
+
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
 interface Props {

@@ -1,3 +1,10 @@
+# Copyright (c) 2026 tbaur
+#
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for full license text
+
+"""A stop signal runs our callback first, then the server's own handler."""
+
 from __future__ import annotations
 
 import signal

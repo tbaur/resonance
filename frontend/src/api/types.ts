@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Types for players, sync groups, fleet actions,
+ * and the errors the API returns.
+ */
+
 export type SyncRole = 'primary' | 'synced' | 'standalone';
 
 /** Reachability, decided by our poller — not by the device. */

@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Recent poller drops for this server process, under the house remote.
+ */
+
 import { Link } from 'react-router';
 import type { PresenceDrop } from '@/api/types';
 import { fleetHealthCaption, formatClockTime, formatDropDuration } from '@/lib/health';

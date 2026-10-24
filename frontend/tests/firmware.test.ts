@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Dotted firmware versions sort in numeric order.
+ */
+
 import { describe, expect, it } from 'vitest';
 import { compareFirmware } from '@/lib/firmware';
 

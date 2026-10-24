@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Meta parts join with a slash. Track and artist are not repeated when
+ * BluOS sends the same name twice.
+ */
+
 import { describe, expect, it } from 'vitest';
 import { META_SEP, formatTrackArtist, joinMeta } from '@/lib/meta';
 

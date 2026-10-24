@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Playhead position between polls. A large jump is a seek, not jitter.
+ */
+
 /** Drift larger than this (seconds) is a seek/skip, not poll jitter. */
 export const PLAYBACK_SNAP_SECS = 1.75;
 

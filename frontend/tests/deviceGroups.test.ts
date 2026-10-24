@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Bluesound rooms and NAD CI S2 rooms are separate volume peers. A residential
+ * NAD player is neither a CI S2 nor a Bluesound room.
+ */
+
 import { describe, expect, it } from 'vitest';
 import type { PlayerStatus } from '@/api/types';
 import {

@@ -1,3 +1,16 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Queue for the open player, and inputs, presets, and Bluetooth
+ * only while Advanced is open.
+ *
+ * The volume slider paints immediately and sends the
+ * latest level after a short pause.
+ */
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/api/client';
 import type {

@@ -1,3 +1,10 @@
+# Copyright (c) 2026 tbaur
+#
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for full license text
+
+"""Player snapshots: group volume, mute, and the name BluOS reports for a service."""
+
 from __future__ import annotations
 
 from pathlib import Path

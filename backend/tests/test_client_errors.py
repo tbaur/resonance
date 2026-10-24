@@ -1,3 +1,8 @@
+# Copyright (c) 2026 tbaur
+#
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for full license text
+
 """BluOS client error and edge-path coverage."""
 
 from __future__ import annotations

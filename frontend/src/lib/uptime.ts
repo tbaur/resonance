@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Parses a BluOS diagnostics uptime and formats it for the player page.
+ */
+
 /** Parse BluOS diagnostics uptime (`37h13m24s`, `12h3m`, `9d4h`) to seconds. */
 export function parseBluosUptime(raw: string): number | null {
   const compact = raw.trim().replace(/\s+/g, '');

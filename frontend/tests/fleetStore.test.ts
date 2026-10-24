@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Volume and mute holds survive a poll. A transport hold does not freeze mute.
+ */
+
 import { beforeEach, describe, expect, it } from 'vitest';
 import { LIVE_HOUSE_SESSION } from '@/lib/houseSession';
 import { useFleetStore } from '@/store/fleetStore';

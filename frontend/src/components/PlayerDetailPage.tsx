@@ -1,3 +1,14 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * One player: now playing, queue, diagnostics, and advanced settings.
+ *
+ * A new player id starts the page over.
+ */
+
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { api } from '@/api/client';

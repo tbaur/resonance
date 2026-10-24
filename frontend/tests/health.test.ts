@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Time before the first online report is unknown. An open drop is a down gap.
+ */
+
 import { describe, expect, it } from 'vitest';
 import type { FleetHealthResponse, PresenceDrop } from '@/api/types';
 import {

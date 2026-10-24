@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * The event stream carries no token in the query. While it is down the UI
+ * polls REST, and after eight failures it waits a minute.
+ */
+
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { useLiveFleet } from '@/hooks/useLiveFleet';

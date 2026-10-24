@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Labels for the discovery method the backend used, and a player count.
+ */
+
 const DISCOVERY_LABEL: Record<string, string> = {
   both: 'mDNS + LSDP',
   mdns: 'mDNS',

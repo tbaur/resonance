@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * A lone player, a BluOS group, and rooms streaming the same audio on their
+ * own each get their own label.
+ */
+
 import { describe, expect, it } from 'vitest';
 import type { PlayerStatus } from '@/api/types';
 import type { HouseStreamSource } from '@/lib/fleetStatus';

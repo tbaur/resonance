@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Group and ungroup from the UI, painting the new
+ * link before BluOS reports it.
+ */
+
 import { useState } from 'react';
 import { api } from '@/api/client';
 import type { SyncGroup } from '@/api/types';

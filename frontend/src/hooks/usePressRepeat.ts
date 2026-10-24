@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Runs an action on press, then repeats it while the button is held.
+ */
+
 import { useEffect, useRef, type MouseEvent, type PointerEvent } from 'react';
 
 type PressRepeatHandlers = {

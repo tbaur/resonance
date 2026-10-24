@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Role follows the group graph. A leftover synced flag
+ * disappears once that group is gone.
+ */
+
 import { describe, expect, it } from 'vitest';
 import type { PlayerStatus, SyncState } from '@/api/types';
 import { displaySyncRole, dropStaleFollowerClaims } from '@/lib/syncGraph';

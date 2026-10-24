@@ -1,3 +1,14 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * The house remote beside the shared volume sliders.
+ *
+ * Bluesound and NAD CI S2 each have their own scale.
+ */
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PlayerStatus } from '@/api/types';
 import { HouseRemote } from '@/components/HouseRemote';

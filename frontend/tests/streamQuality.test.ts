@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * BluOS bit rates render as kbps next to the stream
+ * format. Named tiers stay labels.
+ */
+
 import { describe, expect, it } from 'vitest';
 import { streamQualityLabel } from '@/lib/streamQuality';
 

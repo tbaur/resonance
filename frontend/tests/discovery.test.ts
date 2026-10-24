@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Known discovery methods get a label. An unknown method is
+ * shown as the backend sent it.
+ */
+
 import { describe, expect, it } from 'vitest';
 import { discoveryLabel, playerCountLabel } from '@/lib/discovery';
 

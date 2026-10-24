@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Holds the last album image when the URL blips empty, and
+ * swaps immediately for a new URL.
+ */
+
 import { useState, type ReactNode } from 'react';
 import { safeImageSrc } from '@/lib/artwork';
 

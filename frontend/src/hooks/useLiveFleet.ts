@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Holds the server-sent event stream open, applies fleet payloads, and falls
+ * back to REST while the stream is down.
+ */
+
 import { useEffect, useRef } from 'react';
 import type { FleetHealthResponse, PlayerStatus, SyncState } from '@/api/types';
 import { useFleetStore } from '@/store/fleetStore';

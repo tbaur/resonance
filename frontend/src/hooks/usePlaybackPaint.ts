@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Moves a progress bar between status polls, and keeps a drag from
+ * jumping when it is released.
+ */
+
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { playbackPosition, shouldSnapPlayback } from '@/lib/playbackClock';
 

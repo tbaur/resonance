@@ -1,3 +1,15 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Live fleet state for the UI.
+ *
+ * A command paints at once and holds that paint until BluOS catches up. A
+ * failed call restores the snapshot from before the command.
+ */
+
 import { create } from 'zustand';
 import { api } from '@/api/client';
 import type {

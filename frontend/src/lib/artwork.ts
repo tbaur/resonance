@@ -1,4 +1,11 @@
-/** Artwork URL vetting for images supplied by LAN players. */
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Artwork URL vetting for images supplied by players on the LAN.
+ */
 
 const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 const INLINE_IMAGE = /^data:image\/(?:png|jpeg|jpg|gif|webp|avif);/i;

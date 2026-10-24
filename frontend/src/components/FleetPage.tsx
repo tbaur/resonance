@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * The fleet: every player, sort, the volume bar, and sync groups.
+ */
+
 import { useMemo, useState } from 'react';
 import { AppMenu } from '@/components/AppMenu';
 import { FleetBar } from '@/components/GlobalVolumeControl';

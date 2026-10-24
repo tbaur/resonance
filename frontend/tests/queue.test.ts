@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Moving the first queue track down, and ignoring an index outside the queue.
+ */
+
 import { describe, expect, it } from 'vitest';
 import type { QueueResponse } from '@/api/types';
 import { reorderQueue } from '@/lib/queue';

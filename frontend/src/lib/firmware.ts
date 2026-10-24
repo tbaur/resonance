@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Compares dotted firmware versions, such as 4.10.0 and 4.16.6.
+ */
+
 /** Compare dotted firmware versions (4.10.0 vs 4.16.6). */
 export function compareFirmware(a: string, b: string): number {
   const pa = a.split('.').map((part) => Number.parseInt(part, 10) || 0);
