@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.1](https://github.com/tbaur/resonance/compare/v4.0.0...v4.0.1) (2026-10-24)
+
+
+### Bug Fixes
+
+* **poller:** hold one long-poll so rooms stay online ([#30](https://github.com/tbaur/resonance/issues/30)) ([8e69882](https://github.com/tbaur/resonance/commit/8e698822a429d36c5b077aeb6ccf460ce26d15ed))
+
 ## [4.0.0](https://github.com/tbaur/resonance/compare/v3.1.0...v4.0.0) (2026-10-24)
 
 
