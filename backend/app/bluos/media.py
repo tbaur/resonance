@@ -15,7 +15,7 @@ from app.bluos.result import CallResult
 from app.bluos.status import BluOSStatusMixin
 from app.bluos.xml import safe_parse_xml, text
 from app.models import AudioInput, BluetoothResponse, Preset, QueueItem, QueueResponse
-from app.validators import sanitize_ip
+from app.validators import format_endpoint, sanitize_ip
 
 _ART_SUFFIXES = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif")
 _ART_HINTS = ("/artwork", "/images/", "/image/", "/var/data/")
@@ -181,9 +181,7 @@ class BluOSMediaMixin(BluOSStatusMixin):
                 return False
             type_index = match.id
         encoded = quote(type_index, safe="-")
-        return self._ok(
-            await self._control_get(ip, "/Play", query=f"inputTypeIndex={encoded}")
-        )
+        return self._ok(await self._control_get(ip, "/Play", query=f"inputTypeIndex={encoded}"))
 
     async def get_bluetooth_info(self, ip: str) -> BluetoothResponse | None:
         """Probe Bluetooth from capture settings (no /AudioModes GET).
@@ -288,11 +286,12 @@ class BluOSMediaMixin(BluOSStatusMixin):
             return None
         try:
             async with self._sem:
-                response = await self._follow_artwork_get(
-                    ip,
-                    url,
-                    timeout=self.settings.device_http_timeout,
-                )
+                async with self._endpoint_slot(format_endpoint(ip, port)):
+                    response = await self._follow_artwork_get(
+                        ip,
+                        url,
+                        timeout=self.settings.device_http_timeout,
+                    )
         except (httpx.TimeoutException, httpx.TransportError, OSError):
             return None
         if response is None or response.status_code >= 400:
@@ -304,4 +303,3 @@ class BluOSMediaMixin(BluOSStatusMixin):
         if not media.startswith("image/"):
             return None
         return body, media
-

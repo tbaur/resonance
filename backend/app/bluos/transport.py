@@ -23,6 +23,16 @@ from app.validators import format_endpoint, parse_endpoint, sanitize_ip
 
 logger = logging.getLogger(__name__)
 
+
+def _failure_kind(result: CallResult) -> str:
+    """A short label for logs. Transport failures keep the exception name."""
+    if result.kind in {"timeout", "transport"} and result.detail:
+        return result.detail
+    if result.detail and result.detail != result.kind:
+        return f"{result.kind}:{result.detail}"
+    return result.kind or "unreachable"
+
+
 _MAX_REDIRECTS = 5
 _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 # Apple Music covers redirect to https://*.mzstatic.com. TIDAL connect names
@@ -32,6 +42,10 @@ _TIDAL_ART_HOST = "resources.tidal.com"
 # Idle control sockets stay warm across a mute/volume session. Long-polls are
 # in-use and do not use this expiry.
 _CONTROL_KEEPALIVE_EXPIRY_SECONDS = 60.0
+# A BluOS player answers only a few HTTP calls at once. Two held long-polls
+# fill that, and the player keeps streaming while Status, art, and queue
+# all time out. One hold plus one other call is the cap.
+_MAX_HTTP_PER_ENDPOINT = 2
 
 
 class BluOSTransport:
@@ -53,6 +67,7 @@ class BluOSTransport:
         )
         self._rate = RateLimiter(settings.control_rate_limit_seconds)
         self._sem = asyncio.Semaphore(settings.max_concurrent_device_calls)
+        self._endpoint_slots: dict[str, asyncio.Semaphore] = {}
         # Short-lived settings page cache so unresolved writes do not double-fetch.
         self._settings_page_cache: dict[tuple[str, str], tuple[float, object]] = {}
         self._settings_page_cache_ttl = 5.0
@@ -128,6 +143,13 @@ class BluOSTransport:
             return None
         return next_url
 
+    def _endpoint_slot(self, endpoint_key: str) -> asyncio.Semaphore:
+        slot = self._endpoint_slots.get(endpoint_key)
+        if slot is None:
+            slot = asyncio.Semaphore(_MAX_HTTP_PER_ENDPOINT)
+            self._endpoint_slots[endpoint_key] = slot
+        return slot
+
     @asynccontextmanager
     async def _call_slot(self, hold_slot: bool) -> AsyncIterator[None]:
         if hold_slot:
@@ -192,9 +214,7 @@ class BluOSTransport:
                     extra={"device_ip": origin_ip, "redirect_host": urlparse(location).hostname},
                 )
                 return None
-            same_player = self._redirect_target_allowed(
-                origin_ip, current, location, warn=False
-            )
+            same_player = self._redirect_target_allowed(origin_ip, current, location, warn=False)
             if same_player is not None:
                 current = same_player
                 continue
@@ -264,7 +284,8 @@ class BluOSTransport:
         for attempt in range(attempts):
             try:
                 async with self._call_slot(hold_slot):
-                    response = await self._follow_get(sanitized, url, timeout=timeout)
+                    async with self._endpoint_slot(endpoint_key):
+                        response = await self._follow_get(sanitized, url, timeout=timeout)
                 if response is None:
                     return CallResult.failure("rejected", "redirect blocked")
                 if response.status_code >= 400:
@@ -306,6 +327,31 @@ class BluOSTransport:
             )
         return CallResult.failure("transport", detail)
 
+    async def _read(
+        self,
+        target: str,
+        path: str,
+        *,
+        query: str = "",
+        retries: int = 3,
+        control: bool = False,
+        timeout: float | httpx.Timeout | None = None,
+        hold_slot: bool = True,
+    ) -> tuple[bytes | None, str]:
+        """Return ``(body, failure_kind)``. ``failure_kind`` is empty on success."""
+        result = await self._transport_get(
+            target,
+            path,
+            query=query,
+            retries=retries,
+            control=control,
+            timeout=timeout,
+            hold_slot=hold_slot,
+        )
+        if not result.ok:
+            return None, _failure_kind(result)
+        return result.body, ""
+
     async def _get(
         self,
         target: str,
@@ -317,7 +363,7 @@ class BluOSTransport:
         timeout: float | httpx.Timeout | None = None,
         hold_slot: bool = True,
     ) -> bytes | None:
-        result = await self._transport_get(
+        body, _kind = await self._read(
             target,
             path,
             query=query,
@@ -326,9 +372,7 @@ class BluOSTransport:
             timeout=timeout,
             hold_slot=hold_slot,
         )
-        if not result.ok:
-            return None
-        return result.body
+        return body
 
     async def _control_get(
         self,
@@ -379,7 +423,8 @@ class BluOSTransport:
         url = self._url(sanitized, path, port=port)
         try:
             async with self._sem:
-                response = await self._follow_post(sanitized, url, data or {})
+                async with self._endpoint_slot(endpoint_key):
+                    response = await self._follow_post(sanitized, url, data or {})
             if response is None:
                 return self._ok(CallResult.failure("rejected", "redirect blocked"))
             if response.status_code >= 400:
@@ -416,4 +461,3 @@ class BluOSTransport:
         if raw is None:
             return None
         return raw.decode("utf-8", errors="ignore")
-

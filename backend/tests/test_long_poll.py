@@ -37,7 +37,7 @@ SYNC_AFTER_VOLUME = SYNC_STATUS.replace(b'volume="22"', b'volume="31"').replace(
     b'syncStat="ss-1"', b'syncStat="ss-2"'
 )
 SLAVE_STATUS = STATUS_GROUP_VOLUME.replace(
-    b"<status etag=\"g1\">", b'<status etag="g1">\n  <syncStat>ss-slave</syncStat>'
+    b'<status etag="g1">', b'<status etag="g1">\n  <syncStat>ss-slave</syncStat>'
 )
 SLAVE_SYNC = SYNC_STATUS_SLAVE.replace(b'etag="252"', b'etag="252" syncStat="ss-slave"')
 
@@ -205,9 +205,11 @@ async def test_synced_follower_keeps_syncstatus_volume_on_status_only(
 
 
 FOLLOWER = "http://192.168.1.30:11010"
-FOLLOWER_SYNC = SYNC_STATUS_MUTED.replace(b'volume="0" muteVolume="50"', b'volume="50"').replace(
-    b'etag="281" syncStat="281"', b'etag="280" syncStat="280"'
-).replace(b"></SyncStatus>", b'><master port="11000">192.168.1.74</master></SyncStatus>')
+FOLLOWER_SYNC = (
+    SYNC_STATUS_MUTED.replace(b'volume="0" muteVolume="50"', b'volume="50"')
+    .replace(b'etag="281" syncStat="281"', b'etag="280" syncStat="280"')
+    .replace(b"></SyncStatus>", b'><master port="11000">192.168.1.74</master></SyncStatus>')
+)
 FOLLOWER_SYNC_MUTED = SYNC_STATUS_MUTED.replace(
     b"></SyncStatus>", b'><master port="11000">192.168.1.74</master></SyncStatus>'
 )
@@ -271,18 +273,18 @@ async def test_a_follower_muted_on_its_own_shows_muted_at_once(settings: Setting
         assert snap.player.sync_role == SyncRole.SYNCED
         assert snap.sync_etag == "281"
         assert sync_route.calls.last.request.url.params["etag"] == "280"
-        assert "timeout" not in status_route.calls.last.request.url.params
+        assert sync_route.calls.last.request.url.params["timeout"] == "10"
+        assert status_route.call_count == 0
     finally:
         await client.aclose()
 
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_a_syncstatus_answer_with_no_change_keeps_waiting_on_status(
-    settings: Settings,
-) -> None:
+async def test_follower_long_poll_does_not_hold_status(settings: Settings) -> None:
+    """A second hold is what wedges the player HTTP port. Followers hold SyncStatus only."""
     status_route = _route("/Status", held=STATUS_SKIP, now=STATUS)
-    _route("/SyncStatus", held=FOLLOWER_SYNC, now=FOLLOWER_SYNC)
+    sync_route = _route("/SyncStatus", held=FOLLOWER_SYNC, now=FOLLOWER_SYNC)
     client = BluOSClient(settings)
     try:
         snap = await client.load_player(
@@ -291,18 +293,20 @@ async def test_a_syncstatus_answer_with_no_change_keeps_waiting_on_status(
             status_etag="2",
             sync_stat="ss-1",
             sync_etag="280",
-            previous=_follower(),
+            previous=_follower(volume=11),
             long_poll_seconds=10,
         )
-        assert snap.player.track == "Next Song"
-        assert status_route.call_count == 1
+        assert snap.player.volume == 50
+        assert snap.player.track == ""
+        assert status_route.call_count == 0
+        assert sync_route.calls.last.request.url.params["timeout"] == "10"
     finally:
         await client.aclose()
 
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_cancelling_a_load_releases_both_holds(settings: Settings) -> None:
+async def test_cancelling_a_follower_load_releases_its_one_hold(settings: Settings) -> None:
     status_waiting, sync_waiting = asyncio.Event(), asyncio.Event()
     _route("/Status", held=None, now=FOLLOWER_STATUS, waiting=status_waiting)
     _route("/SyncStatus", held=None, now=FOLLOWER_SYNC, waiting=sync_waiting)
@@ -320,7 +324,8 @@ async def test_cancelling_a_load_releases_both_holds(settings: Settings) -> None
                 long_poll_seconds=10,
             )
         )
-        await asyncio.wait_for(asyncio.gather(status_waiting.wait(), sync_waiting.wait()), 3)
+        await asyncio.wait_for(sync_waiting.wait(), 3)
+        assert not status_waiting.is_set()
         load.cancel()
         with pytest.raises(asyncio.CancelledError):
             await load
@@ -393,8 +398,8 @@ async def test_poller_second_cycle_long_polls_status(settings: Settings) -> None
         assert status_route.calls[1].request.url.params["etag"] == "2"
         assert status_route.calls[1].request.url.params["timeout"] == "10"
         assert poller._sync_etags["p1"] == "1"
-        held_sync = sync_route.calls.last.request.url.params
-        assert (held_sync["etag"], held_sync["timeout"]) == ("1", "10")
+        assert sync_route.call_count == 1
+        assert "timeout" not in sync_route.calls[0].request.url.params
     finally:
         await client.aclose()
 
@@ -427,9 +432,7 @@ async def test_poller_rereads_syncstatus_when_syncstat_never_moves(
         plain_reads += 1
         return httpx.Response(200, content=reads[plain_reads - 1])
 
-    respx.get(url__regex=r"http://192\.168\.1\.20:11000/SyncStatus.*").mock(
-        side_effect=sync_answer
-    )
+    respx.get(url__regex=r"http://192\.168\.1\.20:11000/SyncStatus.*").mock(side_effect=sync_answer)
     client = BluOSClient(settings)
     poller, discovery = _poller(settings, client)
     clock = {"now": 1000.0}
@@ -457,6 +460,104 @@ async def test_poller_rereads_syncstatus_when_syncstat_never_moves(
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_poller_names_the_transport_error(
+    settings: Settings, caplog: pytest.LogCaptureFixture
+) -> None:
+    def status_response(request: httpx.Request) -> httpx.Response:
+        if "timeout" in request.url.params:
+            raise httpx.ConnectError("down")
+        return httpx.Response(200, content=STATUS)
+
+    respx.get(url__regex=r"http://192\.168\.1\.20:11000/Status.*").mock(side_effect=status_response)
+    respx.get("http://192.168.1.20:11000/SyncStatus").mock(
+        return_value=httpx.Response(200, content=SYNC_STATUS)
+    )
+    client = BluOSClient(settings)
+    poller, _discovery = _poller(settings, client)
+    try:
+        await poller._poll_once()
+        with caplog.at_level("INFO", logger="app.services.poller"):
+            await poller._poll_once()
+        stale = next(record for record in caplog.records if record.message == "player_stale")
+        assert stale.failure_kind == "ConnectError"
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_lead_track_is_copied_to_a_grouped_follower(settings: Settings) -> None:
+    sync = SYNC_STATUS.replace(
+        b'<slave id="192.168.1.21"/>',
+        b'<slave id="192.168.1.30" port="11010"/>',
+    )
+    respx.get(url__regex=r"http://192\.168\.1\.20:11000/Status.*").mock(
+        return_value=httpx.Response(200, content=STATUS)
+    )
+    respx.get(url__regex=r"http://192\.168\.1\.20:11000/SyncStatus.*").mock(
+        return_value=httpx.Response(200, content=sync)
+    )
+    client = BluOSClient(settings)
+    poller, discovery = _poller(settings, client)
+    follower = PlayerStatus(
+        id="f1",
+        ip="192.168.1.30",
+        port=11010,
+        name="Zone C",
+        status="online",
+        volume=40,
+        sync_role=SyncRole.SYNCED,
+        master="192.168.1.20:11000",
+        track="Old",
+    )
+    discovery._snapshot.devices.append(follower)
+    discovery._snapshot.ips_by_id["f1"] = "192.168.1.30:11010"
+    try:
+        await poller._cycle_device(discovery.snapshot.devices[0])
+        copied = discovery.get_device("f1")
+        assert copied is not None
+        assert copied.track == "Song Title"
+        assert copied.artist == "Artist Name"
+        assert copied.volume == 40
+        assert copied.image == "http://192.168.1.30:11010/images/album.png"
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_third_call_to_one_player_waits_for_a_free_slot(settings: Settings) -> None:
+    started: list[int] = []
+    release = asyncio.Event()
+    two_started = asyncio.Event()
+
+    async def answer(_request: httpx.Request) -> httpx.Response:
+        started.append(1)
+        if len(started) >= 2:
+            two_started.set()
+        await release.wait()
+        return httpx.Response(200, content=b"<status/>")
+
+    respx.get(url__regex=r"http://192\.168\.1\.20:11000/Status.*").mock(side_effect=answer)
+    client = BluOSClient(settings.model_copy(update={"max_concurrent_device_calls": 10}))
+    try:
+        calls = asyncio.gather(
+            client._get("192.168.1.20", "/Status"),
+            client._get("192.168.1.20", "/Status"),
+            client._get("192.168.1.20", "/Status"),
+        )
+        await asyncio.wait_for(two_started.wait(), 2)
+        await asyncio.sleep(0.05)
+        assert len(started) == 2
+        release.set()
+        await asyncio.wait_for(calls, 2)
+        assert len(started) == 3
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_poller_clears_etag_when_player_goes_offline(settings: Settings) -> None:
     status_calls = {"n": 0}
 
@@ -466,9 +567,7 @@ async def test_poller_clears_etag_when_player_goes_offline(settings: Settings) -
             return httpx.Response(200, content=STATUS)
         raise httpx.ConnectError("down")
 
-    respx.get(url__regex=r"http://192\.168\.1\.20:11000/Status.*").mock(
-        side_effect=status_response
-    )
+    respx.get(url__regex=r"http://192\.168\.1\.20:11000/Status.*").mock(side_effect=status_response)
     respx.get("http://192.168.1.20:11000/SyncStatus").mock(
         return_value=httpx.Response(200, content=SYNC_STATUS)
     )

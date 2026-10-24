@@ -13,15 +13,17 @@ import time
 from collections.abc import Coroutine, Sequence
 from functools import partial
 from typing import Any
+from urllib.parse import urlsplit
 
 from app.bluos.client import BluOSClient
 from app.bluos.status import PlayerSnapshot
 from app.config import Settings
 from app.discovery.service import DiscoveryService
-from app.models import PlayerStatus
+from app.models import PlayerStatus, SyncRole
 from app.services.events import EventBus
 from app.services.health import HealthLog
 from app.services.sync import build_sync_state
+from app.validators import sanitize_ip
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,54 @@ SYNC_RECHECK_SECONDS = 60.0
 # A player reports a new syncStat before its /SyncStatus shows the new group.
 # When syncStat changes, read the player once more after this pause.
 SYNC_SETTLE_SECONDS = 3.0
+# Playback fields a grouped follower shows from its lead. Volume and mute stay
+# on the follower; those come from its own /SyncStatus hold.
+_LEAD_PLAYBACK_FIELDS = (
+    "state",
+    "service",
+    "service_id",
+    "track",
+    "artist",
+    "album",
+    "quality",
+    "stream_format",
+    "secs",
+    "totlen",
+    "can_seek",
+    "shuffle",
+    "repeat",
+    "input_type_index",
+)
+
+
+class PlayerMiss(Exception):
+    """A status read did not return a live player. ``kind`` is safe to log."""
+
+    def __init__(self, kind: str) -> None:
+        super().__init__(kind)
+        self.kind = kind
+
+
+def _image_for_player(image: str, player: PlayerStatus) -> str:
+    """Point player-local art at ``player``. Cover-host URLs stay as they are."""
+    raw = image.strip()
+    if not raw:
+        return ""
+    if raw.startswith("/"):
+        return f"http://{player.ip}:{player.port}{raw}"
+    parts = urlsplit(raw)
+    host = parts.hostname or ""
+    if parts.scheme not in {"http", "https"} or sanitize_ip(host) is None:
+        return raw
+    path = parts.path or "/"
+    query = f"?{parts.query}" if parts.query else ""
+    return f"http://{player.ip}:{player.port}{path}{query}"
+
+
+def _lead_playback(source: PlayerStatus, target: PlayerStatus) -> dict[str, object]:
+    patch: dict[str, object] = {name: getattr(source, name) for name in _LEAD_PLAYBACK_FIELDS}
+    patch["image"] = _image_for_player(source.image, target)
+    return patch
 
 
 class StatusPoller:
@@ -132,9 +182,7 @@ class StatusPoller:
             "health": self.health.snapshot().model_dump(),
         }
 
-    async def refresh_one(
-        self, device_id: str, *, record_miss: bool = True
-    ) -> PlayerStatus | None:
+    async def refresh_one(self, device_id: str, *, record_miss: bool = True) -> PlayerStatus | None:
         """Read one player now and store the result.
 
         A failed read normally counts as a miss: the room goes stale, its failure
@@ -161,10 +209,7 @@ class StatusPoller:
             self._forget_tags(device_id)
             if existing is None:
                 return None
-            player = self._mark_unreachable(
-                existing,
-                RuntimeError(snap.player.status or "unreachable"),
-            )
+            player = self._mark_unreachable(existing, _miss(snap))
             fleet_before = self._fleet_signature()
             wrote = await self.discovery.update_device(player, expect_revision=revision)
             if not wrote:
@@ -366,12 +411,10 @@ class StatusPoller:
                 player = snap.player
                 if player.stale:
                     player = player.model_copy(update={"stale": False})
+                player = self._with_lead_playback(player)
                 self._record_result(player)
             else:
-                player = self._mark_unreachable(
-                    device,
-                    RuntimeError(snap.player.status or "unreachable"),
-                )
+                player = self._mark_unreachable(device, _miss(snap))
                 failed = True
         # The read used the address we started with. If discovery moved the id,
         # writing this reply would point commands back at the old host.
@@ -390,6 +433,8 @@ class StatusPoller:
             return
         stored = self.discovery.get_device(device.id) or player
         self.last_poll_at = time.time()
+        if stored.status == "online" and not failed:
+            await self._copy_playback_to_followers(stored)
         await self._publish_update(device.id, stored, fleet_before=fleet_before)
 
     def _fleet_signature(self) -> tuple[object, ...]:
@@ -434,7 +479,40 @@ class StatusPoller:
             previous=device if etag else None,
             long_poll_seconds=wait,
             sync_etag=self._sync_etags.get(device.id) if etag else None,
+            read_retries=1,
         )
+
+    def _with_lead_playback(self, player: PlayerStatus) -> PlayerStatus:
+        """A grouped follower does not hold /Status. Its track comes from the lead."""
+        if player.sync_role != SyncRole.SYNCED or not player.master:
+            return player
+        lead = self._player_at(player.master)
+        if lead is None or lead.status != "online":
+            return player
+        return player.model_copy(update=_lead_playback(lead, player))
+
+    def _player_at(self, endpoint: str) -> PlayerStatus | None:
+        for device in self.discovery.snapshot.devices:
+            if device.endpoint == endpoint:
+                return device
+        return None
+
+    async def _copy_playback_to_followers(self, lead: PlayerStatus) -> None:
+        if lead.sync_role != SyncRole.PRIMARY:
+            return
+        for device in list(self.discovery.snapshot.devices):
+            if device.sync_role != SyncRole.SYNCED or device.master != lead.endpoint:
+                continue
+            if device.status != "online":
+                continue
+            patch = _lead_playback(lead, device)
+            if all(getattr(device, name) == value for name, value in patch.items()):
+                continue
+            merged = device.model_copy(update=patch)
+            if not await self.discovery.update_device(merged):
+                continue
+            stored = self.discovery.get_device(device.id) or merged
+            await self.events.publish("device", stored.model_dump())
 
     def _mark_unreachable(self, device: PlayerStatus, exc: BaseException) -> PlayerStatus:
         """Keep the last good snapshot until the circuit threshold, then go offline.
@@ -442,7 +520,7 @@ class StatusPoller:
         The health log still opens a drop on the first miss. The room row stays
         up, marked stale, so one blip does not look like the player left.
         """
-        kind = type(exc).__name__
+        kind = exc.kind if isinstance(exc, PlayerMiss) else type(exc).__name__
         logger.debug("poll_device_error id=%s err=%s", device.id, exc)
         # A status that landed while this read was failing is newer than `device`.
         device = self.discovery.get_device(device.id) or device
@@ -450,11 +528,7 @@ class StatusPoller:
         failures = prev_failures + 1
         self._failures[device.id] = failures
         offline = failures >= self.settings.circuit_failure_threshold
-        delay = (
-            self.settings.circuit_slow_poll_seconds
-            if offline
-            else self.settings.poll_interval
-        )
+        delay = self.settings.circuit_slow_poll_seconds if offline else self.settings.poll_interval
         self._next_due[device.id] = time.monotonic() + delay
         player = device.model_copy(
             update={
@@ -560,9 +634,7 @@ class StatusPoller:
     async def _wait_gap(self, device_id: str) -> None:
         now = time.monotonic()
         last = self._last_status_at.get(device_id)
-        gap_until = (
-            last + self.settings.long_poll_gap_seconds if last is not None else 0.0
-        )
+        gap_until = last + self.settings.long_poll_gap_seconds if last is not None else 0.0
         hold_until = self._control_holdoff_until.get(device_id, 0.0)
         await self._sleep(max(gap_until, hold_until) - now)
 
@@ -573,6 +645,10 @@ class StatusPoller:
             await asyncio.wait_for(self._stop.wait(), timeout=seconds)
         except TimeoutError:
             return
+
+
+def _miss(snap: PlayerSnapshot) -> PlayerMiss:
+    return PlayerMiss(snap.failure_kind or snap.player.status or "unreachable")
 
 
 async def _cancel_all(tasks: Sequence[asyncio.Task[Any]]) -> None:

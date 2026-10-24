@@ -38,6 +38,9 @@ class PlayerSnapshot:
     sync_read: bool = False
     # The /SyncStatus etag, for its own long-poll. Empty when this snapshot did not read it.
     sync_etag: str = ""
+    # Why a non-online snapshot missed. Empty when the player is online.
+    # Transport misses keep the exception name (ConnectError, ReadTimeout).
+    failure_kind: str = ""
 
 
 class BluOSStatusMixin(BluOSTransport):
@@ -284,11 +287,13 @@ class BluOSStatusMixin(BluOSTransport):
         sync_stat = str(status.get("sync_stat") or sync.get("sync_stat") or "")
         return etag, sync_stat
 
-    async def _fetch_status_xml(self, endpoint: str, *, etag: str, wait: float) -> bytes | None:
-        return await self._hold(endpoint, "/Status", etag=etag, wait=wait)
+    async def _hold(
+        self, endpoint: str, path: str, *, etag: str, wait: float
+    ) -> tuple[bytes | None, str]:
+        """One etag long-poll. The player answers when ``path`` changes or ``wait`` ends.
 
-    async def _hold(self, endpoint: str, path: str, *, etag: str, wait: float) -> bytes | None:
-        """An etag long-poll: the player answers when ``path`` changes or ``wait`` ends."""
+        A second hold on the same player fills its HTTP slots. Call this once.
+        """
         query = urlencode({"timeout": str(int(wait)), "etag": etag})
         connect = self.settings.device_http_timeout
         timeout = httpx.Timeout(
@@ -297,7 +302,7 @@ class BluOSStatusMixin(BluOSTransport):
             write=connect,
             pool=connect,
         )
-        return await self._get(
+        return await self._read(
             endpoint,
             path,
             query=query,
@@ -305,47 +310,6 @@ class BluOSStatusMixin(BluOSTransport):
             timeout=timeout,
             hold_slot=False,
         )
-
-    async def _wait_for_change(
-        self, endpoint: str, *, status_etag: str, sync_etag: str, wait: float
-    ) -> tuple[bytes | None, bytes | None]:
-        """Hold /Status, and /SyncStatus too when its etag is known.
-
-        A follower's /Status carries its lead's state, so muting or turning down
-        the follower itself, or moving it to another group, changes only its
-        /SyncStatus. Returns ``(status_xml, sync_xml)``. ``sync_xml`` is set only
-        when /SyncStatus changed first, and ``status_xml`` is then a fresh read.
-        """
-        status_task = asyncio.create_task(
-            self._hold(endpoint, "/Status", etag=status_etag, wait=wait)
-        )
-        if not sync_etag:
-            return await status_task, None
-        sync_task = asyncio.create_task(
-            self._hold(endpoint, "/SyncStatus", etag=sync_etag, wait=wait)
-        )
-        try:
-            await asyncio.wait({status_task, sync_task}, return_when=asyncio.FIRST_COMPLETED)
-            changed_sync = None
-            if sync_task.done():
-                sync_xml = sync_task.result()
-                if sync_xml and self._etag_of(sync_xml, endpoint) not in ("", sync_etag):
-                    changed_sync = sync_xml
-            if status_task.done():
-                return status_task.result(), changed_sync
-            if changed_sync is not None:
-                status_task.cancel()
-                return await self._get(endpoint, "/Status"), changed_sync
-            # /SyncStatus answered without a change, so keep waiting on /Status.
-            return await status_task, None
-        finally:
-            for task in (status_task, sync_task):
-                task.cancel()
-            await asyncio.gather(status_task, sync_task, return_exceptions=True)
-
-    def _etag_of(self, xml: bytes, endpoint: str) -> str:
-        root = safe_parse_xml(xml, self.settings, endpoint)
-        return attr(root, "etag") if root is not None else ""
 
     def _snapshot_from_xml(
         self,
@@ -359,6 +323,7 @@ class BluOSStatusMixin(BluOSTransport):
         status_xml: bytes | None,
         previous: PlayerStatus | None = None,
         reuse_sync: bool = False,
+        failure_kind: str = "",
     ) -> PlayerSnapshot:
         player = (
             previous.model_copy(deep=True)
@@ -369,7 +334,7 @@ class BluOSStatusMixin(BluOSTransport):
         # healthy, clear the failure count, and hide the outage.
         if not status_xml and not reuse_sync:
             player.status = "offline"
-            return PlayerSnapshot(player)
+            return PlayerSnapshot(player, failure_kind=failure_kind or "offline")
 
         sync: dict[str, Any] = {}
         if sync_xml and not reuse_sync:
@@ -420,6 +385,7 @@ class BluOSStatusMixin(BluOSTransport):
         previous: PlayerStatus | None = None,
         long_poll_seconds: float | None = None,
         sync_etag: str | None = None,
+        read_retries: int = 3,
     ) -> PlayerSnapshot:
         resolved = self._resolve_target(target)
         if not resolved:
@@ -428,6 +394,18 @@ class BluOSStatusMixin(BluOSTransport):
         sanitized, port = resolved
         endpoint = format_endpoint(sanitized, port)
         if long_poll_seconds is not None and status_etag:
+            if previous is not None and previous.sync_role == SyncRole.SYNCED and sync_etag:
+                return await self._load_sync_long_poll(
+                    endpoint,
+                    sanitized,
+                    port,
+                    device_id,
+                    node_id,
+                    sync_etag=sync_etag,
+                    previous=previous,
+                    wait=long_poll_seconds,
+                    read_retries=read_retries,
+                )
             return await self._load_long_poll(
                 endpoint,
                 sanitized,
@@ -436,13 +414,13 @@ class BluOSStatusMixin(BluOSTransport):
                 node_id,
                 status_etag=status_etag,
                 sync_stat=sync_stat,
-                sync_etag=sync_etag or "",
                 previous=previous,
                 wait=long_poll_seconds,
+                read_retries=read_retries,
             )
-        sync_xml, status_xml = await asyncio.gather(
-            self._get(endpoint, "/SyncStatus"),
-            self._get(endpoint, "/Status"),
+        (sync_xml, _sync_miss), (status_xml, status_miss) = await asyncio.gather(
+            self._read(endpoint, "/SyncStatus", retries=read_retries),
+            self._read(endpoint, "/Status", retries=read_retries),
         )
         return self._snapshot_from_xml(
             sanitized=sanitized,
@@ -452,6 +430,7 @@ class BluOSStatusMixin(BluOSTransport):
             endpoint=endpoint,
             sync_xml=sync_xml,
             status_xml=status_xml,
+            failure_kind=status_miss,
         )
 
     async def _load_long_poll(
@@ -464,33 +443,25 @@ class BluOSStatusMixin(BluOSTransport):
         *,
         status_etag: str,
         sync_stat: str | None,
-        sync_etag: str,
         previous: PlayerStatus | None,
         wait: float,
+        read_retries: int,
     ) -> PlayerSnapshot:
-        status_xml, changed_sync = await self._wait_for_change(
-            endpoint, status_etag=status_etag, sync_etag=sync_etag, wait=wait
-        )
+        status_xml, miss = await self._hold(endpoint, "/Status", etag=status_etag, wait=wait)
         if not status_xml:
             player = self._shell_player(sanitized, port, device_id, node_id)
             player.status = "offline"
-            return PlayerSnapshot(player)
+            return PlayerSnapshot(player, failure_kind=miss or "offline")
         status = self._parse_status(status_xml, sanitized, port=port)
         if not status:
             player = self._shell_player(sanitized, port, device_id, node_id)
             player.status = "xml_error"
-            return PlayerSnapshot(player)
+            return PlayerSnapshot(player, failure_kind="xml_error")
         new_sync = str(status.get("sync_stat") or "")
-        reuse = (
-            changed_sync is None
-            and previous is not None
-            and bool(new_sync)
-            and new_sync == (sync_stat or "")
-        )
-        if changed_sync is not None:
-            sync_xml: bytes | None = changed_sync
-        else:
-            sync_xml = None if reuse else await self._get(endpoint, "/SyncStatus")
+        reuse = previous is not None and bool(new_sync) and new_sync == (sync_stat or "")
+        sync_xml: bytes | None = None
+        if not reuse:
+            sync_xml, _sync_miss = await self._read(endpoint, "/SyncStatus", retries=read_retries)
         return self._snapshot_from_xml(
             sanitized=sanitized,
             port=port,
@@ -502,6 +473,72 @@ class BluOSStatusMixin(BluOSTransport):
             previous=previous,
             reuse_sync=reuse,
         )
+
+    async def _load_sync_long_poll(
+        self,
+        endpoint: str,
+        sanitized: str,
+        port: int,
+        device_id: str | None,
+        node_id: str,
+        *,
+        sync_etag: str,
+        previous: PlayerStatus,
+        wait: float,
+        read_retries: int,
+    ) -> PlayerSnapshot:
+        """Hold /SyncStatus only. A grouped follower's volume lives here, not on /Status."""
+        sync_xml, miss = await self._hold(endpoint, "/SyncStatus", etag=sync_etag, wait=wait)
+        if not sync_xml:
+            player = self._shell_player(sanitized, port, device_id, node_id)
+            player.status = "offline"
+            return PlayerSnapshot(player, failure_kind=miss or "offline")
+        sync = self._parse_sync(sync_xml, endpoint)
+        player = previous.model_copy(deep=True)
+        if not sync:
+            player.status = "xml_error"
+            return PlayerSnapshot(player, failure_kind="xml_error")
+        self._apply_sync_fields(
+            player,
+            sync,
+            endpoint=endpoint,
+            sanitized=sanitized,
+            node_id=node_id,
+            port=port,
+            device_id=device_id,
+        )
+        status_xml = await self._status_if_ungrouped(endpoint, player, read_retries=read_retries)
+        status: dict[str, Any] = {}
+        if status_xml:
+            status = self._parse_status(status_xml, sanitized, port=port)
+            if status:
+                self._apply_status_fields(
+                    player,
+                    status,
+                    overlay_volume=player.sync_role != SyncRole.SYNCED,
+                )
+        self._finalize_player(player)
+        etag, sync_stat = self._tags_from_parsed(status, sync)
+        return PlayerSnapshot(
+            player,
+            status_etag=etag,
+            sync_stat=sync_stat,
+            sync_read=True,
+            sync_etag=str(sync.get("etag") or ""),
+        )
+
+    async def _status_if_ungrouped(
+        self,
+        endpoint: str,
+        player: PlayerStatus,
+        *,
+        read_retries: int,
+    ) -> bytes | None:
+        """Read /Status when a follower leaves the group. Staying grouped copies the lead."""
+        if player.sync_role == SyncRole.SYNCED:
+            return None
+        body, _miss = await self._read(endpoint, "/Status", retries=read_retries)
+        return body
 
     async def get_player_status(
         self,
