@@ -34,7 +34,7 @@ async def events(request: Request, state: StateDep) -> StreamingResponse:
                     break
                 try:
                     payload = await asyncio.wait_for(queue.get(), timeout=keepalive)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     if await request.is_disconnected():
                         break
                     yield ": keepalive\n\n"

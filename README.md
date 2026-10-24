@@ -6,7 +6,7 @@
 [![CodeQL](https://github.com/tbaur/resonance/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/tbaur/resonance/actions/workflows/codeql.yml?query=branch%3Amain)
 [![Release](https://img.shields.io/github/v/release/tbaur/resonance)](https://github.com/tbaur/resonance/releases/latest)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![Node](https://img.shields.io/badge/node-22%2B-green.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg)](https://www.typescriptlang.org/)
 [![mypy](https://img.shields.io/badge/mypy-strict-blue.svg)](https://mypy-lang.org/)
@@ -31,7 +31,7 @@ Ops (health, logs, LAN bind): [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
 ## Requirements
 
-- Python 3.10+ (CI: 3.10, 3.13, 3.14, 3.15)
+- Python 3.11+ (CI: 3.11, 3.13, 3.14, 3.15)
 - Node.js 22+
 - Same LAN as your players
 

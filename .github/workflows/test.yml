@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.13", "3.14", "3.15"]
+        python-version: ["3.11", "3.13", "3.14", "3.15"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -39,27 +39,8 @@ jobs:
         run: make lint-backend
       - name: Test
         run: make test-backend
-      # filelock 4.2.1 fixes CVE-2026-112906 and the five advisories filed with it,
-      # and that release requires Python 3.11. pip-audit installs filelock for its
-      # HTTP cache. Resonance does not import it, so the 3.10 job has no fixed
-      # release to install. Ignore only that gap. Any other finding still fails.
       - name: pip-audit
-        env:
-          PYTHON_VERSION: ${{ matrix.python-version }}
-        run: |
-          extra=()
-          if [ "$PYTHON_VERSION" = "3.10" ]; then
-            echo "Ignoring filelock advisories that have no Python 3.10 fix."
-            extra=(
-              --ignore-vuln CVE-2026-112906
-              --ignore-vuln CVE-2026-112907
-              --ignore-vuln CVE-2026-112913
-              --ignore-vuln CVE-2026-112914
-              --ignore-vuln CVE-2026-112937
-              --ignore-vuln CVE-2026-112940
-            )
-          fi
-          backend/.venv/bin/pip-audit --progress-spinner off "${extra[@]}"
+        run: backend/.venv/bin/pip-audit --progress-spinner off
 
   frontend:
     name: Frontend
