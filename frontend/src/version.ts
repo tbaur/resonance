@@ -7,5 +7,5 @@
  * UI version and the repository URL. Release-please updates the version.
  */
 
-export const APP_VERSION = '4.0.0'; // x-release-please-version
+export const APP_VERSION = '4.0.1'; // x-release-please-version
 export const REPO_URL = 'https://github.com/tbaur/resonance';
