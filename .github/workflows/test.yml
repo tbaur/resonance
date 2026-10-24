@@ -58,11 +58,14 @@ jobs:
       - name: Audit
         working-directory: frontend
         run: npm audit --omit=dev --audit-level=moderate
-      # Everything but react, react-dom, react-router and zustand is a dev
-      # dependency here, so the gate above covers very little. Dev-tree
-      # advisories are often unfixable upstream and must not block unrelated
-      # PRs, but they should not be invisible either: report and continue.
-      - name: Audit dev tree (advisory only)
+      # Production dependencies are few, so the gate above misses most of the
+      # tree. High and critical findings fail here, including devDependencies.
+      # A moderate dev-tree advisory often has no upstream fix, so it is
+      # reported and does not fail the job.
+      - name: Audit full tree
+        working-directory: frontend
+        run: npm audit --audit-level=high
+      - name: Audit dev tree moderates (advisory only)
         continue-on-error: true
         working-directory: frontend
         run: npm audit --audit-level=moderate
