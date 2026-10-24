@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.0.0](https://github.com/tbaur/resonance/compare/v3.1.0...v4.0.0) (2026-10-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* Python 3.10 is no longer supported.
+
+### Features
+
+* require Python 3.11 ([48772c4](https://github.com/tbaur/resonance/commit/48772c4999788ee21a61ea539a4598f3055c5e97))
+
 ## [3.1.0](https://github.com/tbaur/resonance/compare/v3.0.2...v3.1.0) (2026-10-23)
 
 
