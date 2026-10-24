@@ -120,8 +120,9 @@ cd frontend
 npm run lint
 npm run typecheck
 npm run test:coverage                         # gate: thresholds in vite.config.ts
-npm audit --omit=dev --audit-level=moderate   # CI gate (blocking)
-npm audit --audit-level=moderate              # CI reports the dev tree, non-blocking
+npm audit --omit=dev --audit-level=moderate   # CI gate: production, moderate and above
+npm audit --audit-level=high                  # CI gate: full tree, high and critical
+npm audit --audit-level=moderate              # CI reports moderate dev-tree advisories, non-blocking
 npm run build
 ```
 
