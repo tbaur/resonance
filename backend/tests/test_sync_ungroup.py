@@ -1,3 +1,10 @@
+# Copyright (c) 2026 tbaur
+#
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for full license text
+
+"""Leaving a group stops the follower, and stops the lead only when nobody remains."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock

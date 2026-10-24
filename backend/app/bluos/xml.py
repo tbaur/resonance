@@ -1,3 +1,8 @@
+# Copyright (c) 2026 tbaur
+#
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for full license text
+
 """XXE/DoS-hardened XML parsing for BluOS responses.
 
 Entity-expansion attacks (billion laughs, quadratic blowup) are rejected by

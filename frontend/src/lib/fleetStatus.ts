@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * What the house remote shows: which rooms are one stream, who leads, and
+ * which player receives play, pause, and skip.
+ */
+
 import type { PlayerStatus, SyncState } from '@/api/types';
 import { deviceEndpoint, endpointsMatch } from '@/lib/endpoint';
 import {

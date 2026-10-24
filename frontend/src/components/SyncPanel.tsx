@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Multi-room groups: add a follower, group free rooms
+ * under a lead, and remove a room.
+ */
+
 import { useMemo, useState } from 'react';
 import type { PlayerStatus, SyncGroup } from '@/api/types';
 import { useSyncActions } from '@/hooks/useSyncActions';

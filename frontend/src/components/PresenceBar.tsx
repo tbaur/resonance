@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * A bar of up, down, and unknown time for one player's recent presence.
+ */
+
 import type { PresenceSegment } from '@/lib/health';
 
 interface PresenceBarProps {

@@ -7,7 +7,7 @@ name = "resonance"
 version = "3.1.0"
 description = "Resonance for BluOS: control every BluOS player on your network"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 authors = [{ name = "tbaur" }]
 dependencies = [
@@ -56,7 +56,7 @@ show_missing = true
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
@@ -65,7 +65,7 @@ select = ["E", "F", "I", "B", "UP"]
 "tests/fixtures/*" = ["E501"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 strict = true
 ignore_missing_imports = true
 packages = ["app"]

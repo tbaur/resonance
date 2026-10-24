@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Canonical ip:port for a player, and the host and model lines the UI shows.
+ */
+
 import type { PlayerStatus } from '@/api/types';
 import { META_SEP } from '@/lib/meta';
 

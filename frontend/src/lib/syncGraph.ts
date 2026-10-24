@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * A player's role comes from the current group graph. A follower claim
+ * with no group left is dropped.
+ */
+
 import type { PlayerStatus, SyncRole, SyncState } from '@/api/types';
 
 function membership(sync: SyncState): { followerIds: Set<string>; primaryIds: Set<string> } {

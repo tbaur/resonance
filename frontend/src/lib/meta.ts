@@ -1,7 +1,14 @@
 /**
- * Separator for compact meta lines (volume/dB, service/format, status chips).
- * Slash stays legible next to signed values like ``-28.9 dB``; middots do not.
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Separator for compact meta lines: volume, dB, service, format, status.
+ *
+ * A slash stays legible beside a signed value such as -28.9 dB. A middot does not.
  */
+
 export const META_SEP = ' / ';
 
 export function joinMeta(

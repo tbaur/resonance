@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Edits a sync graph in memory: free rooms, a follower
+ * joining a lead, and rooms leaving.
+ */
+
 import type { PlayerStatus, SyncGroup, SyncState } from '@/api/types';
 import { deviceEndpoint } from '@/lib/endpoint';
 

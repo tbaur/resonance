@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Structured API errors keep their request id. A 204 is empty. A hung request
+ * times out. A caller abort is not a timeout.
+ */
+
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { api } from '@/api/client';
 import { ApiError } from '@/api/types';

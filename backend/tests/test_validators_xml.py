@@ -1,3 +1,10 @@
+# Copyright (c) 2026 tbaur
+#
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for full license text
+
+"""IP, endpoint, and device-id checks, plus safe parsing of BluOS XML."""
+
 from app.bluos.xml import attr, safe_parse_xml, text
 from app.config import Settings
 from app.validators import (

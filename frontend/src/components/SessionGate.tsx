@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Renders the app once this browser may call the API. Until then it
+ * shows the token form or a notice.
+ */
+
 import {
   type FormEvent,
   type ReactNode,

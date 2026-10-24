@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Mute patches match a muted BluOS status. Shared sliders skip muted rooms.
+ */
+
 import { describe, expect, it } from 'vitest';
 import {
   audibleDevices,

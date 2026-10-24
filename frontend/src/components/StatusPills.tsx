@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Connection, player count, and how the fleet was discovered.
+ */
+
 import { discoveryLabel, playerCountLabel } from '@/lib/discovery';
 import type { ConnectionState } from '@/store/fleetStore';
 

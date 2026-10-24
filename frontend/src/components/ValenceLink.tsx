@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * A pill that opens Valence. It shows only when the
+ * server has Valence's address.
+ */
+
 import { useEffect, useState } from 'react';
 import { api } from '@/api/client';
 

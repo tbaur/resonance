@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * An idle house, a dominant stream's title, one sync group as the house
+ * stream, and parallel endpoints on the same audio.
+ */
+
 import { describe, expect, it } from 'vitest';
 import type { PlayerStatus, SyncState } from '@/api/types';
 import {

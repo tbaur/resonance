@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Formats a duration as minutes and seconds.
+ */
+
 export function formatClock(totalSeconds: number): string {
   const secs = Math.max(0, Math.floor(totalSeconds));
   const m = Math.floor(secs / 60);

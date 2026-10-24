@@ -1,10 +1,16 @@
 /**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
  * The house remote is a session, not a guess from the latest poll.
  *
  * This house is AirPlay standalones, not a Bluesound sync group. Status
- * arrives one room at a time. User actions pin intent; device snapshots
- * fill in title/art. Connecting after Stop is not playback.
+ * arrives one room at a time. User actions pin intent; device snapshots fill
+ * in title/art. Connecting after Stop is not playback.
  */
+
 export type HouseSessionPhase = 'live' | 'catchup' | 'stopped';
 
 export type HouseSession = {

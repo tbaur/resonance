@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Now playing on the player page: art, title, quality, seek, and transport.
+ */
+
 import { api } from '@/api/client';
 import type { PlayerStatus } from '@/api/types';
 import { SeekBar } from '@/components/SeekBar';

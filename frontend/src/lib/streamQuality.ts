@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * BluOS quality for the UI. Bit rates become kbps. Named tiers stay labels.
+ */
+
 import { joinMeta } from '@/lib/meta';
 
 /**

@@ -1,3 +1,8 @@
+# Copyright (c) 2026 tbaur
+#
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for full license text
+
 """API and domain models."""
 
 from __future__ import annotations
@@ -11,7 +16,8 @@ from app import PACKAGE_NAME
 from app.validators import DEFAULT_BLUOS_PORT, format_endpoint
 
 
-class SyncRole(str, Enum):
+# str() stays "SyncRole.PRIMARY". StrEnum would stringify to "primary".
+class SyncRole(str, Enum):  # noqa: UP042
     PRIMARY = "primary"
     SYNCED = "synced"
     STANDALONE = "standalone"

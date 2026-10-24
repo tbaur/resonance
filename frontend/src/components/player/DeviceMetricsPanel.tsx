@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Diagnostics for one player: host, firmware, uptime,
+ * sync role, and the presence bar.
+ */
+
 import type { ReactNode } from 'react';
 import type {
   DiagnoseResponse,

@@ -1,3 +1,10 @@
+# Copyright (c) 2026 tbaur
+#
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for full license text
+
+"""House volume and mute skip offline rooms and leave a muted room muted."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock

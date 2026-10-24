@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Seek control for a track. The fill keeps moving between polls
+ * and snaps after a real seek.
+ */
+
 import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import type { ChangeEvent, Ref } from 'react';
 import { formatClock } from '@/lib/clock';

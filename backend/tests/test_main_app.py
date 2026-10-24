@@ -1,3 +1,8 @@
+# Copyright (c) 2026 tbaur
+#
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for full license text
+
 """App lifespan, SPA fallback, and exception handlers."""
 
 from __future__ import annotations

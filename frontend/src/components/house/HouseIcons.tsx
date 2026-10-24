@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Icons for transport, volume, shuffle, repeat, and the menu.
+ */
+
 export function IconPrev() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">

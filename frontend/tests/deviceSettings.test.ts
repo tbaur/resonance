@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Binary choices stay On then Off. channelMode writes through audiomodes.
+ * volumeLimits writes through the web UI.
+ */
+
 import { describe, expect, it } from 'vitest';
 import type { DeviceSetting } from '@/api/types';
 import {

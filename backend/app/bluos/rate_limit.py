@@ -1,3 +1,8 @@
+# Copyright (c) 2026 tbaur
+#
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for full license text
+
 """Per-key spacing for outbound BluOS calls and inbound API throttling."""
 
 from __future__ import annotations

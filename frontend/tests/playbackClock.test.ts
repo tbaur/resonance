@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * A paused playhead holds. Playback advances from the wall clock. Jitter
+ * inside the snap window is ignored.
+ */
+
 import { describe, expect, it } from 'vitest';
 import {
   PLAYBACK_SNAP_SECS,

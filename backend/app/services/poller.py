@@ -1,3 +1,8 @@
+# Copyright (c) 2026 tbaur
+#
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for full license text
+
 """Background status poller with per-device etag long-poll."""
 
 from __future__ import annotations
@@ -267,7 +272,7 @@ class StatusPoller:
                 asyncio.gather(*tasks, return_exceptions=True),
                 timeout=wait,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.debug("control_interrupt_wait_timeout count=%s", len(tasks))
 
     async def _run(self) -> None:
@@ -566,7 +571,7 @@ class StatusPoller:
             return
         try:
             await asyncio.wait_for(self._stop.wait(), timeout=seconds)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return
 
 

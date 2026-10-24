@@ -1,3 +1,12 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Reorders a play queue locally so the arrows can paint before BluOS confirms.
+ */
+
 import type { QueueResponse } from '@/api/types';
 
 /** Reorder a play-queue locally so ↑/↓ can paint before BluOS confirms. */

@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Speaker count for the focused stream. It opens the list of
+ * every player on that stream.
+ */
+
 import { useEffect, useRef, useState } from 'react';
 import { rosterHeading, type SpeakerRosterRow } from '@/lib/houseRoster';
 

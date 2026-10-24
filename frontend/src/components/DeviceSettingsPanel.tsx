@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Reads a player's settings and writes a change back
+ * through the path that setting uses.
+ */
+
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/api/client';
 import type { DeviceSetting, DeviceSettingsResponse } from '@/api/types';

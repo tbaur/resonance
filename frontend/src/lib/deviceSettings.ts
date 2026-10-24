@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Visibility, choice order, and value checks for settings
+ * read from a player's web UI.
+ */
+
 import type { DeviceSetting, SettingDependency } from '@/api/types';
 
 export type ChoiceOption = { name: string; label: string };

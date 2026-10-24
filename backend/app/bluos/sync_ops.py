@@ -1,3 +1,8 @@
+# Copyright (c) 2026 tbaur
+#
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for full license text
+
 """Multi-room sync add/remove and orphan reparent-ungroup."""
 
 from __future__ import annotations

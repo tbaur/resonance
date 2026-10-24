@@ -67,7 +67,7 @@ When behavior users or operators can see changes, update the matching docs in th
 
 ### Prerequisites
 
-- Python 3.10+ (CI: 3.10, 3.13, 3.14, 3.15)
+- Python 3.11+ (CI: 3.11, 3.13, 3.14, 3.15)
 - Node.js 22+
 - Git
 
@@ -127,7 +127,7 @@ npm run build
 
 Coverage thresholds are defined next to the code they guard, so they stay correct as they are raised: `fail_under` in [backend/pyproject.toml](backend/pyproject.toml) for the backend, and the `thresholds` block in [frontend/vite.config.ts](frontend/vite.config.ts) for the frontend (global lines/statements/functions/branches, plus per-file floors on `src/store/fleetStore.ts`, which holds the optimistic-update logic, and `src/api/client.ts`, whose every method is pinned by a route table in `tests/apiClient.test.ts`).
 
-[Tests](.github/workflows/test.yml) runs the per-side make targets and the audits on pull requests and on pushes to `main`, as `Backend (Python 3.10 | 3.13 | 3.14 | 3.15)` and `Frontend`. A final `Tests passed` job fails unless every test job succeeded, and branch protection requires that one check, so the Python matrix can change without editing protection settings. The workflow also declares a `merge_group` trigger, which fires only if a merge queue is enabled. [Dependency review](.github/workflows/dependency-review.yml) blocks a pull request that adds a dependency with a known moderate or higher vulnerability. [CodeQL](.github/workflows/codeql.yml) scans the Python, TypeScript, and workflow code on pull requests, on pushes to `main`, and weekly.
+[Tests](.github/workflows/test.yml) runs the per-side make targets and the audits on pull requests and on pushes to `main`, as `Backend (Python 3.11 | 3.13 | 3.14 | 3.15)` and `Frontend`. A final `Tests passed` job fails unless every test job succeeded, and branch protection requires that one check, so the Python matrix can change without editing protection settings. The workflow also declares a `merge_group` trigger, which fires only if a merge queue is enabled. [Dependency review](.github/workflows/dependency-review.yml) blocks a pull request that adds a dependency with a known moderate or higher vulnerability. [CodeQL](.github/workflows/codeql.yml) scans the Python, TypeScript, and workflow code on pull requests, on pushes to `main`, and weekly.
 
 ## Project structure
 

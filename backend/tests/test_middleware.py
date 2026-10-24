@@ -1,3 +1,8 @@
+# Copyright (c) 2026 tbaur
+#
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for full license text
+
 """API token auth, the session cookie, client IPs, and inbound rate limits."""
 
 from __future__ import annotations

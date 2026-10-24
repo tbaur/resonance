@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Mute and unmute patches that match what BluOS reports, including
+ * the level a room returns to.
+ */
+
 import type { PlayerStatus } from '@/api/types';
 
 type MuteFields = Pick<PlayerStatus, 'muted' | 'volume' | 'mute_volume'>;

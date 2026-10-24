@@ -1,3 +1,14 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * Queue, inputs, presets, Bluetooth, and maintenance.
+ *
+ * Those lists load only while this panel is open.
+ */
+
 import { useState } from 'react';
 import { api } from '@/api/client';
 import type {

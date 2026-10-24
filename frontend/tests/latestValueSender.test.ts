@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * One in-flight send, newest value wins, repeats of the value just sent are
+ * dropped, and cancel sends nothing more.
+ */
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLatestValueSender } from '@/lib/latestValueSender';
 

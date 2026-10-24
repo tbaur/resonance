@@ -1,3 +1,10 @@
+# Copyright (c) 2026 tbaur
+#
+# Licensed under the Apache License, Version 2.0
+# See LICENSE file for full license text
+
+"""Discovery refresh, the live device snapshot, and grace-period MAC checks."""
+
 from __future__ import annotations
 
 import time

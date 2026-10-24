@@ -1,3 +1,13 @@
+/**
+ * Copyright (c) 2026 tbaur
+ *
+ * Licensed under the Apache License, Version 2.0
+ * See LICENSE file for full license text
+ *
+ * The house page: the remote, health, firmware, and fleet-wide
+ * mute, stop, rescan, and reboot.
+ */
+
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { api } from '@/api/client';
