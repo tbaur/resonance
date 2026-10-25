@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.2](https://github.com/tbaur/resonance/compare/v4.0.1...v4.0.2) (2026-10-25)
+
+
+### Bug Fixes
+
+* **ui:** keep the phone header inside the screen ([#32](https://github.com/tbaur/resonance/issues/32)) ([71247f7](https://github.com/tbaur/resonance/commit/71247f7ce52b85bad0207447b430be7c8551b93d))
+
 ## [4.0.1](https://github.com/tbaur/resonance/compare/v4.0.0...v4.0.1) (2026-10-24)
 
 
