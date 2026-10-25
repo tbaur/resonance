@@ -5,12 +5,13 @@
  * See LICENSE file for full license text
  *
  * The top-right menu on narrow screens: page links,
- * rescan, and the discovery line.
+ * rescan, the discovery line, and any connection problem.
  */
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { NavLink } from 'react-router';
 import { IconMenu } from '@/components/house/HouseIcons';
+import { connectionLabel } from '@/lib/connection';
 import { discoveryLabel, playerCountLabel } from '@/lib/discovery';
 import { useFleetStore } from '@/store/fleetStore';
 
@@ -70,6 +71,7 @@ function AppMenuPanel({ id, onNavigate }: { id: string; onNavigate: () => void }
   const refreshing = useFleetStore((s) => s.refreshing);
   const refresh = useFleetStore((s) => s.refresh);
   const discoveryMethod = useFleetStore((s) => s.discoveryMethod);
+  const connection = useFleetStore((s) => s.connection);
   const discovery = discoveryLabel(discoveryMethod);
 
   return (
@@ -98,6 +100,11 @@ function AppMenuPanel({ id, onNavigate }: { id: string; onNavigate: () => void }
           {playerCountLabel(deviceCount)}
           {discovery ? ` found via ${discovery}` : ''}
         </p>
+        {connection === 'live' ? null : (
+          <p className="app-menu-meta app-menu-connection" data-state={connection}>
+            {connectionLabel(connection)}
+          </p>
+        )}
       </div>
     </div>
   );

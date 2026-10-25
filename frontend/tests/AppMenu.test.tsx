@@ -4,7 +4,8 @@
  * Licensed under the Apache License, Version 2.0
  * See LICENSE file for full license text
  *
- * The narrow-screen menu opens, rescans, navigates, and closes on Escape.
+ * The narrow-screen menu opens, rescans, navigates, closes on Escape,
+ * and names any connection problem.
  */
 
 import { fireEvent, render, screen } from '@testing-library/react';
@@ -38,8 +39,25 @@ describe('AppMenu', () => {
       devices: [],
       refreshing: false,
       discoveryMethod: 'mdns+lsdp',
+      connection: 'live',
       refresh,
     });
+  });
+
+  it('says nothing about a live connection', () => {
+    renderMenu();
+    fireEvent.click(menuButton());
+    expect(screen.queryByText('Live updates')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['reconnecting', 'Reconnecting…'],
+    ['offline', 'Offline'],
+  ] as const)('spells out a %s connection', (connection, label) => {
+    useFleetStore.setState({ connection });
+    renderMenu();
+    fireEvent.click(menuButton());
+    expect(screen.getByText(label)).toHaveAttribute('data-state', connection);
   });
 
   it('starts closed and opens on tap', () => {

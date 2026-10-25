@@ -2489,6 +2489,14 @@ button.sync-chip-primary {
   text-align: center;
 }
 
+.app-menu-connection {
+  color: var(--warn);
+}
+
+.app-menu-connection[data-state="offline"] {
+  color: var(--danger);
+}
+
 /* Tablets and phones: one header row, without the tagline and discovery detail. */
 @media (max-width: 900px) {
   .app-header {
@@ -2562,6 +2570,8 @@ button.sync-chip-primary {
     --shell-pad-right: max(14px, env(safe-area-inset-right));
     padding: var(--shell-pad-top) var(--shell-pad-right) calc(env(safe-area-inset-bottom) + 40px)
       var(--shell-pad-left);
+    /* Anything wider than the screen lets iOS pan the page sideways during a vertical swipe. */
+    overflow-x: clip;
   }
 
   .app-menu {
@@ -2607,12 +2617,19 @@ button.sync-chip-primary {
     white-space: nowrap;
   }
 
-  /* Live is the normal state, so it shrinks to its dot; problems keep their words. */
-  .app-header .pill-connection[data-state="live"] {
+  /*
+   * The header has room for the connection dot only, so its color shows the state.
+   * The menu repeats the player count and spells out any connection problem.
+   */
+  .app-header .pill-fleet {
+    display: none;
+  }
+
+  .app-header .pill-connection {
     padding: 6px 9px;
   }
 
-  .app-header .pill-connection[data-state="live"] .pill-label,
+  .app-header .pill-connection .pill-label,
   .global-volume-row label {
     position: absolute;
     width: 1px;
