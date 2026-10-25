@@ -7,15 +7,9 @@
  * Connection, player count, and how the fleet was discovered.
  */
 
+import { connectionLabel } from '@/lib/connection';
 import { discoveryLabel, playerCountLabel } from '@/lib/discovery';
 import type { ConnectionState } from '@/store/fleetStore';
-
-const CONNECTION_LABEL: Record<ConnectionState, string> = {
-  live: 'Live updates',
-  connecting: 'Connecting…',
-  reconnecting: 'Reconnecting…',
-  offline: 'Offline',
-};
 
 interface StatusPillsProps {
   connection: ConnectionState;
@@ -41,7 +35,7 @@ export function StatusPills({
         title="Realtime connection to the Resonance server"
       >
         <span className="pill-dot" aria-hidden="true" />
-        <span className="pill-label">{CONNECTION_LABEL[connection]}</span>
+        <span className="pill-label">{connectionLabel(connection)}</span>
       </span>
       <span
         className="pill pill-fleet"
