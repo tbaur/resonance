@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "resonance"
-version = "4.0.1"
+version = "4.0.2"
 description = "Resonance for BluOS: control every BluOS player on your network"
 readme = "README.md"
 requires-python = ">=3.11"
