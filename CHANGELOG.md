@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.3](https://github.com/tbaur/resonance/compare/v4.0.2...v4.0.3) (2026-10-31)
+
+
+### Bug Fixes
+
+* flatten fleet row backgrounds ([#41](https://github.com/tbaur/resonance/issues/41)) ([e95dae8](https://github.com/tbaur/resonance/commit/e95dae8b51a1e376f7783706a0cdfe1b31e84bd0))
+
 ## [4.0.2](https://github.com/tbaur/resonance/compare/v4.0.1...v4.0.2) (2026-10-25)
 
 
