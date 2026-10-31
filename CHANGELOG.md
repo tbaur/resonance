@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.4](https://github.com/tbaur/resonance/compare/v4.0.3...v4.0.4) (2026-10-31)
+
+
+### Bug Fixes
+
+* show each stream format fact once ([#43](https://github.com/tbaur/resonance/issues/43)) ([c116a7e](https://github.com/tbaur/resonance/commit/c116a7e27dbdc68bcb210cae2c8656aba56960c5))
+
 ## [4.0.3](https://github.com/tbaur/resonance/compare/v4.0.2...v4.0.3) (2026-10-31)
 
 
