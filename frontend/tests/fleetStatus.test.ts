@@ -285,7 +285,7 @@ describe('fleetHouseStatus', () => {
     );
 
     expect(status.primary).toBe('Song — Artist');
-    expect(status.detail).toBe('Spotify / Ogg Vorbis / 320 kbps');
+    expect(status.detail).toBe('Spotify / Ogg Vorbis 320 kbps');
   });
 
   it('withholds art when two different streams are playing', () => {

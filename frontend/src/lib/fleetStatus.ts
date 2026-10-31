@@ -32,7 +32,7 @@ function serviceLabel(device: PlayerStatus): string {
 
 function resolveStreamMeta(focus: Cluster): string {
   for (const member of [focus.lead, ...focus.members]) {
-    const label = streamQualityLabel(member.quality, member.stream_format);
+    const label = streamQualityLabel(member);
     if (label) return label;
   }
   return '';

@@ -58,6 +58,8 @@ class PlayerStatus(BaseModel):
     album: str = ""
     quality: str = ""
     stream_format: str = ""
+    # MQA original sample rate in Hz, when the stream carries one. 0 otherwise.
+    mqa_original_rate: int = 0
     image: str = ""
     secs: int = 0
     totlen: int = 0

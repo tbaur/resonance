@@ -177,6 +177,7 @@ function applyPlaybackHold(incoming: PlayerStatus, previous: PlayerStatus): Play
     totlen: keepMeta || (!stopped && incoming.totlen <= 0) ? previous.totlen : incoming.totlen,
     quality: meta.quality,
     stream_format: meta.stream_format,
+    mqa_original_rate: meta.mqa_original_rate,
     service: meta.service,
     service_id: meta.service_id,
     can_seek: keepMeta ? previous.can_seek : incoming.can_seek,

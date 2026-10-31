@@ -144,7 +144,7 @@ describe('FleetPage sort', () => {
     expect(screen.getByRole('heading', { name: 'Resonance for BluOS' })).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Live fleet control for every player on your network, discovered on load, no hardcoded IPs.',
+        'Live fleet control for every player on the network.',
       ),
     ).toBeInTheDocument();
     expect(
@@ -152,7 +152,7 @@ describe('FleetPage sort', () => {
         name: 'Sort by player, currently A–Z. Click to switch.',
       }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /resonance v/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /Resonance v/ })).toHaveAttribute(
       'href',
       'https://github.com/tbaur/resonance',
     );

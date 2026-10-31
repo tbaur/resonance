@@ -44,7 +44,7 @@ interface NowPlayingPanelProps {
 
 export function NowPlayingPanel({ device, activeInputName, onControl }: NowPlayingPanelProps) {
   const idle = isIdle(device);
-  const metaLine = streamQualityLabel(device.quality, device.stream_format);
+  const metaLine = streamQualityLabel(device);
   return (
     <section className="panel dossier-now">
       <div className="dossier-now-grid">
