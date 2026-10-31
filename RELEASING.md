@@ -34,9 +34,14 @@ release-please then retitles the Release PR to that version. Do not hand-edit `.
 
 The Release PR is authored by `github-actions[bot]`, because `release.yml` passes `github.token` to release-please. GitHub creates its checks but holds them until a user with write access approves.
 
-**Open the Release PR's Checks tab and click "Approve and run" before merging.**
+**Approve the held runs before merging.** Either open the Release PR's Checks tab and click "Approve and run", or approve them from the CLI:
 
-- There is no CLI for this. `POST /actions/runs/{run_id}/approve` is documented for forks from first-time contributors and does not cover this gate.
+```bash
+gh api "repos/tbaur/resonance/actions/runs?status=action_required&per_page=30" --jq '.workflow_runs[].id' |
+  while read -r id; do gh api -X POST "repos/tbaur/resonance/actions/runs/$id/approve"; done
+```
+
+- GitHub documents `POST /actions/runs/{run_id}/approve` for fork PRs from first-time contributors, but it also approves these Release PR runs.
 - The approval does not stick. It is needed on every release, and again whenever release-please updates an open Release PR.
 - **Merging without approving turns the runs red.** They finalise as `failure` with zero jobs and no logs. That means nobody approved them, not that anything broke.
 
