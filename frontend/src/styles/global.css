@@ -1133,11 +1133,11 @@ a {
   column-gap: 18px;
   padding: 12px 16px;
   min-height: 88px;
-  background: linear-gradient(180deg, rgba(27, 35, 48, 0.98), rgba(16, 22, 30, 0.98));
+  background: rgb(20, 27, 36);
 }
 
 .fleet-row[data-sync="synced"] {
-  background: linear-gradient(180deg, rgba(22, 30, 40, 0.92), rgba(14, 18, 26, 0.95));
+  background: rgb(17, 23, 31);
 }
 
 .fleet-row-head {
