@@ -59,7 +59,7 @@ export function FleetPage() {
             Resonance <span className="brand-tagline">for BluOS</span>
           </h1>
           <p className="brand-sub">
-            Live fleet control for every player on your network, discovered on load, no hardcoded IPs.
+            Live fleet control for every player on the network.
           </p>
         </div>
         <div className="header-actions">
@@ -126,7 +126,7 @@ export function FleetPage() {
 
       <footer className="footer">
         <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
-          resonance v{APP_VERSION}
+          Resonance v{APP_VERSION}
         </a>
         <span className="footer-credit"> / by tbaur</span>
       </footer>

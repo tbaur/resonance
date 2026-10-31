@@ -45,6 +45,7 @@ _LEAD_PLAYBACK_FIELDS = (
     "album",
     "quality",
     "stream_format",
+    "mqa_original_rate",
     "secs",
     "totlen",
     "can_seek",

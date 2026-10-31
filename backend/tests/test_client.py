@@ -28,6 +28,8 @@ from tests.fixtures.xml_samples import (
     STATUS_CAPTURE_OPTICAL,
     STATUS_GROUP_VOLUME,
     STATUS_MUTED,
+    STATUS_ROON_MQA,
+    STATUS_ROON_PCM,
     STATUS_TIDAL_CONNECT,
     SYNC_STATUS,
     SYNC_STATUS_MUTED,
@@ -188,7 +190,35 @@ async def test_prefers_service_name_over_service_id(settings: Settings) -> None:
     client = BluOSClient(settings)
     try:
         player = await client.get_player_status("192.168.1.20", device_id="zone-m")
-        assert player.service == "TIDAL connect"
+        assert player.service == "TIDAL Connect"
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
+@pytest.mark.parametrize(
+    ("status_xml", "stream_format", "mqa_original_rate"),
+    [
+        (STATUS_ROON_PCM, "PCM 24/44.1", 0),
+        (STATUS_ROON_MQA, "PCM 24/48", 192000),
+    ],
+)
+async def test_roon_format_comes_from_stream_url(
+    settings: Settings, status_xml: bytes, stream_format: str, mqa_original_rate: int
+) -> None:
+    respx.get("http://192.168.1.20:11000/SyncStatus").mock(
+        return_value=httpx.Response(200, content=SYNC_STATUS)
+    )
+    respx.get("http://192.168.1.20:11000/Status").mock(
+        return_value=httpx.Response(200, content=status_xml)
+    )
+    client = BluOSClient(settings)
+    try:
+        player = await client.get_player_status("192.168.1.20", device_id="zone-r")
+        assert player.service == "Roon Ready"
+        assert player.stream_format == stream_format
+        assert player.mqa_original_rate == mqa_original_rate
     finally:
         await client.aclose()
 

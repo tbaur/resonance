@@ -84,6 +84,31 @@ STATUS_TIDAL_CONNECT = b"""<?xml version="1.0" encoding="UTF-8" standalone="yes"
 </status>
 """
 
+STATUS_ROON_PCM = b"""<?xml version="1.0" encoding="UTF-8"?>
+<status etag="r1">
+  <state>stream</state>
+  <volume>20</volume>
+  <mute>0</mute>
+  <service>Raat</service>
+  <serviceName>Roon Ready</serviceName>
+  <streamUrl>Raat:raat_pcm01:pcm/44100/24/2/mqaCore=-1/1</streamUrl>
+  <title1>Song</title1>
+</status>
+"""
+
+STATUS_ROON_MQA = b"""<?xml version="1.0" encoding="UTF-8"?>
+<status etag="r2">
+  <state>stream</state>
+  <volume>20</volume>
+  <mute>0</mute>
+  <service>Raat</service>
+  <serviceName>Roon Ready</serviceName>
+  <quality>mqa</quality>
+  <streamUrl>Raat:raat_pcm01:pcm/48000/24/2/mqa=192000/2</streamUrl>
+  <title1>Song</title1>
+</status>
+"""
+
 QUEUE = b"""<?xml version="1.0" encoding="UTF-8"?>
 <playlist length="1">
   <song id="1">

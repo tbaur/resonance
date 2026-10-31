@@ -64,6 +64,8 @@ export interface PlayerStatus {
   album: string;
   quality: string;
   stream_format: string;
+  /** MQA original sample rate in Hz; 0 or absent when the stream has none. */
+  mqa_original_rate?: number;
   image: string;
   secs: number;
   totlen: number;

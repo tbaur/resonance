@@ -1,6 +1,4 @@
-# Resonance
-
-**Resonance for BluOS**
+# Resonance for BluOS
 
 [![Tests](https://github.com/tbaur/resonance/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/tbaur/resonance/actions/workflows/test.yml?query=branch%3Amain)
 [![CodeQL](https://github.com/tbaur/resonance/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/tbaur/resonance/actions/workflows/codeql.yml?query=branch%3Amain)

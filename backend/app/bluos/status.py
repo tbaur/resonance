@@ -15,6 +15,7 @@ from urllib.parse import urlencode
 
 import httpx
 
+from app.bluos.raat import parse_raat_stream_url
 from app.bluos.transport import BluOSTransport
 from app.bluos.xml import attr, safe_parse_xml, text
 from app.capabilities import infer_zone
@@ -25,6 +26,9 @@ from app.validators import (
     normalize_bluos_mac,
     parse_bluos_endpoint,
 )
+
+# BluOS display names that ship with the wrong brand casing.
+_SERVICE_NAME_FIXES = {"TIDAL connect": "TIDAL Connect"}
 
 
 @dataclass(frozen=True)
@@ -151,10 +155,16 @@ class BluOSStatusMixin(BluOSTransport):
         api_port = self.settings.bluos_port if port is None else port
         service = text(root, "service")
         service_name = text(root, "serviceName")
+        stream_format = text(root, "streamFormat")
+        mqa_original_rate = 0
         if service == "Raat":
             service = "Roon"
-        # Prefer BluOS display name (e.g. TidalConnect → "TIDAL connect").
-        display_service = service_name or service
+            raat = parse_raat_stream_url(text(root, "streamUrl"))
+            if raat is not None and not stream_format:
+                stream_format = raat.stream_format
+                mqa_original_rate = raat.mqa_original_rate
+        # Prefer BluOS display name (e.g. TidalConnect → "TIDAL Connect").
+        display_service = _SERVICE_NAME_FIXES.get(service_name, service_name) or service
         volume_raw = text(root, "volume", "0")
         try:
             volume = int(volume_raw)
@@ -174,7 +184,8 @@ class BluOSStatusMixin(BluOSTransport):
             "artist": text(root, "artist") or text(root, "title2"),
             "album": text(root, "album") or text(root, "title3"),
             "quality": text(root, "quality"),
-            "stream_format": text(root, "streamFormat"),
+            "stream_format": stream_format,
+            "mqa_original_rate": mqa_original_rate,
             "image": self._absolute_media_url(ip, image, port=api_port),
             "secs": self._parse_int(text(root, "secs")),
             "totlen": self._parse_int(text(root, "totlen")),
@@ -240,6 +251,7 @@ class BluOSStatusMixin(BluOSTransport):
         player.album = status.get("album", "")
         player.quality = status.get("quality", "")
         player.stream_format = status.get("stream_format", "")
+        player.mqa_original_rate = status.get("mqa_original_rate", 0)
         player.image = status.get("image", "")
         player.secs = status.get("secs", 0)
         player.totlen = status.get("totlen", 0)
