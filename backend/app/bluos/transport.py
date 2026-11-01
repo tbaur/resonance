@@ -37,7 +37,9 @@ _MAX_REDIRECTS = 5
 _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 # Apple Music covers redirect to https://*.mzstatic.com. TIDAL connect names
 # https://resources.tidal.com directly, and /Artwork may 301 to the HTTP form.
+# Spotify names https://i.scdn.co directly. Only that exact host is allowed.
 _ARTWORK_CDN_SUFFIXES = ("mzstatic.com",)
+_ARTWORK_CDN_HOSTS = ("i.scdn.co",)
 _TIDAL_ART_HOST = "resources.tidal.com"
 # Idle control sockets stay warm across a mute/volume session. Long-polls are
 # in-use and do not use this expiry.
@@ -131,7 +133,7 @@ class BluOSTransport:
         host = (parsed.hostname or "").rstrip(".").lower()
         if not host or sanitize_ip(host):
             return None
-        suffix_ok = any(
+        suffix_ok = host in _ARTWORK_CDN_HOSTS or any(
             host == suffix or host.endswith("." + suffix) for suffix in _ARTWORK_CDN_SUFFIXES
         )
         tidal = host == _TIDAL_ART_HOST
