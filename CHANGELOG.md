@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.6](https://github.com/tbaur/resonance/compare/v4.0.5...v4.0.6) (2026-11-01)
+
+
+### Bug Fixes
+
+* load Spotify album art from i.scdn.co ([#48](https://github.com/tbaur/resonance/issues/48)) ([f4de9fd](https://github.com/tbaur/resonance/commit/f4de9fd16d98c7dbda374127108d725b9949bddf))
+
 ## [4.0.5](https://github.com/tbaur/resonance/compare/v4.0.4...v4.0.5) (2026-11-01)
 
 
