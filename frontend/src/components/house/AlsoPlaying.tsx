@@ -13,7 +13,7 @@ import { StickyArt } from '@/components/StickyArt';
 import { playerArtSrc } from '@/lib/artwork';
 import type { HouseStreamSource } from '@/lib/fleetStatus';
 import { ALSO_PLAYING_VISIBLE, speakerRoster, streamPlaceLabel } from '@/lib/houseRoster';
-import { artistAlbumLine } from '@/lib/meta';
+import { artistAlbumLine, joinMeta } from '@/lib/meta';
 
 interface AlsoPlayingProps {
   others: HouseStreamSource[];
@@ -58,7 +58,7 @@ export function AlsoPlaying({ others, meta, devices, sync, onChoose }: AlsoPlayi
             {others.slice(ALSO_PLAYING_VISIBLE).map((source) => (
               <li key={source.key}>
                 <button type="button" onClick={() => choose(source.memberIds)}>
-                  {source.primary}
+                  {joinMeta(source.primary, artistAlbumLine(source.primary, source.artist, ''))}
                 </button>
               </li>
             ))}

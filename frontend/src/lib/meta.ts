@@ -21,10 +21,9 @@ function sameName(left: string, right: string): boolean {
   return left.trim().localeCompare(right.trim(), undefined, { sensitivity: 'accent' }) === 0;
 }
 
-/** Artist / album under a title; drops either one when it only repeats the title. */
+/** Artist / album under a title; drops any part that only repeats a name already shown. */
 export function artistAlbumLine(title: string, artist: string, album: string): string {
-  return joinMeta(
-    !sameName(artist, title) && artist.trim(),
-    !sameName(album, title) && album.trim(),
-  );
+  const shownArtist = !sameName(artist, title) && artist.trim();
+  const shownAlbum = !sameName(album, title) && !sameName(album, artist) && album.trim();
+  return joinMeta(shownArtist, shownAlbum);
 }

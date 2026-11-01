@@ -20,6 +20,10 @@ describe('artistAlbumLine', () => {
     expect(artistAlbumLine('Evening', 'evening', 'Album')).toBe('Album');
   });
 
+  it('shows a self-titled album once', () => {
+    expect(artistAlbumLine('Song', 'Band', 'Band')).toBe('Band');
+  });
+
   it('is empty when nothing but the title is known', () => {
     expect(artistAlbumLine('Song', '', ' ')).toBe('');
   });

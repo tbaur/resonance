@@ -514,11 +514,11 @@ describe('HouseRemote', () => {
     expect(screen.getAllByRole('button', { name: /Artist/ })).toHaveLength(3);
     expect(screen.queryByRole('link', { name: /more/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '2 more streams' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Echo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Echo / Artist' }));
     expect(screen.getByRole('button', { name: 'Pause house stream' })).toHaveFocus();
     expect(document.querySelector('.house-remote-primary')).toHaveTextContent('Echo');
     fireEvent.click(screen.getByRole('button', { name: '2 more streams' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Foxtrot' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Foxtrot / Artist' }));
     expect(document.querySelector('.house-remote-primary')).toHaveTextContent('Foxtrot');
   });
 
