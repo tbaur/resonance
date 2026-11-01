@@ -56,7 +56,7 @@ export function FleetPage() {
       <header className="app-header">
         <div>
           <h1 className="brand">
-            Resonance <span className="brand-tagline">for BluOS</span>
+            Resonance <span className="brand-tagline">works with BluOS</span>
           </h1>
           <p className="brand-sub">
             Live fleet control for every player on the network.
