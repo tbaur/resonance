@@ -141,7 +141,7 @@ describe('FleetPage sort', () => {
 
   it('defaults to A–Z sort when no runtime groups exist', () => {
     renderFleet();
-    expect(screen.getByRole('heading', { name: 'Resonance for BluOS' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Resonance works with BluOS' })).toBeInTheDocument();
     expect(
       screen.getByText(
         'Live fleet control for every player on the network.',
