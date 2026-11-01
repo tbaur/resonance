@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.5](https://github.com/tbaur/resonance/compare/v4.0.4...v4.0.5) (2026-11-01)
+
+
+### Bug Fixes
+
+* show the track title alone and artist on its own line ([#46](https://github.com/tbaur/resonance/issues/46)) ([fb96d89](https://github.com/tbaur/resonance/commit/fb96d89cc420f269164b9855f491fca6e3a1963d))
+
 ## [4.0.4](https://github.com/tbaur/resonance/compare/v4.0.3...v4.0.4) (2026-10-31)
 
 
