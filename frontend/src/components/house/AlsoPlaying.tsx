@@ -13,6 +13,7 @@ import { StickyArt } from '@/components/StickyArt';
 import { playerArtSrc } from '@/lib/artwork';
 import type { HouseStreamSource } from '@/lib/fleetStatus';
 import { ALSO_PLAYING_VISIBLE, speakerRoster, streamPlaceLabel } from '@/lib/houseRoster';
+import { artistAlbumLine } from '@/lib/meta';
 
 interface AlsoPlayingProps {
   others: HouseStreamSource[];
@@ -92,6 +93,7 @@ function AlsoStream({
 }) {
   const rows = speakerRoster(source, devices, sync);
   const place = streamPlaceLabel(rows.length, rows[0]?.name ?? '');
+  const artistLine = artistAlbumLine(source.primary, source.artist, '');
   return (
     <button type="button" className="house-also-open" onClick={onFocus}>
       <StickyArt
@@ -102,6 +104,7 @@ function AlsoStream({
       <span className="house-also-copy">
         <span className="house-also-place">{place}</span>
         <span className="house-also-title">{source.primary}</span>
+        {artistLine ? <span className="house-also-title">{artistLine}</span> : null}
       </span>
     </button>
   );

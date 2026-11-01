@@ -12,7 +12,7 @@ import type { PlayerStatus } from '@/api/types';
 import { SeekBar } from '@/components/SeekBar';
 import { StickyArt } from '@/components/StickyArt';
 import { playerArtSrc } from '@/lib/artwork';
-import { joinMeta } from '@/lib/meta';
+import { artistAlbumLine, joinMeta } from '@/lib/meta';
 import { streamQualityLabel } from '@/lib/streamQuality';
 
 export type RunControl = (action: () => Promise<void>, optimistic?: Partial<PlayerStatus>) => void;
@@ -58,7 +58,9 @@ export function NowPlayingPanel({ device, activeInputName, onControl }: NowPlayi
           <p className="card-meta">{idle ? 'Status' : 'Now playing'}</p>
           <h2>{nowTitle(device)}</h2>
           {!idle && (
-            <p className="dossier-now-meta">{joinMeta(device.artist, device.album) || '—'}</p>
+            <p className="dossier-now-meta">
+              {artistAlbumLine(device.track, device.artist, device.album) || '—'}
+            </p>
           )}
           <p className="card-meta">
             {joinMeta(

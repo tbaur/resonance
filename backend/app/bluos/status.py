@@ -180,7 +180,8 @@ class BluOSStatusMixin(BluOSTransport):
             "state": text(root, "state", "stop") or "stop",
             "service": display_service,
             "service_id": service,
-            "track": text(root, "title1") or text(root, "title"),
+            # Roon Ready sends title1 as "Artist • Title"; twoline_title1 is the bare title.
+            "track": text(root, "twoline_title1") or text(root, "title1") or text(root, "title"),
             "artist": text(root, "artist") or text(root, "title2"),
             "album": text(root, "album") or text(root, "title3"),
             "quality": text(root, "quality"),
