@@ -96,6 +96,20 @@ STATUS_ROON_PCM = b"""<?xml version="1.0" encoding="UTF-8"?>
 </status>
 """
 
+# Roon Ready puts the artist in title1; twoline_title1 carries the bare title.
+STATUS_ROON_TWOLINE = b"""<?xml version="1.0" encoding="UTF-8"?>
+<status etag="r3">
+  <state>stream</state>
+  <service>Raat</service>
+  <serviceName>Roon Ready</serviceName>
+  <album>Album Name</album>
+  <artist>Artist One / Artist Two</artist>
+  <title1>Artist One / Artist Two \xe2\x80\xa2 Song Title</title1>
+  <twoline_title1>Song Title</twoline_title1>
+  <twoline_title2>Artist Two \xe2\x80\xa2 Artist One / Artist Two</twoline_title2>
+</status>
+"""
+
 STATUS_ROON_MQA = b"""<?xml version="1.0" encoding="UTF-8"?>
 <status etag="r2">
   <state>stream</state>

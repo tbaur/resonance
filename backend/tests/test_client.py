@@ -30,6 +30,7 @@ from tests.fixtures.xml_samples import (
     STATUS_MUTED,
     STATUS_ROON_MQA,
     STATUS_ROON_PCM,
+    STATUS_ROON_TWOLINE,
     STATUS_TIDAL_CONNECT,
     SYNC_STATUS,
     SYNC_STATUS_MUTED,
@@ -71,6 +72,27 @@ async def test_get_player_status_parses_sync_and_status(settings: Settings) -> N
         assert player.can_seek is True
         assert player.shuffle == 1
         assert player.repeat == 2
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_roon_track_uses_bare_title_not_artist_prefixed_title1(
+    settings: Settings,
+) -> None:
+    respx.get("http://192.168.1.20:11000/SyncStatus").mock(
+        return_value=httpx.Response(200, content=SYNC_STATUS)
+    )
+    respx.get("http://192.168.1.20:11000/Status").mock(
+        return_value=httpx.Response(200, content=STATUS_ROON_TWOLINE)
+    )
+    client = BluOSClient(settings)
+    try:
+        player = await client.get_player_status("192.168.1.20", device_id="zone-r")
+        assert player.track == "Song Title"
+        assert player.artist == "Artist One / Artist Two"
+        assert player.album == "Album Name"
     finally:
         await client.aclose()
 

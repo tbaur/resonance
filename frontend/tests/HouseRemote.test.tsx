@@ -152,8 +152,8 @@ describe('HouseRemote', () => {
 
   it('drives skip, pause, and shuffle on the sync primary', async () => {
     renderRemote();
-    expect(screen.getByText('Meadow — Artist')).toBeInTheDocument();
-    expect(screen.getByText('Night')).toBeInTheDocument();
+    expect(document.querySelector('.house-remote-primary')).toHaveTextContent('Meadow');
+    expect(screen.getByText('Artist / Night')).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     const speakers = screen.getByRole('button', { name: '2 speakers' });
     fireEvent.mouseEnter(speakers);
@@ -354,7 +354,7 @@ describe('HouseRemote', () => {
     expect(screen.getByText('Zone L')).toBeInTheDocument();
     expect(screen.getByText('Zone M')).toBeInTheDocument();
     expect(screen.queryByRole('tablist', { name: 'House sources' })).not.toBeInTheDocument();
-    expect(screen.getByText('Next — B')).toBeInTheDocument();
+    expect(document.querySelector('.house-remote-primary')).toHaveTextContent('Next');
     expect(screen.getByRole('button', { name: 'Pause all' })).toBeInTheDocument();
     expect(screen.getByRole('slider', { name: 'Seek' })).toBeInTheDocument();
   });
@@ -514,12 +514,12 @@ describe('HouseRemote', () => {
     expect(screen.getAllByRole('button', { name: /Artist/ })).toHaveLength(3);
     expect(screen.queryByRole('link', { name: /more/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '2 more streams' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Echo — Artist' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Echo / Artist' }));
     expect(screen.getByRole('button', { name: 'Pause house stream' })).toHaveFocus();
-    expect(screen.getByText('Echo — Artist')).toBeInTheDocument();
+    expect(document.querySelector('.house-remote-primary')).toHaveTextContent('Echo');
     fireEvent.click(screen.getByRole('button', { name: '2 more streams' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Foxtrot — Artist' }));
-    expect(screen.getByText('Foxtrot — Artist')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Foxtrot / Artist' }));
+    expect(document.querySelector('.house-remote-primary')).toHaveTextContent('Foxtrot');
   });
 
   it('stays on the stream you chose after that song changes', async () => {
@@ -543,9 +543,9 @@ describe('HouseRemote', () => {
       sync: { groups: [], standalone_ids: ['1', '2'] },
     });
     renderRemote();
-    expect(screen.getByText('House — Artist')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Other — Artist/ }));
-    expect(screen.getByText('Other — Artist')).toBeInTheDocument();
+    expect(document.querySelector('.house-remote-primary')).toHaveTextContent('House');
+    fireEvent.click(screen.getByRole('button', { name: /Other/ }));
+    expect(document.querySelector('.house-remote-primary')).toHaveTextContent('Other');
 
     fireEvent.click(screen.getByRole('button', { name: 'Next track' }));
     await waitFor(() => expect(skip).toHaveBeenCalledWith('2'));
@@ -557,10 +557,10 @@ describe('HouseRemote', () => {
         ],
       });
     });
-    expect(document.querySelector('.house-remote-primary')).toHaveTextContent('Next — Artist');
-    expect(screen.getByRole('button', { name: /House — Artist/ })).toBeInTheDocument();
+    expect(document.querySelector('.house-remote-primary')).toHaveTextContent('Next');
+    expect(screen.getByRole('button', { name: /House/ })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /House — Artist/ }));
+    fireEvent.click(screen.getByRole('button', { name: /House/ }));
     act(() => {
       useFleetStore.setState({
         devices: [
@@ -569,8 +569,8 @@ describe('HouseRemote', () => {
         ],
       });
     });
-    expect(document.querySelector('.house-remote-primary')).toHaveTextContent('Later — Artist');
-    expect(screen.getByRole('button', { name: /Next — Artist/ })).toBeInTheDocument();
+    expect(document.querySelector('.house-remote-primary')).toHaveTextContent('Later');
+    expect(screen.getByRole('button', { name: /Next\s*Artist/ })).toBeInTheDocument();
   });
 
   it('stays on the lead after skip when direct players remain on the old audio', async () => {
@@ -655,7 +655,7 @@ describe('HouseRemote', () => {
         ],
       });
     });
-    expect(document.querySelector('.house-remote-primary')).toHaveTextContent('Next — Artist');
+    expect(document.querySelector('.house-remote-primary')).toHaveTextContent('Next');
     expect(screen.getByRole('button', { name: /5 speakers/ })).toBeInTheDocument();
   });
 

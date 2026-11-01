@@ -32,6 +32,7 @@ import {
   houseTransportTargets,
   type HouseStreamSource,
 } from '@/lib/fleetStatus';
+import { artistAlbumLine } from '@/lib/meta';
 import {
   alsoPlayingMeta,
   focusedSource,
@@ -220,7 +221,9 @@ function HouseHeadline({
 }) {
   const primary = focused?.primary ?? status.primary;
   const detail = focused?.detail || status.detail;
-  const albumLine = focused?.album && focused.album !== focused.primary ? focused.album : '';
+  const albumLine = focused
+    ? artistAlbumLine(focused.primary, focused.artist, focused.album)
+    : '';
   return (
     <div className="house-remote-head">
       <div className="house-remote-title-row">

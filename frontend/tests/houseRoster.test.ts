@@ -27,6 +27,7 @@ function source(partial: Partial<HouseStreamSource> & Pick<HouseStreamSource, 'k
     primary: 'Track',
     detail: '',
     image: '',
+    artist: '',
     album: '',
     roomNames: [],
     playing: true,

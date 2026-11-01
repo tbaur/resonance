@@ -15,7 +15,7 @@ import {
   LIVE_HOUSE_SESSION,
   type HouseSession,
 } from '@/lib/houseSession';
-import { formatTrackArtist, joinMeta } from '@/lib/meta';
+import { joinMeta } from '@/lib/meta';
 import { streamQualityLabel } from '@/lib/streamQuality';
 
 function isPlaying(state: string): boolean {
@@ -38,12 +38,17 @@ function resolveStreamMeta(focus: Cluster): string {
   return '';
 }
 
+function firstField(focus: Cluster, field: 'track' | 'artist' | 'album'): string {
+  for (const member of [focus.lead, ...focus.members]) {
+    const value = member[field].trim();
+    if (value) return value;
+  }
+  return '';
+}
+
 function nowPlayingLabel(focus: Cluster): { primary: string; detail: string } {
   const lead = focus.lead;
-  const trackArtist =
-    formatTrackArtist(lead.track, lead.artist) ||
-    focus.members.map((m) => formatTrackArtist(m.track, m.artist)).find(Boolean) ||
-    '';
+  const title = firstField(focus, 'track') || firstField(focus, 'artist');
   const service =
     serviceLabel(lead) ||
     focus.members.map(serviceLabel).find(Boolean) ||
@@ -51,7 +56,7 @@ function nowPlayingLabel(focus: Cluster): { primary: string; detail: string } {
   const quality = resolveStreamMeta(focus);
 
   return {
-    primary: trackArtist || (focus.members.some((m) => isPlaying(m.state)) ? 'Playing' : 'Paused'),
+    primary: title || (focus.members.some((m) => isPlaying(m.state)) ? 'Playing' : 'Paused'),
     detail: joinMeta(service, quality),
   };
 }
@@ -241,6 +246,7 @@ export type HouseStreamSource = {
   primary: string;
   detail: string;
   image: string;
+  artist: string;
   album: string;
   roomNames: string[];
   playing: boolean;
@@ -249,17 +255,14 @@ export type HouseStreamSource = {
 
 function clusterToSource(cluster: Cluster): HouseStreamSource {
   const { primary, detail } = nowPlayingLabel(cluster);
-  const album =
-    cluster.lead.album.trim() ||
-    cluster.members.find((m) => m.album.trim())?.album.trim() ||
-    '';
   return {
     key: sourceKey(cluster),
     leadId: cluster.lead.id,
     primary,
     detail,
     image: resolveImage(cluster.lead, cluster.members),
-    album,
+    artist: firstField(cluster, 'artist'),
+    album: firstField(cluster, 'album'),
     roomNames: roomNamesOf(cluster.members),
     playing: cluster.members.some((m) => isPlaying(m.state)),
     memberIds: cluster.members.map((m) => m.id),
@@ -282,6 +285,7 @@ export type FleetHouseStatus = {
   leadId: string | null;
   /** Distinct playback sources (sync groups / identities), not player count. */
   sourceCount: number;
+  artist: string;
   album: string;
   rooms: string[];
   sources: HouseStreamSource[];
@@ -298,6 +302,7 @@ function emptyHouseStatus(partial: Partial<FleetHouseStatus> = {}): FleetHouseSt
     image: '',
     leadId: null,
     sourceCount: 0,
+    artist: '',
     album: '',
     rooms: [],
     sources: [],
@@ -377,6 +382,7 @@ function finalizeHouseStatus(
     image: focus.image,
     leadId: focus.leadId,
     sourceCount: 1,
+    artist: focus.artist,
     album: focus.album,
     rooms: focus.roomNames,
     sources,

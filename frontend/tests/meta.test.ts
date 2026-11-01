@@ -4,12 +4,30 @@
  * Licensed under the Apache License, Version 2.0
  * See LICENSE file for full license text
  *
- * Meta parts join with a slash. Track and artist are not repeated when
- * BluOS sends the same name twice.
+ * Meta parts join with a slash.
  */
 
 import { describe, expect, it } from 'vitest';
-import { META_SEP, formatTrackArtist, joinMeta } from '@/lib/meta';
+import { META_SEP, artistAlbumLine, joinMeta } from '@/lib/meta';
+
+describe('artistAlbumLine', () => {
+  it('joins artist and album', () => {
+    expect(artistAlbumLine('Song', 'Artist', 'Album')).toBe('Artist / Album');
+  });
+
+  it('drops an album or artist that only repeats the title', () => {
+    expect(artistAlbumLine('Song', 'Artist', 'Song')).toBe('Artist');
+    expect(artistAlbumLine('Evening', 'evening', 'Album')).toBe('Album');
+  });
+
+  it('shows a self-titled album once', () => {
+    expect(artistAlbumLine('Song', 'Band', 'Band')).toBe('Band');
+  });
+
+  it('is empty when nothing but the title is known', () => {
+    expect(artistAlbumLine('Song', '', ' ')).toBe('');
+  });
+});
 
 describe('joinMeta', () => {
   it('joins with a slash that stays clear next to signed values', () => {
@@ -22,15 +40,3 @@ describe('joinMeta', () => {
     expect(joinMeta(null, 'Spotify')).toBe('Spotify');
   });
 });
-
-describe('formatTrackArtist', () => {
-  it('joins track and artist once', () => {
-    expect(formatTrackArtist('Song', 'Artist')).toBe('Song — Artist');
-  });
-
-  it('does not repeat the name when track equals artist', () => {
-    expect(formatTrackArtist('Evening', 'Evening')).toBe('Evening');
-    expect(formatTrackArtist('Evening', 'evening')).toBe('Evening');
-  });
-});
-

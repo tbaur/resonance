@@ -131,7 +131,7 @@ describe('FleetBar house remote art', () => {
       'src',
       playerArtSrc('1', 'http://10.0.0.1/cover.jpg'),
     );
-    expect(screen.getByText('Track — Artist')).toBeInTheDocument();
+    expect(screen.getByText('Track')).toBeInTheDocument();
     expect(screen.getByText('AirPlay')).toBeInTheDocument();
     expect(screen.queryByText(/Open house/)).not.toBeInTheDocument();
   });
@@ -155,7 +155,7 @@ describe('FleetBar house remote art', () => {
     });
 
     renderBar();
-    expect(screen.getByText('Meadow — Artist')).toBeInTheDocument();
+    expect(screen.getByText('Meadow')).toBeInTheDocument();
     expect(screen.getByText('TIDAL connect / FLAC / CD')).toBeInTheDocument();
   });
 
@@ -184,7 +184,7 @@ describe('FleetBar house remote art', () => {
     });
 
     renderBar();
-    expect(screen.getByText('Daybreak — Harbor')).toBeInTheDocument();
+    expect(screen.getByText('Daybreak')).toBeInTheDocument();
     expect(screen.getByText('AirPlay')).toBeInTheDocument();
     expect(screen.getByText('2 playing')).toBeInTheDocument();
     expect(screen.queryByText(/rooms/)).not.toBeInTheDocument();
@@ -220,7 +220,7 @@ describe('FleetBar house remote art', () => {
     renderBar();
     expect(screen.getByRole('region', { name: 'Also playing' })).toBeInTheDocument();
     expect(screen.getByText('1 other stream')).toBeInTheDocument();
-    expect(screen.getByText('Quiet — B').closest('p')).toHaveAttribute('title', 'Quiet — B');
+    expect(screen.getByText('Quiet').closest('p')).toHaveAttribute('title', 'Quiet');
     const quietArt = screen.getByRole('link', { name: /Now playing artwork — open Quiet/ });
     expect(quietArt.querySelector('img')).toHaveAttribute(
       'src',

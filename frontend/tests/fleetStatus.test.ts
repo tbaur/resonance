@@ -95,6 +95,7 @@ describe('fleetHouseStatus', () => {
       hasDominantStream: false,
       image: '',
       leadId: null,
+      artist: '',
       sourceCount: 0,
       album: '',
       rooms: [],
@@ -120,7 +121,7 @@ describe('fleetHouseStatus', () => {
         null,
       ),
     ).toMatchObject({
-      primary: 'Song — Artist',
+      primary: 'Song',
       detail: 'AirPlay',
       meta: [],
       isIdle: false,
@@ -259,7 +260,7 @@ describe('fleetHouseStatus', () => {
     expect(status).toMatchObject({
       hasDominantStream: true,
       sourceCount: 1,
-      primary: 'Daybreak — Harbor',
+      primary: 'Daybreak',
       detail: 'AirPlay',
       image: 'http://art/a.jpg',
       leadId: '1',
@@ -284,7 +285,7 @@ describe('fleetHouseStatus', () => {
       null,
     );
 
-    expect(status.primary).toBe('Song — Artist');
+    expect(status.primary).toBe('Song');
     expect(status.detail).toBe('Spotify / Ogg Vorbis 320 kbps');
   });
 
@@ -474,7 +475,7 @@ describe('fleetHouseStatus', () => {
     );
     expect(status.hasDominantStream).toBe(true);
     expect(status.sourceCount).toBe(1);
-    expect(status.primary).toBe('Song — Artist');
+    expect(status.primary).toBe('Song');
     expect(status.meta).toContain('2 playing');
   });
 
@@ -496,7 +497,7 @@ describe('fleetHouseStatus', () => {
       null,
     );
     expect(status).toMatchObject({
-      primary: 'Meadow — Artist',
+      primary: 'Meadow',
       detail: 'TIDAL connect',
       isIdle: false,
       isPaused: true,
@@ -534,7 +535,7 @@ describe('fleetHouseStatus', () => {
     expect(status.sourceCount).toBe(2);
     expect(status.hasDominantStream).toBe(false);
     expect(status.sources).toHaveLength(2);
-    expect(status.sources.map((s) => s.primary).sort()).toEqual(['Party — A', 'Quiet — B']);
+    expect(status.sources.map((s) => s.primary).sort()).toEqual(['Party', 'Quiet']);
   });
 
   it('keeps one house stream while AirPlay rooms are playing without titles yet', () => {
@@ -606,7 +607,7 @@ describe('fleetHouseStatus', () => {
       houseStoppedSession(),
     );
     expect(status.isIdle).toBe(false);
-    expect(status.primary).toBe('unspoken — A');
+    expect(status.primary).toBe('unspoken');
   });
 
   it('folds rooms still missing metadata into the titled house stream', () => {
@@ -626,7 +627,7 @@ describe('fleetHouseStatus', () => {
       null,
     );
     expect(status.sourceCount).toBe(1);
-    expect(status.primary).toBe('unspoken — A');
+    expect(status.primary).toBe('unspoken');
     expect(status.rooms.sort()).toEqual(['Zone L', 'Zone M', 'Zone Q']);
   });
 
@@ -660,7 +661,7 @@ describe('fleetHouseStatus', () => {
     );
     expect(status.sourceCount).toBe(1);
     expect(status.hasDominantStream).toBe(true);
-    expect(status.primary).toBe('unspoken — A');
+    expect(status.primary).toBe('unspoken');
     expect(status.rooms.sort()).toEqual(['Zone L', 'Zone M', 'Zone Q']);
   });
 
@@ -686,7 +687,7 @@ describe('fleetHouseStatus', () => {
       null,
     );
     expect(status.sourceCount).toBe(1);
-    expect(status.primary).toBe('unspoken — A');
+    expect(status.primary).toBe('unspoken');
     expect(status.detail).toBe('AirPlay');
   });
 
@@ -744,7 +745,7 @@ describe('fleetHouseStatus', () => {
     const held = fleetHouseStatus(devices, null, houseCatchupSession(['1', '2']));
     expect(held.sourceCount).toBe(1);
     expect(held.hasDominantStream).toBe(true);
-    expect(held.primary).toBe('Next — B');
+    expect(held.primary).toBe('Next');
     expect(held.rooms.sort()).toEqual(['Zone L', 'Zone M']);
     expect(held.image).toBe('http://art/b.jpg');
   });

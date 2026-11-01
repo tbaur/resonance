@@ -17,16 +17,13 @@ export function joinMeta(
   return parts.filter((part): part is string | number => Boolean(part)).join(META_SEP);
 }
 
-const TITLE_SEP = ' — ';
+function sameName(left: string, right: string): boolean {
+  return left.trim().localeCompare(right.trim(), undefined, { sensitivity: 'accent' }) === 0;
+}
 
-/** Track — artist, but never "Evening — Evening" when BluOS repeats the name. */
-export function formatTrackArtist(track: string, artist: string): string {
-  const title = track.trim();
-  const name = artist.trim();
-  if (!title) return name;
-  if (!name) return title;
-  if (title.localeCompare(name, undefined, { sensitivity: 'accent' }) === 0) {
-    return title;
-  }
-  return `${title}${TITLE_SEP}${name}`;
+/** Artist / album under a title; drops any part that only repeats a name already shown. */
+export function artistAlbumLine(title: string, artist: string, album: string): string {
+  const shownArtist = !sameName(artist, title) && artist.trim();
+  const shownAlbum = !sameName(album, title) && !sameName(album, artist) && album.trim();
+  return joinMeta(shownArtist, shownAlbum);
 }
