@@ -161,6 +161,10 @@ async def test_artwork_follows_one_mzstatic_redirect(settings: Settings) -> None
         "https://is1-ssl.mzstatic.com:8443/a.jpg",
         "https://resources.tidal.com.evil.example/images/a.jpg",
         "https://notresources.tidal.com/images/a.jpg",
+        "http://i.scdn.co/image/a",
+        "https://i.scdn.co.evil.example/image/a",
+        "https://x.i.scdn.co/image/a",
+        "https://scdn.co/image/a",
     ],
 )
 @pytest.mark.asyncio
@@ -235,6 +239,22 @@ async def test_artwork_fetches_a_direct_tidal_url(settings: Settings) -> None:
     client = BluOSClient(settings)
     try:
         fetched = await client.fetch_artwork("192.168.1.20:11000", tidal)
+        assert fetched == (_JPEG, "image/jpeg")
+        assert cdn.called
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_artwork_fetches_a_direct_spotify_url(settings: Settings) -> None:
+    spotify = "https://i.scdn.co/image/cover"
+    cdn = respx.get(spotify).mock(
+        return_value=httpx.Response(200, content=_JPEG, headers={"content-type": "image/jpeg"})
+    )
+    client = BluOSClient(settings)
+    try:
+        fetched = await client.fetch_artwork("192.168.1.20:11000", spotify)
         assert fetched == (_JPEG, "image/jpeg")
         assert cdn.called
     finally:
