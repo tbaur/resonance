@@ -7,26 +7,16 @@
 
 from __future__ import annotations
 
-from urllib.parse import quote, urlparse
+from urllib.parse import quote
 
 import httpx
 
+from app.bluos.artwork import artwork_target, image_media_type, is_player_url
 from app.bluos.result import CallResult
 from app.bluos.status import BluOSStatusMixin
 from app.bluos.xml import safe_parse_xml, text
 from app.models import AudioInput, BluetoothResponse, Preset, QueueItem, QueueResponse
-from app.validators import format_endpoint, sanitize_ip
-
-_ART_SUFFIXES = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif")
-_ART_HINTS = ("/artwork", "/images/", "/image/", "/var/data/")
-
-
-def _is_artwork_path(path: str) -> bool:
-    """Reject control verbs disguised as a cover URL. GET /Volume?level=0 is a command."""
-    lowered = (path or "").lower()
-    if any(hint in lowered for hint in _ART_HINTS):
-        return True
-    return lowered.endswith(_ART_SUFFIXES)
+from app.validators import format_endpoint
 
 
 class BluOSMediaMixin(BluOSStatusMixin):
@@ -242,38 +232,28 @@ class BluOSMediaMixin(BluOSStatusMixin):
             return self._ok(CallResult.failure("rejected", "invalid preset"))
         return self._ok(await self._control_get(ip, "/Preset", query=f"id={preset_id}"))
 
-    def _artwork_fetch_url(self, ip: str, port: int, raw: str) -> str | None:
-        """Player-local cover URL, or one allowlisted CDN URL."""
+    def _artwork_fetch_url(
+        self, ip: str, port: int, raw: str, *, named_by_player: bool
+    ) -> str | None:
+        """The first URL to request for a cover, under the rule in ``app.bluos.artwork``.
+
+        A URL that no player reported may only point at the player itself, so a
+        client can't make the server fetch from any host it likes.
+        """
         if not raw or raw.startswith("data:"):
             return None
-        if raw.startswith("/"):
-            url = f"http://{ip}:{port}{raw}"
-            path = urlparse(raw).path
-        else:
-            parsed = urlparse(raw)
-            host = sanitize_ip(parsed.hostname or "")
-            image_port = parsed.port or (443 if parsed.scheme == "https" else 80)
-            player_image = parsed.scheme in {"http", "https"} and host == ip and image_port == port
-            if player_image:
-                url = raw
-                path = parsed.path
-            else:
-                cdn = self._artwork_cdn_target(f"http://{ip}:{port}/", raw)
-                if cdn is None:
-                    return None
-                url = cdn
-                path = urlparse(cdn).path
-        if not _is_artwork_path(path):
+        url = artwork_target(ip, f"http://{ip}:{port}/", raw)
+        if url is None or (not named_by_player and not is_player_url(ip, url)):
             return None
         return url
 
-    async def fetch_artwork(self, endpoint: str, image_url: str) -> tuple[bytes, str] | None:
-        """Fetch cover art for a player.
+    async def fetch_artwork(
+        self, endpoint: str, image_url: str, *, named_by_player: bool = False
+    ) -> tuple[bytes, str] | None:
+        """Fetch cover art for a player, as bytes and the media type judged from them.
 
-        The browser never opens the player URL. A player-relative path is
-        fetched from that player, and one later hop may go to an allowlisted
-        cover host. TIDAL connect already stores that host in Status, so an
-        allowlisted cover URL is fetched directly. Any other host is refused.
+        The browser never opens the cover URL. Set ``named_by_player`` only when
+        ``image_url`` is the image that a player reported.
         """
         resolved = self._resolve_target(endpoint)
         if not resolved:
@@ -281,25 +261,22 @@ class BluOSMediaMixin(BluOSStatusMixin):
         ip, port = resolved
         if not self.settings.is_allowed_device_ip(ip):
             return None
-        url = self._artwork_fetch_url(ip, port, (image_url or "").strip())
+        url = self._artwork_fetch_url(
+            ip, port, (image_url or "").strip(), named_by_player=named_by_player
+        )
         if url is None:
             return None
         try:
             async with self._sem:
                 async with self._endpoint_slot(format_endpoint(ip, port)):
-                    response = await self._follow_artwork_get(
+                    body = await self._follow_artwork_get(
                         ip,
                         url,
                         timeout=self.settings.device_http_timeout,
                     )
         except (httpx.TimeoutException, httpx.TransportError, OSError):
             return None
-        if response is None or response.status_code >= 400:
-            return None
-        body = response.content
-        if not body or len(body) > self.settings.max_xml_size:
-            return None
-        media = response.headers.get("content-type", "image/jpeg").split(";", 1)[0].strip().lower()
-        if not media.startswith("image/"):
+        media = image_media_type(body) if body else None
+        if body is None or media is None:
             return None
         return body, media

@@ -29,7 +29,7 @@ The backend applies:
 
 - Discovered-device targeting with a short grace TTL
 - Private IPv4 gate on BluOS calls (unless explicitly overridden)
-- Same-host validation when following BluOS HTTP redirects. Cover fetches may also use `*.mzstatic.com` over HTTPS, or `resources.tidal.com` (HTTP rewritten to HTTPS). One hop, and the response must be an image. Any other host is refused.
+- Same-host validation when following BluOS HTTP redirects. Cover fetches are the exception: the player may be reached over HTTP, but only on paths that look like a cover. Any other host must use HTTPS, and an `http://` link is fetched as HTTPS, so stream metadata can't point the server at a router or another device on the home network. Every redirect gets the same check. A host other than the player is fetched only when a player reported that cover. The body is capped at 10 MB, and only JPEG, PNG, WebP and HEIC are served, judged from the bytes.
 - Per-device and per-client rate limiting
 - XML size/depth/element caps (including sync-control response OK checks via the hardened parser)
 - Pydantic input validation and HTTP security headers
