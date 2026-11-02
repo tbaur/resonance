@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.8](https://github.com/tbaur/resonance/compare/v4.0.7...v4.0.8) (2026-11-02)
+
+
+### Bug Fixes
+
+* load album art from any HTTPS host a player names ([#52](https://github.com/tbaur/resonance/issues/52)) ([1e3ec77](https://github.com/tbaur/resonance/commit/1e3ec7706d77ca5c8b0f2c008ed6171eb100bc42))
+
 ## [4.0.7](https://github.com/tbaur/resonance/compare/v4.0.6...v4.0.7) (2026-11-01)
 
 
