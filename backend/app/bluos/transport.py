@@ -12,10 +12,11 @@ import logging
 import random
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from urllib.parse import urljoin, urlparse, urlunparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
+from app.bluos.artwork import MAX_ARTWORK_BYTES, artwork_target
 from app.bluos.rate_limit import RateLimiter
 from app.bluos.result import CallResult, classify_control_body, note_control_result
 from app.config import Settings
@@ -33,14 +34,21 @@ def _failure_kind(result: CallResult) -> str:
     return result.kind or "unreachable"
 
 
+async def _read_capped(response: httpx.Response, limit: int) -> bytes | None:
+    """The whole body, or None once it passes ``limit`` bytes."""
+    declared = response.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > limit:
+        return None
+    body = bytearray()
+    async for chunk in response.aiter_bytes():
+        body.extend(chunk)
+        if len(body) > limit:
+            return None
+    return bytes(body) or None
+
+
 _MAX_REDIRECTS = 5
 _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
-# Apple Music covers redirect to https://*.mzstatic.com. TIDAL connect names
-# https://resources.tidal.com directly, and /Artwork may 301 to the HTTP form.
-# Spotify names https://i.scdn.co directly. Only that exact host is allowed.
-_ARTWORK_CDN_SUFFIXES = ("mzstatic.com",)
-_ARTWORK_CDN_HOSTS = ("i.scdn.co",)
-_TIDAL_ART_HOST = "resources.tidal.com"
 # Idle control sockets stay warm across a mute/volume session. Long-polls are
 # in-use and do not use this expiry.
 _CONTROL_KEEPALIVE_EXPIRY_SECONDS = 60.0
@@ -120,31 +128,6 @@ class BluOSTransport:
             return None
         return next_url
 
-    def _artwork_cdn_target(self, current_url: str, location: str) -> str | None:
-        """One cover hop. The host must be an allowlisted CDN, not an IP.
-
-        ``http://resources.tidal.com`` is rewritten to HTTPS. That host serves
-        the same JPEG either way, so Resonance does not fetch it in clear.
-        """
-        next_url = urljoin(current_url, location)
-        parsed = urlparse(next_url)
-        if parsed.username or parsed.password:
-            return None
-        host = (parsed.hostname or "").rstrip(".").lower()
-        if not host or sanitize_ip(host):
-            return None
-        suffix_ok = host in _ARTWORK_CDN_HOSTS or any(
-            host == suffix or host.endswith("." + suffix) for suffix in _ARTWORK_CDN_SUFFIXES
-        )
-        tidal = host == _TIDAL_ART_HOST
-        if not suffix_ok and not tidal:
-            return None
-        if tidal and parsed.scheme == "http" and parsed.port in (None, 80):
-            return urlunparse(parsed._replace(scheme="https", netloc=host))
-        if parsed.scheme != "https" or parsed.port not in (None, 443):
-            return None
-        return next_url
-
     def _endpoint_slot(self, endpoint_key: str) -> asyncio.Semaphore:
         slot = self._endpoint_slots.get(endpoint_key)
         if slot is None:
@@ -192,43 +175,29 @@ class BluOSTransport:
         url: str,
         *,
         timeout: float | httpx.Timeout | None = None,
-    ) -> httpx.Response | None:
-        """Follow player redirects, then at most one allowlisted cover-host hop.
+    ) -> bytes | None:
+        """The body of a cover, following redirects that ``artwork_target`` allows.
 
         Control calls use ``_follow_get`` and still refuse every off-player host.
         """
         current = url
-        left_player = False
+        request_timeout = httpx.USE_CLIENT_DEFAULT if timeout is None else timeout
         for _ in range(_MAX_REDIRECTS + 1):
-            response = (
-                await self._client.get(current, timeout=timeout)
-                if timeout is not None
-                else await self._client.get(current)
-            )
-            if response.status_code not in _REDIRECT_STATUSES:
-                return response
-            location = response.headers.get("Location")
-            if not location:
-                return response
-            if left_player:
-                logger.warning(
-                    "artwork_cdn_redirect_refused",
-                    extra={"device_ip": origin_ip, "redirect_host": urlparse(location).hostname},
-                )
-                return None
-            same_player = self._redirect_target_allowed(origin_ip, current, location, warn=False)
-            if same_player is not None:
-                current = same_player
-                continue
-            cdn = self._artwork_cdn_target(current, location)
-            if cdn is None:
-                logger.warning(
-                    "blocked_redirect_host",
-                    extra={"device_ip": origin_ip, "redirect_host": urlparse(location).hostname},
-                )
-                return None
-            left_player = True
-            current = cdn
+            async with self._client.stream("GET", current, timeout=request_timeout) as response:
+                if response.status_code not in _REDIRECT_STATUSES:
+                    if response.status_code != 200:
+                        return None
+                    return await _read_capped(response, MAX_ARTWORK_BYTES)
+                location = response.headers.get("Location", "")
+                target = artwork_target(origin_ip, current, location) if location else None
+                if target is None:
+                    redirect_host = urlparse(location).hostname
+                    logger.warning(
+                        "blocked_redirect_host",
+                        extra={"device_ip": origin_ip, "redirect_host": redirect_host},
+                    )
+                    return None
+                current = target
         logger.warning("redirect_limit_exceeded", extra={"device_ip": origin_ip, "url": url})
         return None
 

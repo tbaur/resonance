@@ -11,6 +11,7 @@ import httpx
 import pytest
 import respx
 
+from app.bluos.artwork import MAX_ARTWORK_BYTES
 from app.bluos.client import BluOSClient
 from app.bluos.result import take_control_result
 from app.config import Settings
@@ -100,49 +101,63 @@ async def test_post_transport_error(settings: Settings) -> None:
         await client.aclose()
 
 
+_PLAYER = "192.168.1.20:11000"
+_APPLE_ART = "https://is1-ssl.mzstatic.com/image/thumb/Music/cover/600x600bb.jpg"
+_AMAZON_ART = "https://m.media-amazon.com/images/I/cover._SL500_.jpg"
+_JPEG = b"\xff\xd8\xff"
+
+
+def _image(content: bytes = _JPEG, media: str = "image/jpeg") -> httpx.Response:
+    return httpx.Response(200, content=content, headers={"content-type": media})
+
+
 @pytest.mark.asyncio
 @respx.mock
-async def test_artwork_stays_on_the_player_host(settings: Settings) -> None:
-    art = respx.get("http://192.168.1.20:11000/Artwork").mock(
-        return_value=httpx.Response(
-            200,
-            content=b"\xff\xd8\xff",
-            headers={"content-type": "image/jpeg"},
-        )
-    )
+async def test_artwork_stays_on_the_player_host_unless_a_player_named_it(
+    settings: Settings,
+) -> None:
+    art = respx.get("http://192.168.1.20:11000/Artwork").mock(return_value=_image())
     client = BluOSClient(settings)
     try:
-        fetched = await client.fetch_artwork("192.168.1.20:11000", "/Artwork")
-        assert fetched is not None
-        assert fetched[1] == "image/jpeg"
+        assert await client.fetch_artwork(_PLAYER, "/Artwork") == (_JPEG, "image/jpeg")
         assert art.called
-        assert (
-            await client.fetch_artwork("192.168.1.20:11000", "http://10.0.0.10:11000/art")
-            is None
-        )
-        assert await client.fetch_artwork("192.168.1.20:11000", "/Volume?level=0") is None
+        assert await client.fetch_artwork(_PLAYER, "http://10.0.0.10:11000/art") is None
+        assert await client.fetch_artwork(_PLAYER, _AMAZON_ART) is None
+        assert await client.fetch_artwork(_PLAYER, "/Volume?level=0") is None
+        assert await client.fetch_artwork(_PLAYER, "", named_by_player=True) is None
+        inline = "data:image/png;base64,AAAA"
+        assert await client.fetch_artwork(_PLAYER, inline, named_by_player=True) is None
     finally:
         await client.aclose()
 
 
-_APPLE_ART = "https://is1-ssl.mzstatic.com/image/thumb/Music/cover/600x600bb.jpg"
-_JPEG = b"\xff\xd8\xff"
+@pytest.mark.parametrize("cover", [_AMAZON_ART, _APPLE_ART, "https://images.example.com/c"])
+@pytest.mark.asyncio
+@respx.mock
+async def test_artwork_fetches_any_https_host_a_player_names(
+    settings: Settings, cover: str
+) -> None:
+    route = respx.get(cover).mock(return_value=_image())
+    client = BluOSClient(settings)
+    try:
+        fetched = await client.fetch_artwork(_PLAYER, cover, named_by_player=True)
+        assert fetched == (_JPEG, "image/jpeg")
+        assert route.called
+    finally:
+        await client.aclose()
 
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_artwork_follows_one_mzstatic_redirect(settings: Settings) -> None:
+async def test_artwork_follows_a_player_redirect_to_a_cover_host(settings: Settings) -> None:
     player = respx.get("http://192.168.1.20:11000/Artwork").mock(
         return_value=httpx.Response(301, headers={"Location": _APPLE_ART})
     )
-    cdn = respx.get(_APPLE_ART).mock(
-        return_value=httpx.Response(200, content=_JPEG, headers={"content-type": "image/jpeg"})
-    )
+    cdn = respx.get(_APPLE_ART).mock(return_value=_image())
     client = BluOSClient(settings)
     try:
         fetched = await client.fetch_artwork(
-            "192.168.1.20:11000",
-            "/Artwork?service=AppleMusic&songid=AppleMusic%3Acatalog%2Fsongs%2F1",
+            _PLAYER, "/Artwork?service=AppleMusic&songid=AppleMusic%3Acatalog%2Fsongs%2F1"
         )
         assert fetched == (_JPEG, "image/jpeg")
         assert "songid=AppleMusic" in str(player.calls.last.request.url)
@@ -151,134 +166,66 @@ async def test_artwork_follows_one_mzstatic_redirect(settings: Settings) -> None
         await client.aclose()
 
 
+@pytest.mark.asyncio
+@respx.mock
+async def test_artwork_checks_every_redirect_with_the_same_rule(settings: Settings) -> None:
+    respx.get("http://192.168.1.20:11000/Artwork").mock(
+        return_value=httpx.Response(302, headers={"Location": _APPLE_ART})
+    )
+    respx.get(_APPLE_ART).mock(
+        return_value=httpx.Response(302, headers={"Location": "http://images.example.com/c.jpg"})
+    )
+    plain = respx.get("http://images.example.com/c.jpg").mock(return_value=_image())
+    secure = respx.get("https://images.example.com/c.jpg").mock(return_value=_image())
+    client = BluOSClient(settings)
+    try:
+        assert await client.fetch_artwork(_PLAYER, "/Artwork") == (_JPEG, "image/jpeg")
+        assert secure.called
+        assert not plain.called
+    finally:
+        await client.aclose()
+
+
 @pytest.mark.parametrize(
     "location",
     [
-        "https://evil.example/a.jpg",
-        "http://is1-ssl.mzstatic.com/a.jpg",
-        "https://is1-ssl.mzstatic.com.evil.example/a.jpg",
-        "https://evilmzstatic.com/a.jpg",
-        "https://is1-ssl.mzstatic.com:8443/a.jpg",
-        "https://resources.tidal.com.evil.example/images/a.jpg",
-        "https://notresources.tidal.com/images/a.jpg",
-        "http://i.scdn.co/image/a",
-        "https://i.scdn.co.evil.example/image/a",
-        "https://x.i.scdn.co/image/a",
-        "https://scdn.co/image/a",
+        "http://192.168.1.20:11000/Volume?level=0",
+        "https://user:pass@images.example.com/a.jpg",
+        "ftp://images.example.com/a.jpg",
+        "https://images.example.com:99999/a.jpg",
     ],
 )
 @pytest.mark.asyncio
 @respx.mock
-async def test_artwork_refuses_redirects_off_the_allowlist(
+async def test_artwork_refuses_redirects_the_rule_does_not_allow(
     settings: Settings, location: str
 ) -> None:
     respx.get("http://192.168.1.20:11000/Artwork").mock(
         return_value=httpx.Response(301, headers={"Location": location})
     )
-    forbidden = respx.get(location).mock(
-        return_value=httpx.Response(200, content=_JPEG, headers={"content-type": "image/jpeg"})
-    )
+    volume = respx.get("http://192.168.1.20:11000/Volume").mock(return_value=_image())
     client = BluOSClient(settings)
     try:
-        assert await client.fetch_artwork("192.168.1.20:11000", "/Artwork") is None
-        assert not forbidden.called
+        assert await client.fetch_artwork(_PLAYER, "/Artwork") is None
+        assert not volume.called
     finally:
         await client.aclose()
 
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_artwork_does_not_follow_a_second_cdn_hop(settings: Settings) -> None:
-    respx.get("http://192.168.1.20:11000/Artwork").mock(
-        return_value=httpx.Response(301, headers={"Location": _APPLE_ART})
-    )
-    respx.get(_APPLE_ART).mock(
-        return_value=httpx.Response(
-            302,
-            headers={"Location": "https://evil.example/next.jpg"},
-        )
-    )
-    second = respx.get("https://evil.example/next.jpg").mock(
-        return_value=httpx.Response(200, content=_JPEG, headers={"content-type": "image/jpeg"})
-    )
-    client = BluOSClient(settings)
-    try:
-        assert await client.fetch_artwork("192.168.1.20:11000", "/Artwork") is None
-        assert not second.called
-    finally:
-        await client.aclose()
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_artwork_follows_a_same_player_redirect(settings: Settings) -> None:
-    respx.get("http://192.168.1.20:11000/Artwork").mock(
-        return_value=httpx.Response(
-            301,
-            headers={"Location": "http://192.168.1.20:11000/images/cover.jpg"},
-        )
-    )
-    respx.get("http://192.168.1.20:11000/images/cover.jpg").mock(
-        return_value=httpx.Response(200, content=_JPEG, headers={"content-type": "image/jpeg"})
-    )
-    client = BluOSClient(settings)
-    try:
-        fetched = await client.fetch_artwork("192.168.1.20:11000", "/Artwork")
-        assert fetched == (_JPEG, "image/jpeg")
-    finally:
-        await client.aclose()
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_artwork_fetches_a_direct_tidal_url(settings: Settings) -> None:
-    tidal = "https://resources.tidal.com/images/cover.jpg"
-    cdn = respx.get(tidal).mock(
-        return_value=httpx.Response(200, content=_JPEG, headers={"content-type": "image/jpeg"})
-    )
-    client = BluOSClient(settings)
-    try:
-        fetched = await client.fetch_artwork("192.168.1.20:11000", tidal)
-        assert fetched == (_JPEG, "image/jpeg")
-        assert cdn.called
-    finally:
-        await client.aclose()
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_artwork_fetches_a_direct_spotify_url(settings: Settings) -> None:
-    spotify = "https://i.scdn.co/image/cover"
-    cdn = respx.get(spotify).mock(
-        return_value=httpx.Response(200, content=_JPEG, headers={"content-type": "image/jpeg"})
-    )
-    client = BluOSClient(settings)
-    try:
-        fetched = await client.fetch_artwork("192.168.1.20:11000", spotify)
-        assert fetched == (_JPEG, "image/jpeg")
-        assert cdn.called
-    finally:
-        await client.aclose()
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_artwork_upgrades_tidal_http_to_https(settings: Settings) -> None:
+async def test_artwork_upgrades_plain_http_cover_hosts(settings: Settings) -> None:
     plain = "http://resources.tidal.com/images/cover.jpg"
     secure = "https://resources.tidal.com/images/cover.jpg"
-    http_route = respx.get(plain).mock(
-        return_value=httpx.Response(200, content=_JPEG, headers={"content-type": "image/jpeg"})
-    )
-    https_route = respx.get(secure).mock(
-        return_value=httpx.Response(200, content=_JPEG, headers={"content-type": "image/jpeg"})
-    )
+    http_route = respx.get(plain).mock(return_value=_image())
+    https_route = respx.get(secure).mock(return_value=_image())
     respx.get("http://192.168.1.20:11000/Artwork").mock(
         return_value=httpx.Response(301, headers={"Location": plain})
     )
     client = BluOSClient(settings)
     try:
-        direct = await client.fetch_artwork("192.168.1.20:11000", plain)
-        redirected = await client.fetch_artwork("192.168.1.20:11000", "/Artwork")
+        direct = await client.fetch_artwork(_PLAYER, plain, named_by_player=True)
+        redirected = await client.fetch_artwork(_PLAYER, "/Artwork")
         assert direct == (_JPEG, "image/jpeg")
         assert redirected == (_JPEG, "image/jpeg")
         assert not http_route.called
@@ -289,75 +236,56 @@ async def test_artwork_upgrades_tidal_http_to_https(settings: Settings) -> None:
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_artwork_fetches_a_direct_allowlisted_url(settings: Settings) -> None:
-    cdn = respx.get(_APPLE_ART).mock(
-        return_value=httpx.Response(200, content=_JPEG, headers={"content-type": "image/jpeg"})
+async def test_artwork_stops_after_too_many_redirects(settings: Settings) -> None:
+    respx.get("https://images.example.com/loop.jpg").mock(
+        return_value=httpx.Response(302, headers={"Location": "/loop.jpg"})
     )
     client = BluOSClient(settings)
     try:
-        fetched = await client.fetch_artwork("192.168.1.20:11000", _APPLE_ART)
-        assert fetched == (_JPEG, "image/jpeg")
-        assert cdn.called
+        cover = "https://images.example.com/loop.jpg"
+        assert await client.fetch_artwork(_PLAYER, cover, named_by_player=True) is None
     finally:
         await client.aclose()
 
 
-@pytest.mark.asyncio
-@respx.mock
-async def test_artwork_rejects_a_direct_url_off_the_allowlist(settings: Settings) -> None:
-    evil = "https://evil.example/images/a.jpg"
-    tidal_api = "https://resources.tidal.com/v1/sessions"
-    evil_route = respx.get(evil).mock(
-        return_value=httpx.Response(200, content=_JPEG, headers={"content-type": "image/jpeg"})
-    )
-    api_route = respx.get(tidal_api).mock(
-        return_value=httpx.Response(200, content=_JPEG, headers={"content-type": "image/jpeg"})
-    )
-    client = BluOSClient(settings)
-    try:
-        assert await client.fetch_artwork("192.168.1.20:11000", evil) is None
-        assert await client.fetch_artwork("192.168.1.20:11000", tidal_api) is None
-        assert not evil_route.called
-        assert not api_route.called
-    finally:
-        await client.aclose()
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_artwork_rejects_an_oversized_cdn_image(settings: Settings) -> None:
-    respx.get("http://192.168.1.20:11000/Artwork").mock(
-        return_value=httpx.Response(301, headers={"Location": _APPLE_ART})
-    )
-    respx.get(_APPLE_ART).mock(
-        return_value=httpx.Response(
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(404, content=_JPEG, headers={"content-type": "image/jpeg"}),
+        httpx.Response(204),
+        _image(b"<svg xmlns='http://www.w3.org/2000/svg'/>", "image/svg+xml"),
+        _image(b"GIF89a", "image/gif"),
+        _image(b"\xff" * (MAX_ARTWORK_BYTES + 1)),
+        httpx.Response(200, stream=httpx.ByteStream(_JPEG + b"\xff" * MAX_ARTWORK_BYTES)),
+        httpx.Response(
             200,
-            content=b"\xff" * (settings.max_xml_size + 1),
-            headers={"content-type": "image/jpeg"},
-        )
-    )
+            headers={"content-length": str(MAX_ARTWORK_BYTES + 1)},
+            stream=httpx.ByteStream(_JPEG),
+        ),
+    ],
+)
+@pytest.mark.asyncio
+@respx.mock
+async def test_artwork_refuses_responses_that_are_not_a_cover(
+    settings: Settings, response: httpx.Response
+) -> None:
+    respx.get(_APPLE_ART).mock(return_value=response)
     client = BluOSClient(settings)
     try:
-        assert await client.fetch_artwork("192.168.1.20:11000", "/Artwork") is None
+        assert await client.fetch_artwork(_PLAYER, _APPLE_ART, named_by_player=True) is None
     finally:
         await client.aclose()
 
 
 @pytest.mark.asyncio
-async def test_artwork_cdn_target_rejects_credentials_and_lookalikes(settings: Settings) -> None:
+@respx.mock
+async def test_artwork_type_comes_from_the_bytes(settings: Settings) -> None:
+    png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
+    respx.get(_APPLE_ART).mock(return_value=_image(png, "text/html"))
     client = BluOSClient(settings)
-    origin = "http://192.168.1.20:11000/Artwork"
     try:
-        assert client._artwork_cdn_target(origin, _APPLE_ART) == _APPLE_ART
-        assert (
-            client._artwork_cdn_target(origin, "https://user:pass@is1-ssl.mzstatic.com/a.jpg")
-            is None
-        )
-        assert client._artwork_cdn_target(origin, "https://mzstatic.com/a.jpg") is not None
-        assert (
-            client._artwork_cdn_target(origin, "http://resources.tidal.com/images/a.jpg")
-            == "https://resources.tidal.com/images/a.jpg"
-        )
+        fetched = await client.fetch_artwork(_PLAYER, _APPLE_ART, named_by_player=True)
+        assert fetched == (png, "image/png")
     finally:
         await client.aclose()
 

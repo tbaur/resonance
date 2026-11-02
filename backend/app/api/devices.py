@@ -80,9 +80,12 @@ async def device_art(device_id: str, state: StateDep, image: str = "") -> Respon
     target = image.strip() or (device.image if device is not None else "")
     if not target:
         raise AppError(404, "artwork_not_found", "No artwork for this player")
+    # A group shows the cover of whichever member reports one, so any player's
+    # current image counts as named by a player.
+    named_by_player = any(d.image == target for d in state.discovery.snapshot.devices)
     # Free the status hold so the cover GET is not queued behind a 100s poll.
     await state.poller.interrupt([device_id])
-    fetched = await state.client.fetch_artwork(endpoint, target)
+    fetched = await state.client.fetch_artwork(endpoint, target, named_by_player=named_by_player)
     if fetched is None:
         raise AppError(404, "artwork_not_found", "Artwork unavailable")
     body, media_type = fetched

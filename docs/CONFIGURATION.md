@@ -16,7 +16,7 @@ BluOS players have no authentication — each device already exposes control on 
 - **LAN bind (`0.0.0.0`):** same practical exposure as opening any player's BluOS UI to the network. Set `RESONANCE_API_TOKEN` so API calls require a Bearer token; put the matching value in `frontend/.env` as `VITE_API_TOKEN` (Vite does not read the repo-root `.env`); tighten `RESONANCE_CORS_ORIGINS`; set `RESONANCE_ENABLE_OPENAPI=false` if you do not want `/api/docs` on the LAN.
 - **Do not** expose Resonance to the internet.
 
-BluOS control calls go only to discovered private IPs (see `RESONANCE_ALLOW_NON_PRIVATE_IPS`). Cover art is the exception. A player-relative cover is fetched from that player. Apple Music art may follow one redirect to `*.mzstatic.com` over HTTPS. TIDAL connect names `resources.tidal.com` directly, and an `http://` URL for that host is fetched over HTTPS. Spotify names `i.scdn.co` directly, and only HTTPS is allowed for it. The path has to look like a cover, the response has to be an image, and the body is capped at `RESONANCE_MAX_XML_SIZE`. A second redirect and any other host are refused. Control-call redirects stay on the player. The browser loads the cover from the Resonance server.
+BluOS control calls go only to discovered private IPs (see `RESONANCE_ALLOW_NON_PRIVATE_IPS`). Cover art is the exception. A player-relative cover is fetched from that player, and the path has to look like a cover. Any other host that the player names is fetched over HTTPS, and an `http://` link is upgraded, so stream metadata can't point the server at a router or another device on the home network. That covers Apple Music, Amazon Music, TIDAL, Spotify and any other service without a list to keep up. Every redirect gets the same check. A host other than the player is fetched only when a player reported that cover. The body is capped at 10 MB, and only JPEG, PNG, WebP and HEIC are served, judged from the bytes. Control-call redirects stay on the player. The browser loads the cover from the Resonance server.
 
 ## Server
 
@@ -99,7 +99,7 @@ Drop history (`GET /api/v1/fleet/health`, House page Health, player 12-hour pres
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `RESONANCE_MAX_XML_SIZE` | `1048576` | Max bytes for a BluOS XML body or a cover image |
+| `RESONANCE_MAX_XML_SIZE` | `1048576` | Max bytes for a BluOS XML body |
 | `RESONANCE_MAX_XML_DEPTH` | `20` | Max XML depth |
 | `RESONANCE_MAX_XML_ELEMENTS` | `10000` | Max XML elements |
 
