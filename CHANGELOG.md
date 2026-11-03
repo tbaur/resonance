@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.9](https://github.com/tbaur/resonance/compare/v4.0.8...v4.0.9) (2026-11-03)
+
+
+### Bug Fixes
+
+* **ui:** pipe separators, split artist and album, simplify house remote ([#54](https://github.com/tbaur/resonance/issues/54)) ([0edda9c](https://github.com/tbaur/resonance/commit/0edda9cde401fb38527abf269c1f8607e11a0463))
+
 ## [4.0.8](https://github.com/tbaur/resonance/compare/v4.0.7...v4.0.8) (2026-11-02)
 
 
