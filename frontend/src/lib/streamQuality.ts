@@ -66,7 +66,8 @@ function codecSegment(format: ParsedFormat, kbps: number | null): string {
 function mqaSegment(format: ParsedFormat, originalHz: number): string | null {
   if (originalHz <= 0 || format.bits === null || format.khz === null) return null;
   const original = khzLabel(originalHz / 1000);
-  const stream = original === format.khz ? `${format.bits}-bit` : `${format.bits}-bit ${format.khz} kHz`;
+  const stream =
+    original === format.khz ? `${format.bits}-bit` : `${format.bits}-bit ${format.khz} kHz`;
   return `MQA ${original} kHz (${stream} stream)`;
 }
 

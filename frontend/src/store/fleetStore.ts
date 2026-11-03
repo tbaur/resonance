@@ -77,9 +77,7 @@ interface FleetState {
   /** Full LAN rediscovery (Rescan). */
   refresh: () => Promise<void>;
   /** Reload cached fleet + sync status without rediscovering the LAN. */
-  reloadStatus: (opts?: {
-    ensureLink?: { primaryId: string; slaveId: string };
-  }) => Promise<void>;
+  reloadStatus: (opts?: { ensureLink?: { primaryId: string; slaveId: string } }) => Promise<void>;
   setFleet: (devices: PlayerStatus[], discoveredAt?: number | null) => void;
   upsertDevice: (device: PlayerStatus) => void;
   patchDevice: (deviceId: string, patch: Partial<PlayerStatus>) => void;
@@ -303,7 +301,10 @@ function revertFields<K extends keyof PlayerStatus>(
   });
 }
 
-function releaseHold(entries: Record<string, number>, ids: Iterable<string>): Record<string, number> {
+function releaseHold(
+  entries: Record<string, number>,
+  ids: Iterable<string>,
+): Record<string, number> {
   const next = { ...entries };
   for (const id of ids) delete next[id];
   return next;
@@ -591,12 +592,16 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     });
 
     // A failure releases the holds as well, so server truth returns.
-    await runFleetAction(set, `Fleet ${mute ? 'mute' : 'unmute'}`, () => api.fleetMute(mute), () =>
-      set((state) => ({
-        devices: revertFields(state.devices, before, ['muted', 'volume', 'mute_volume']),
-        muteHoldUntil: releaseHold(state.muteHoldUntil, before.keys()),
-        volumeHoldUntil: releaseHold(state.volumeHoldUntil, before.keys()),
-      })),
+    await runFleetAction(
+      set,
+      `Fleet ${mute ? 'mute' : 'unmute'}`,
+      () => api.fleetMute(mute),
+      () =>
+        set((state) => ({
+          devices: revertFields(state.devices, before, ['muted', 'volume', 'mute_volume']),
+          muteHoldUntil: releaseHold(state.muteHoldUntil, before.keys()),
+          volumeHoldUntil: releaseHold(state.volumeHoldUntil, before.keys()),
+        })),
     );
   },
 

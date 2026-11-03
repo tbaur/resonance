@@ -235,12 +235,11 @@ describe('control', () => {
     const unmuted = { muted: false, volume: 40, mute_volume: null };
     store().patchDevice('player-1', unmuted);
 
-    await store().control(
-      'player-1',
-      () => Promise.reject(apiError('Volume failed')),
-      unmuted,
-      { muted: true, volume: 0, mute_volume: 45 },
-    );
+    await store().control('player-1', () => Promise.reject(apiError('Volume failed')), unmuted, {
+      muted: true,
+      volume: 0,
+      mute_volume: 45,
+    });
 
     expect(device('player-1')).toMatchObject({ muted: true, volume: 0, mute_volume: 45 });
   });

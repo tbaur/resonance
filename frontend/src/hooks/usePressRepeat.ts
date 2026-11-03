@@ -23,10 +23,7 @@ type PressRepeatHandlers = {
  */
 export function usePressRepeat(
   action: () => void,
-  {
-    initialDelayMs = 320,
-    repeatMs = 55,
-  }: { initialDelayMs?: number; repeatMs?: number } = {},
+  { initialDelayMs = 320, repeatMs = 55 }: { initialDelayMs?: number; repeatMs?: number } = {},
 ): PressRepeatHandlers {
   const actionRef = useRef(action);
   const delayRef = useRef<number | undefined>(undefined);

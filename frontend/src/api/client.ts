@@ -68,10 +68,7 @@ function timeoutError(): ApiError {
   });
 }
 
-async function request<T>(
-  path: string,
-  init?: RequestInit & { json?: unknown },
-): Promise<T> {
+async function request<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   const headers = new Headers(init?.headers);
   let body = init?.body;
   if (init?.json !== undefined) {
@@ -130,8 +127,7 @@ export const api = {
     }),
   links: () => request<AppLinks>('/links'),
   listDevices: () => request<DevicesResponse>('/devices'),
-  refreshDevices: () =>
-    request<DevicesResponse>('/devices/refresh', { method: 'POST' }),
+  refreshDevices: () => request<DevicesResponse>('/devices/refresh', { method: 'POST' }),
   getDevice: (id: string) => request<PlayerStatus>(`/devices/${id}`),
   play: (id: string) => request<void>(`/devices/${id}/play`, { method: 'POST' }),
   pause: (id: string) => request<void>(`/devices/${id}/pause`, { method: 'POST' }),
@@ -161,8 +157,7 @@ export const api = {
   fleetFirmware: () => request<FleetFirmwareResponse>('/fleet/firmware'),
   fleetUpgrades: () => request<FleetUpgradeResponse>('/fleet/upgrades'),
   getFleetHealth: () => request<FleetHealthResponse>('/fleet/health'),
-  reboot: (id: string) =>
-    request<void>(`/devices/${id}/reboot`, { method: 'POST' }),
+  reboot: (id: string) => request<void>(`/devices/${id}/reboot`, { method: 'POST' }),
   setVolume: (id: string, level: number) =>
     request<void>(`/devices/${id}/volume`, { method: 'POST', json: { level } }),
   setFleetVolume: (level: number, deviceIds?: string[]) =>
@@ -179,8 +174,7 @@ export const api = {
     request<void>(`/devices/${id}/mute`, { method: 'POST', json: { mute } }),
   getQueue: (id: string, init?: RequestInit) =>
     request<QueueResponse>(`/devices/${id}/queue`, init),
-  clearQueue: (id: string) =>
-    request<void>(`/devices/${id}/queue/clear`, { method: 'POST' }),
+  clearQueue: (id: string) => request<void>(`/devices/${id}/queue/clear`, { method: 'POST' }),
   getInputs: (id: string, init?: RequestInit) =>
     request<AudioInput[]>(`/devices/${id}/inputs`, init),
   setInput: (id: string, input: string) =>
@@ -189,8 +183,7 @@ export const api = {
     request<BluetoothResponse>(`/devices/${id}/bluetooth`, init),
   setBluetooth: (id: string, mode: 0 | 1 | 2 | 3) =>
     request<void>(`/devices/${id}/bluetooth`, { method: 'POST', json: { mode } }),
-  getPresets: (id: string, init?: RequestInit) =>
-    request<Preset[]>(`/devices/${id}/presets`, init),
+  getPresets: (id: string, init?: RequestInit) => request<Preset[]>(`/devices/${id}/presets`, init),
   playPreset: (id: string, presetId: string | number) =>
     request<void>(`/devices/${id}/presets/${presetId}/play`, { method: 'POST' }),
   getSync: () => request<SyncState>('/sync'),

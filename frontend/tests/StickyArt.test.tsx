@@ -28,7 +28,10 @@ describe('StickyArt', () => {
       <StickyArt src="/api/v1/devices/a/art?image=one" empty={<span>empty</span>} />,
     );
     fireEvent.error(screen.getByRole('presentation'));
-    expect(screen.getByRole('presentation')).toHaveAttribute('src', expect.stringContaining('retry=1'));
+    expect(screen.getByRole('presentation')).toHaveAttribute(
+      'src',
+      expect.stringContaining('retry=1'),
+    );
     fireEvent.error(screen.getByRole('presentation'));
     expect(screen.getByText('empty')).toBeInTheDocument();
 

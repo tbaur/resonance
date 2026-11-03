@@ -45,7 +45,11 @@ function isIdle(device: PlayerStatus): boolean {
 function nowPlaying(device: PlayerStatus): { primary: string; secondary: string; idle: boolean } {
   if (isIdle(device) && !device.track.trim()) {
     const state =
-      device.state === 'pause' ? 'Paused' : device.state === 'stop' || !device.state ? 'Idle' : device.state;
+      device.state === 'pause'
+        ? 'Paused'
+        : device.state === 'stop' || !device.state
+          ? 'Idle'
+          : device.state;
     return {
       primary: state,
       secondary: device.service && device.service !== 'Library/Input' ? device.service : '',
@@ -72,7 +76,11 @@ function volumesAreLinked(devices: PlayerStatus[], deviceId: string): boolean {
   return peers.length > 1 && peers.every((d) => d.volume === peers[0].volume);
 }
 
-function followedName(devices: PlayerStatus[], deviceId: string, sync: ReturnType<typeof useFleetStore.getState>['sync']): string | null {
+function followedName(
+  devices: PlayerStatus[],
+  deviceId: string,
+  sync: ReturnType<typeof useFleetStore.getState>['sync'],
+): string | null {
   const me = devices.find((d) => d.id === deviceId);
   if (!me) return null;
   const role = displaySyncRole(me, sync);
@@ -110,7 +118,11 @@ export const PlayerRow = memo(function PlayerRow({ deviceId }: { deviceId: strin
     const sender = createLatestValueSender<number>({
       send: (level) => {
         const current = useFleetStore.getState().devices.find((d) => d.id === deviceId);
-        return control(deviceId, () => api.setVolume(deviceId, level), ownVolumePatch(current, level));
+        return control(
+          deviceId,
+          () => api.setVolume(deviceId, level),
+          ownVolumePatch(current, level),
+        );
       },
       onIdle: () => {
         if (!draggingRef.current) setDragVolume(null);
@@ -174,12 +186,7 @@ export const PlayerRow = memo(function PlayerRow({ deviceId }: { deviceId: strin
   );
 
   return (
-    <div
-      className="fleet-row"
-      role="row"
-      data-sync={role}
-      data-idle={np.idle ? 'true' : 'false'}
-    >
+    <div className="fleet-row" role="row" data-sync={role} data-idle={np.idle ? 'true' : 'false'}>
       <div className="fleet-cell fleet-cell-player" role="cell">
         <div className="fleet-player-line">
           <span
@@ -263,9 +270,7 @@ export const PlayerRow = memo(function PlayerRow({ deviceId }: { deviceId: strin
               type="button"
               className="btn btn-compact fleet-btn"
               data-action="stop"
-              onClick={() =>
-                void control(device.id, () => api.stop(device.id), { state: 'stop' })
-              }
+              onClick={() => void control(device.id, () => api.stop(device.id), { state: 'stop' })}
             >
               <IconStop />
               <span className="fleet-btn-label">Stop</span>

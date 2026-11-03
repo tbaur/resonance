@@ -256,12 +256,16 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(AppError)
     async def app_error_handler(_request: Request, exc: AppError):
-        detail = exc.detail if isinstance(exc.detail, dict) else {
-            "error": "error",
-            "message": str(exc.detail),
-            "code": "error",
-            "request_id": request_id_var.get("-"),
-        }
+        detail = (
+            exc.detail
+            if isinstance(exc.detail, dict)
+            else {
+                "error": "error",
+                "message": str(exc.detail),
+                "code": "error",
+                "request_id": request_id_var.get("-"),
+            }
+        )
         return JSONResponse(status_code=exc.status_code, content=detail)
 
     @app.exception_handler(HTTPException)

@@ -34,9 +34,7 @@ vi.mock('@/api/client', () => ({
   },
 }));
 
-function player(
-  partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name'>,
-): PlayerStatus {
+function player(partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name'>): PlayerStatus {
   return {
     ip: partial.ip ?? `10.0.0.${partial.id}`,
     model: 'NODE',
@@ -142,10 +140,12 @@ describe('HouseRemote', () => {
       fleetMuteAll: vi.fn().mockResolvedValue(undefined),
       fleetPauseAll: vi.fn().mockResolvedValue(undefined),
       fleetStopAll: vi.fn().mockResolvedValue(undefined),
-      control: vi.fn(async (id: string, action: () => Promise<void>, optimistic?: Partial<PlayerStatus>) => {
-        if (optimistic) useFleetStore.getState().patchDevice(id, optimistic);
-        await action();
-      }),
+      control: vi.fn(
+        async (id: string, action: () => Promise<void>, optimistic?: Partial<PlayerStatus>) => {
+          if (optimistic) useFleetStore.getState().patchDevice(id, optimistic);
+          await action();
+        },
+      ),
     });
     useFleetStore.getState().beginHouseCatchup([]);
   });

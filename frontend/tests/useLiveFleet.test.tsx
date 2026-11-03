@@ -248,15 +248,17 @@ describe('useLiveFleet events', () => {
     });
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(
-        openStream([
-          'data: {"type":"device","da',
-          'ta":{"id":"a","volume":7}}\n\n',
-          'data: not json\n\n',
-          ': keepalive\n\n',
-          'data: {"type":"fleet","data":{"devices":[],"health":{"drops":[]}}}\n\n',
-        ]),
-      ),
+      vi
+        .fn()
+        .mockResolvedValue(
+          openStream([
+            'data: {"type":"device","da',
+            'ta":{"id":"a","volume":7}}\n\n',
+            'data: not json\n\n',
+            ': keepalive\n\n',
+            'data: {"type":"fleet","data":{"devices":[],"health":{"drops":[]}}}\n\n',
+          ]),
+        ),
     );
 
     const { unmount } = renderHook(() => useLiveFleet());

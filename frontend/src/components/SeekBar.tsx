@@ -92,13 +92,7 @@ const SeekTrack = memo(function SeekTrack({
   );
 });
 
-export function SeekBar({
-  initialSecs,
-  totlen,
-  playing,
-  canSeek = false,
-  onSeek,
-}: SeekBarProps) {
+export function SeekBar({ initialSecs, totlen, playing, canSeek = false, onSeek }: SeekBarProps) {
   const fillRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef<HTMLSpanElement>(null);
   const rangeRef = useRef<HTMLInputElement>(null);
@@ -145,18 +139,21 @@ export function SeekBar({
     playback.release();
   }, [playback]);
 
-  const onChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    const next = Number(event.target.value);
-    playback.adopt(next);
-    pending.current = Math.round(next);
-    if (commitTimer.current) window.clearTimeout(commitTimer.current);
-    commitTimer.current = window.setTimeout(() => {
-      commitTimer.current = undefined;
-      const seconds = pending.current;
-      pending.current = null;
-      if (seconds !== null) onSeekRef.current?.(seconds);
-    }, 80);
-  }, [playback]);
+  const onChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const next = Number(event.target.value);
+      playback.adopt(next);
+      pending.current = Math.round(next);
+      if (commitTimer.current) window.clearTimeout(commitTimer.current);
+      commitTimer.current = window.setTimeout(() => {
+        commitTimer.current = undefined;
+        const seconds = pending.current;
+        pending.current = null;
+        if (seconds !== null) onSeekRef.current?.(seconds);
+      }, 80);
+    },
+    [playback],
+  );
 
   return (
     <SeekTrack

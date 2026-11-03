@@ -148,7 +148,10 @@ export function useLiveFleet(): void {
           if (data.sync) {
             setSync(data.sync);
           } else {
-            void api.getSync().then(setSync).catch(() => undefined);
+            void api
+              .getSync()
+              .then(setSync)
+              .catch(() => undefined);
           }
           if (data.health) setHealth(data.health);
         } else if (event.type === 'device') {

@@ -60,4 +60,3 @@ class BluOSPlaybackMixin(BluOSTransport):
         if state not in (0, 1, 2):
             return self._ok(CallResult.failure("rejected", "invalid repeat state"))
         return await self._command(ip, "/Repeat", query=f"state={state}")
-

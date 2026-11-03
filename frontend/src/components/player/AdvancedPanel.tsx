@@ -51,7 +51,8 @@ interface AdvancedPanelProps {
 }
 
 export function AdvancedPanel(props: AdvancedPanelProps) {
-  const { device, open, onOpenChange, queue, inputs, presets, loaded, bluetooth, onControl } = props;
+  const { device, open, onOpenChange, queue, inputs, presets, loaded, bluetooth, onControl } =
+    props;
   return (
     <details
       className="panel panel-collapse"

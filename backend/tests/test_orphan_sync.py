@@ -312,9 +312,7 @@ async def test_remove_sync_slave_tries_second_donor_after_first_fails(
 
     respx.get(f"http://{dead_master}/RemoveSlave").mock(side_effect=down)
     respx.get(url__regex=r"http://192\.168\.1\.32:11000/Sync\?.*").mock(side_effect=down)
-    respx.get(f"http://{slave}/RemoveSlave").mock(
-        return_value=httpx.Response(200, content=err)
-    )
+    respx.get(f"http://{slave}/RemoveSlave").mock(return_value=httpx.Response(200, content=err))
     respx.get(url__regex=r"http://192\.168\.1\.31:11000/Sync\?.*").mock(
         return_value=httpx.Response(200, content=err)
     )
@@ -326,9 +324,7 @@ async def test_remove_sync_slave_tries_second_donor_after_first_fails(
             content=b'<addSlave><slave id="192.168.1.31" port="11000"/></addSlave>',
         )
     )
-    respx.get(f"http://{donor1}/RemoveSlave").mock(
-        return_value=httpx.Response(200, content=err)
-    )
+    respx.get(f"http://{donor1}/RemoveSlave").mock(return_value=httpx.Response(200, content=err))
     respx.get(url__regex=r"http://192\.168\.1\.30:11000/Sync\?.*").mock(
         return_value=httpx.Response(200, content=err)
     )

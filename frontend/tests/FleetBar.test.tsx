@@ -22,9 +22,7 @@ vi.mock('@/components/VolumeNudgeButtons', () => ({
   VolumeNudgeButtons: () => null,
 }));
 
-function player(
-  partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name'>,
-): PlayerStatus {
+function player(partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name'>): PlayerStatus {
   return {
     ip: partial.ip ?? `10.0.0.${partial.id}`,
     model: 'NODE',

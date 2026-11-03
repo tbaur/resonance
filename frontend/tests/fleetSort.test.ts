@@ -10,12 +10,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { PlayerStatus } from '@/api/types';
-import {
-  fleetSortLabel,
-  nextFleetSortMode,
-  sortBySyncGroup,
-  sortDevices,
-} from '@/lib/fleetSort';
+import { fleetSortLabel, nextFleetSortMode, sortBySyncGroup, sortDevices } from '@/lib/fleetSort';
 
 function player(partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name'>): PlayerStatus {
   return {
@@ -57,14 +52,8 @@ function player(partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name
 
 describe('fleetSort', () => {
   it('sorts alphabetically by name', () => {
-    const devices = [
-      player({ id: '2', name: 'Zone R' }),
-      player({ id: '1', name: 'Zone M' }),
-    ];
-    expect(sortDevices(devices, 'name').map((d) => d.name)).toEqual([
-      'Zone M',
-      'Zone R',
-    ]);
+    const devices = [player({ id: '2', name: 'Zone R' }), player({ id: '1', name: 'Zone M' })];
+    expect(sortDevices(devices, 'name').map((d) => d.name)).toEqual(['Zone M', 'Zone R']);
   });
 
   it('clusters sync groups with primary then followers', () => {
@@ -101,9 +90,21 @@ describe('fleetSort', () => {
 
   it('groups a follower its lead lists even before the follower reports the lead', () => {
     const devices = [
-      player({ id: 'a', name: 'Alpha', sync_role: 'primary', ip: '10.0.0.1', slaves: ['10.0.0.2'] }),
+      player({
+        id: 'a',
+        name: 'Alpha',
+        sync_role: 'primary',
+        ip: '10.0.0.1',
+        slaves: ['10.0.0.2'],
+      }),
       player({ id: 'b', name: 'Bravo', sync_role: 'synced', master: '10.0.0.1', ip: '10.0.0.2' }),
-      player({ id: 'c', name: 'Charlie', sync_role: 'primary', ip: '10.0.0.3', slaves: ['10.0.0.9'] }),
+      player({
+        id: 'c',
+        name: 'Charlie',
+        sync_role: 'primary',
+        ip: '10.0.0.3',
+        slaves: ['10.0.0.9'],
+      }),
       player({ id: 'd', name: 'Delta', sync_role: 'standalone', ip: '10.0.0.4' }),
       // Joined Charlie, but its own record has not caught up yet.
       player({ id: 'z', name: 'Zulu', sync_role: 'standalone', master: '', ip: '10.0.0.9' }),

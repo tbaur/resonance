@@ -21,7 +21,9 @@ import {
   streamPlaceLabel,
 } from '@/lib/houseRoster';
 
-function source(partial: Partial<HouseStreamSource> & Pick<HouseStreamSource, 'key'>): HouseStreamSource {
+function source(
+  partial: Partial<HouseStreamSource> & Pick<HouseStreamSource, 'key'>,
+): HouseStreamSource {
   return {
     leadId: null,
     primary: 'Track',
@@ -36,9 +38,7 @@ function source(partial: Partial<HouseStreamSource> & Pick<HouseStreamSource, 'k
   };
 }
 
-function device(
-  partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name'>,
-): PlayerStatus {
+function device(partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name'>): PlayerStatus {
   return {
     ip: '10.0.0.1',
     model: 'NODE',

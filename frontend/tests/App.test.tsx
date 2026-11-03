@@ -64,7 +64,9 @@ describe('App routes', () => {
   it('does not ask for a token when the API is only unreachable', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
     renderAt();
-    expect(await screen.findByRole('heading', { name: 'Can’t reach Resonance' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Can’t reach Resonance' }),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText('API token')).not.toBeInTheDocument();
   });
 });

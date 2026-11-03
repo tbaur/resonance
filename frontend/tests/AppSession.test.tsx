@@ -49,7 +49,11 @@ function respond(status: number) {
 
 function call(fetchMock: ReturnType<typeof vi.fn>, index: number) {
   const [url, init] = fetchMock.mock.calls[index] as [string, RequestInit];
-  return { url, method: init.method ?? 'GET', auth: new Headers(init.headers).get('Authorization') };
+  return {
+    url,
+    method: init.method ?? 'GET',
+    auth: new Headers(init.headers).get('Authorization'),
+  };
 }
 
 function renderApp() {

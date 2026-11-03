@@ -8,14 +8,7 @@
  * shows the token form or a notice.
  */
 
-import {
-  type FormEvent,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { apiToken } from '@/api/auth';
 import { api } from '@/api/client';
 import { ApiError } from '@/api/types';

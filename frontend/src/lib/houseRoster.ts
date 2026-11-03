@@ -80,7 +80,8 @@ export function speakerRoster(
       const left = byId.get(a.id);
       const right = byId.get(b.id);
       const rank =
-        ROLE_RANK[left ? roleOf(left) : 'standalone'] - ROLE_RANK[right ? roleOf(right) : 'standalone'];
+        ROLE_RANK[left ? roleOf(left) : 'standalone'] -
+        ROLE_RANK[right ? roleOf(right) : 'standalone'];
       if (rank !== 0) return rank;
       return a.name.localeCompare(b.name);
     });
@@ -113,7 +114,5 @@ export function focusedSource(
   if (sources.length === 0) return null;
   if (!memberIds || memberIds.length === 0) return sources[0];
   const wanted = new Set(memberIds);
-  return (
-    sources.find((source) => source.memberIds.some((id) => wanted.has(id))) ?? sources[0]
-  );
+  return sources.find((source) => source.memberIds.some((id) => wanted.has(id))) ?? sources[0];
 }

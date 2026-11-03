@@ -39,16 +39,10 @@ export function StatusPills({
       </span>
       <span
         className="pill pill-fleet"
-        title={
-          discovery
-            ? `Network discovery via ${discovery}`
-            : 'Players currently on the LAN'
-        }
+        title={discovery ? `Network discovery via ${discovery}` : 'Players currently on the LAN'}
       >
         {playersLabel}
-        {discovery && !loading ? (
-          <span className="pill-muted"> / via {discovery}</span>
-        ) : null}
+        {discovery && !loading ? <span className="pill-muted"> / via {discovery}</span> : null}
       </span>
     </div>
   );

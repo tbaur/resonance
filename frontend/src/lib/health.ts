@@ -48,8 +48,7 @@ export function presenceSegments(input: {
 }): PresenceSegment[] {
   const from = input.now - input.windowSeconds;
   const to = input.now;
-  const knownFrom =
-    input.firstOnlineAt == null ? to : Math.max(from, input.firstOnlineAt);
+  const knownFrom = input.firstOnlineAt == null ? to : Math.max(from, input.firstOnlineAt);
   const segments: PresenceSegment[] = [];
   if (knownFrom > from) {
     segments.push({ start: from, end: Math.min(knownFrom, to), state: 'unknown' });

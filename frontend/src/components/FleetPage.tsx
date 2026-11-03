@@ -46,10 +46,7 @@ export function FleetPage() {
     setAutoSyncedForGroups(false);
   }
 
-  const sorted = useMemo(
-    () => sortDevices(devices, sortMode),
-    [devices, sortMode],
-  );
+  const sorted = useMemo(() => sortDevices(devices, sortMode), [devices, sortMode]);
 
   return (
     <div className="app-shell">
@@ -58,9 +55,7 @@ export function FleetPage() {
           <h1 className="brand">
             Resonance <span className="brand-tagline">works with BluOS</span>
           </h1>
-          <p className="brand-sub">
-            Live fleet control for every player on the network.
-          </p>
+          <p className="brand-sub">Live fleet control for every player on the network.</p>
         </div>
         <div className="header-actions">
           <StatusPills

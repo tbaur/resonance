@@ -23,4 +23,3 @@ class BluOSClient(
     BluOSSyncMixin,
 ):
     """Facade over BluOS HTTP (:11000) and the device web UI (:80)."""
-

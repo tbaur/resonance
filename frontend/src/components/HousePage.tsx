@@ -70,9 +70,7 @@ export function HousePage() {
         setToast(`Ungrouped ${result.succeeded}; ${result.failed} failed`);
       }
     } catch (err) {
-      setToast(
-        err instanceof ApiError ? `${err.message} (${err.requestId})` : 'Break all failed',
-      );
+      setToast(err instanceof ApiError ? `${err.message} (${err.requestId})` : 'Break all failed');
     }
   };
 
@@ -91,9 +89,7 @@ export function HousePage() {
       }
     } catch (err) {
       setToast(
-        err instanceof ApiError
-          ? `${err.message} (${err.requestId})`
-          : 'Firmware check failed',
+        err instanceof ApiError ? `${err.message} (${err.requestId})` : 'Firmware check failed',
       );
     }
   };
@@ -119,7 +115,9 @@ export function HousePage() {
             ← Fleet
           </Link>
           <h1 className="brand dossier-title">House</h1>
-          <p className="brand-sub">Fleet maintenance, firmware, and the same remote as the live view.</p>
+          <p className="brand-sub">
+            Fleet maintenance, firmware, and the same remote as the live view.
+          </p>
         </div>
         <div className="dossier-header-badges">
           <span className="badge" data-role="primary">
@@ -201,9 +199,7 @@ export function HousePage() {
           disabled={busy !== null || groupCount === 0}
           onClick={() => {
             if (
-              !window.confirm(
-                `Break all ${groupCount} sync group${groupCount === 1 ? '' : 's'}?`,
-              )
+              !window.confirm(`Break all ${groupCount} sync group${groupCount === 1 ? '' : 's'}?`)
             ) {
               return;
             }

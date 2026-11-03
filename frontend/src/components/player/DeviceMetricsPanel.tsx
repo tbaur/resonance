@@ -83,12 +83,7 @@ export function DeviceMetricsPanel(props: DeviceMetricsPanelProps) {
             onChange={(e) => onVolume(Number(e.target.value))}
           />
           <span className="volume-value">{device.volume}</span>
-          <button
-            type="button"
-            className="btn"
-            title={unmuteTitle(device)}
-            onClick={onToggleMute}
-          >
+          <button type="button" className="btn" title={unmuteTitle(device)} onClick={onToggleMute}>
             {device.muted ? 'Unmute' : 'Mute'}
           </button>
         </div>

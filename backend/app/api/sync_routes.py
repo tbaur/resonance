@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
 @router.get("/sync", response_model=SyncState)
 async def sync_state(state: StateDep) -> SyncState:
     return build_sync_state(state.discovery.snapshot.devices)
@@ -160,9 +161,7 @@ async def sync_break(state: StateDep) -> FleetActionResponse:
     snapshot = state.discovery.snapshot
     sync = build_sync_state(snapshot.devices)
     interrupt_ids = [
-        group.primary_id
-        for group in sync.groups
-        if not is_orphan_primary_id(group.primary_id)
+        group.primary_id for group in sync.groups if not is_orphan_primary_id(group.primary_id)
     ]
     for group in sync.groups:
         interrupt_ids.extend(group.slave_ids)

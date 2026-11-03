@@ -18,13 +18,7 @@ export type PlayerReachability = 'online' | 'offline';
  * the open `string` arm is deliberate, because this is copied verbatim out of
  * device XML and a firmware revision may report something new.
  */
-export type PlayerState =
-  | 'play'
-  | 'pause'
-  | 'stop'
-  | 'stream'
-  | 'connecting'
-  | (string & {});
+export type PlayerState = 'play' | 'pause' | 'stop' | 'stream' | 'connecting' | (string & {});
 
 export interface PlayerStatus {
   id: string;

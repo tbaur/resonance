@@ -79,8 +79,7 @@ async def set_fleet_volume(body: VolumeRequest, state: StateDep) -> FleetVolumeR
     muted = [device for device in targets if device.muted]
     targets = [device for device in targets if not device.muted]
     skipped = [
-        FleetVolumeResult(device_id=d.id, name=d.name, ok=True, skipped_muted=True)
-        for d in muted
+        FleetVolumeResult(device_id=d.id, name=d.name, ok=True, skipped_muted=True) for d in muted
     ]
     if not targets:
         return FleetVolumeResponse(
@@ -134,9 +133,7 @@ async def set_fleet_volume(body: VolumeRequest, state: StateDep) -> FleetVolumeR
         },
     )
     await begin_control(state, [device.id for device in targets])
-    results = await asyncio.gather(
-        *(set_one(d.id, d.name, d.endpoint) for d in targets)
-    )
+    results = await asyncio.gather(*(set_one(d.id, d.name, d.endpoint) for d in targets))
     written = [r for r in results if not r.skipped_muted]
     succeeded = sum(1 for r in written if r.ok)
     failed = len(written) - succeeded
@@ -159,6 +156,7 @@ async def set_fleet_volume(body: VolumeRequest, state: StateDep) -> FleetVolumeR
         skipped_muted=skipped_count,
         results=[*results, *skipped],
     )
+
 
 @router.post("/fleet/mute", response_model=FleetActionResponse)
 async def fleet_mute(body: MuteRequest, state: StateDep) -> FleetActionResponse:
@@ -188,6 +186,7 @@ async def fleet_reboot(state: StateDep) -> FleetActionResponse:
         return await state.client.reboot(endpoint)
 
     return await fleet_action(state, "reboot", run, devices=targets)
+
 
 @router.get("/fleet/firmware", response_model=FleetFirmwareResponse)
 async def fleet_firmware(state: StateDep) -> FleetFirmwareResponse:
@@ -219,8 +218,7 @@ async def fleet_upgrades(state: StateDep) -> FleetUpgradeResponse:
         cached = state.fleet_upgrades_cache
         if (
             cached is not None
-            and (now - state.fleet_upgrades_cached_at)
-            < state.settings.fleet_upgrades_cache_seconds
+            and (now - state.fleet_upgrades_cached_at) < state.settings.fleet_upgrades_cache_seconds
         ):
             return cached
 

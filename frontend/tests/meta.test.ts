@@ -12,7 +12,10 @@ import { META_SEP, artistAlbumLines, joinMeta } from '@/lib/meta';
 
 describe('artistAlbumLines', () => {
   it('keeps artist and album as separate lines', () => {
-    expect(artistAlbumLines('Song', 'Artist', 'Album')).toEqual({ artist: 'Artist', album: 'Album' });
+    expect(artistAlbumLines('Song', 'Artist', 'Album')).toEqual({
+      artist: 'Artist',
+      album: 'Album',
+    });
   });
 
   it('drops an album or artist that only repeats the title', () => {

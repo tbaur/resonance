@@ -28,7 +28,10 @@ export function unmutedPatch(device: MuteFields): Partial<PlayerStatus> {
 }
 
 /** Optimistic state for a room's own volume write. BluOS unmutes on any level change. */
-export function ownVolumePatch(device: MuteFields | undefined, level: number): Partial<PlayerStatus> {
+export function ownVolumePatch(
+  device: MuteFields | undefined,
+  level: number,
+): Partial<PlayerStatus> {
   return device?.muted ? { volume: level, muted: false, mute_volume: null } : { volume: level };
 }
 

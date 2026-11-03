@@ -20,10 +20,7 @@ function settingDependencies(setting: DeviceSetting): SettingDependency[] {
   return [{ name: setting.depends_on, value: setting.depends_value }];
 }
 
-export function isVisible(
-  setting: DeviceSetting,
-  values: Record<string, string>,
-): boolean {
+export function isVisible(setting: DeviceSetting, values: Record<string, string>): boolean {
   if (setting.hide_if_disabled && setting.disabled) return false;
   return settingDependencies(setting).every((dep) => values[dep.name] === dep.value);
 }

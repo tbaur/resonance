@@ -44,6 +44,7 @@ from app.services.sync import build_sync_state
 
 router = APIRouter()
 
+
 @router.get("/devices", response_model=DevicesResponse)
 async def list_devices(state: StateDep) -> DevicesResponse:
     snapshot = state.discovery.snapshot
@@ -70,6 +71,7 @@ async def refresh_devices(state: StateDep) -> DevicesResponse:
         discovered_at=snapshot.discovered_at,
         discovery_method=snapshot.method_used,
     )
+
 
 @router.get("/devices/{device_id}/art")
 async def device_art(device_id: str, state: StateDep, image: str = "") -> Response:
@@ -107,6 +109,7 @@ async def get_device(device_id: str, state: StateDep) -> PlayerStatus:
             raise AppError(404, "device_not_found", "Device not found")
         return refreshed
     return device
+
 
 @router.post("/devices/{device_id}/play", status_code=204)
 async def play(device_id: str, state: StateDep) -> Response:
@@ -227,9 +230,7 @@ async def set_device_setting(
     ip = await require_device(state, device_id)
 
     async def op(_: str) -> bool:
-        return await state.client.set_device_setting(
-            ip, body.id, body.value, control_path=""
-        )
+        return await state.client.set_device_setting(ip, body.id, body.value, control_path="")
 
     return await run_control(state, device_id, "setting", op)
 
@@ -254,6 +255,7 @@ async def reboot(device_id: str, state: StateDep) -> Response:
         return await state.client.reboot(ip)
 
     return await run_control(state, device_id, "reboot", op)
+
 
 @router.post("/devices/{device_id}/back", status_code=204)
 async def back(device_id: str, state: StateDep) -> Response:

@@ -70,9 +70,7 @@ async def test_refresh_devices_includes_sync(
             master="192.168.1.10:11000",
         ),
     ]
-    app, client, discovery, _ = await app_with_players(
-        settings, monkeypatch, players=players
-    )
+    app, client, discovery, _ = await app_with_players(settings, monkeypatch, players=players)
     published: list[dict] = []
 
     async def capture(event_type: str, data: object) -> None:
@@ -142,9 +140,7 @@ async def test_volume_adjust_fails_when_live_offline_and_no_cache(
             volume=40,
         )
     ]
-    app, client, discovery, _ = await app_with_players(
-        settings, monkeypatch, players=players
-    )
+    app, client, discovery, _ = await app_with_players(settings, monkeypatch, players=players)
     discovery._snapshot.devices = []
     discovery._snapshot.endpoints_by_id = {"player-zone-m": "192.168.1.20:11000"}
     discovery._snapshot.ids_by_endpoint = {"192.168.1.20:11000": "player-zone-m"}
@@ -239,9 +235,7 @@ async def test_sync_remove_resolves_orphan_primary_id(
             sync_role=SyncRole.STANDALONE,
         ),
     ]
-    app, client, _, poller = await app_with_players(
-        settings, monkeypatch, players=players
-    )
+    app, client, _, poller = await app_with_players(settings, monkeypatch, players=players)
     app.state.app_state.discovery._grace_endpoints["gone"] = master_ep
     app.state.app_state.discovery._grace_until["gone"] = time.time() + 60
     client.remove_sync_slave = AsyncMock(return_value=True)  # type: ignore[method-assign]

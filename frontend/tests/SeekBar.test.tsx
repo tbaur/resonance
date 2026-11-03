@@ -21,7 +21,6 @@ describe('formatClock', () => {
 });
 
 describe('SeekBar', () => {
-
   it('renders a non-seekable bar when seeking is disabled', () => {
     render(<SeekBar initialSecs={30} totlen={240} playing={false} />);
     expect(screen.queryByRole('slider', { name: 'Seek' })).not.toBeInTheDocument();
@@ -74,9 +73,7 @@ describe('SeekBar', () => {
     vi.useFakeTimers();
     try {
       const onSeek = vi.fn();
-      render(
-        <SeekBar initialSecs={10} totlen={100} playing={false} canSeek onSeek={onSeek} />,
-      );
+      render(<SeekBar initialSecs={10} totlen={100} playing={false} canSeek onSeek={onSeek} />);
       fireEvent.change(screen.getByRole('slider', { name: 'Seek' }), {
         target: { value: '40' },
       });

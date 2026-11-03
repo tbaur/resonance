@@ -213,9 +213,7 @@ async def test_health_and_version(settings: Settings, monkeypatch: pytest.Monkey
 
 
 @pytest.mark.asyncio
-async def test_links_name_a_configured_valence(
-    settings: Settings, monkeypatch: pytest.MonkeyPatch
-):
+async def test_links_name_a_configured_valence(settings: Settings, monkeypatch: pytest.MonkeyPatch):
     settings.valence_url = "https://valence.example.com"
     app, client = await _app_with_player(settings, monkeypatch)
     transport = ASGITransport(app=app)

@@ -38,9 +38,7 @@ def validate_bluos_port(port: int) -> bool:
     return isinstance(port, int) and 1024 <= port <= 65535
 
 
-def parse_endpoint(
-    value: str, default_port: int | None = None
-) -> tuple[str | None, int]:
+def parse_endpoint(value: str, default_port: int | None = None) -> tuple[str | None, int]:
     """
     Parse ``ip`` or ``ip:port`` into ``(ip, port)``.
 

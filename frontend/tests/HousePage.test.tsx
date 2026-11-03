@@ -122,7 +122,10 @@ describe('HousePage actions', () => {
     });
 
     useFleetStore.setState({
-      devices: [{ ...sample }, { ...sample, id: 'player-2', name: 'Zone N', fw: '4.10.0', state: 'play' }],
+      devices: [
+        { ...sample },
+        { ...sample, id: 'player-2', name: 'Zone N', fw: '4.10.0', state: 'play' },
+      ],
       discoveredAt: Date.now(),
       discoveryMethod: 'mdns',
       sync: syncWithGroup,
@@ -188,7 +191,9 @@ describe('HousePage actions', () => {
     expect(screen.queryByRole('heading', { name: 'Rooms' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Zone M/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Zone N/ })).toBeInTheDocument();
-    expect(screen.getByText(byTextContent('online | play | vol 20 | fw 4.16.6'))).toBeInTheDocument();
+    expect(
+      screen.getByText(byTextContent('online | play | vol 20 | fw 4.16.6')),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(byTextContent('online | play | vol 20 | fw 4.10.0 | behind house newest')),
     ).toBeInTheDocument();

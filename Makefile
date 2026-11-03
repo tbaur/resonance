@@ -27,7 +27,7 @@ API_PROBE = settings=$$($(API_SETTINGS)); read -r bind_host port discovery <<< "
 	case "$$bind_host" in 0.0.0.0|::|localhost) host=127.0.0.1 ;; *) host=$$bind_host ;; esac; \
 	wait_s=$$(( discovery + $(HEALTH_WAIT_MARGIN_SECONDS) ))
 
-.PHONY: help install build run serve lint lint-backend lint-frontend test test-backend \
+.PHONY: help install build run serve lint lint-backend lint-frontend format test test-backend \
 	test-frontend check clean distclean run-api run-ui
 
 help: ## List targets
@@ -79,11 +79,15 @@ serve: build $(VENV_STAMP) ## Build the UI, then serve UI and API from one proce
 
 lint: lint-backend lint-frontend ## Lint and type-check both sides
 
-lint-backend: $(VENV_STAMP) ## Ruff and mypy
-	cd backend && $(PY) -m ruff check app tests && $(PY) -m mypy app
+lint-backend: $(VENV_STAMP) ## Ruff lint and format check, and mypy
+	cd backend && $(PY) -m ruff check app tests && $(PY) -m ruff format --check app tests && $(PY) -m mypy app
 
-lint-frontend: $(NODE_STAMP) ## ESLint and tsc
-	cd frontend && npm run lint && npm run typecheck
+lint-frontend: $(NODE_STAMP) ## ESLint, Prettier check, and tsc
+	cd frontend && npm run lint && npm run format:check && npm run typecheck
+
+format: $(VENV_STAMP) $(NODE_STAMP) ## Rewrite backend (ruff format) and frontend (Prettier) to the house style
+	cd backend && $(PY) -m ruff format app tests
+	cd frontend && npm run format
 
 test: test-backend test-frontend ## Test both sides with the CI coverage gates
 
