@@ -10,6 +10,7 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { byTextContent } from './textContent';
 import { FleetHealthLog } from '@/components/FleetHealthLog';
 import type { PlayerStatus } from '@/api/types';
 import { useFleetStore } from '@/store/fleetStore';
@@ -85,6 +86,6 @@ describe('FleetHealthLog', () => {
     );
     expect(screen.getByRole('heading', { name: 'Health' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Zone M' })).toHaveAttribute('href', '/player/p1');
-    expect(screen.getByText(/2m · 3 fails → recovered/)).toBeInTheDocument();
+    expect(screen.getByText(byTextContent(/2m \| 3 fails → recovered/))).toBeInTheDocument();
   });
 });

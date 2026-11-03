@@ -16,6 +16,7 @@ import { ApiError } from '@/api/types';
 import { AppMenu } from '@/components/AppMenu';
 import { FleetHealthLog } from '@/components/FleetHealthLog';
 import { HouseRemote } from '@/components/HouseRemote';
+import { MetaText } from '@/components/MetaText';
 import { compareFirmware } from '@/lib/firmware';
 import { sortDevices } from '@/lib/fleetSort';
 import { META_SEP } from '@/lib/meta';
@@ -169,7 +170,9 @@ export function HousePage() {
               <li key={device.id}>
                 <Link to={`/player/${device.id}`}>
                   <span>{device.name}</span>
-                  <span className="card-meta">{meta.join(META_SEP)}</span>
+                  <span className="card-meta">
+                    <MetaText text={meta.join(META_SEP)} />
+                  </span>
                 </Link>
               </li>
             );

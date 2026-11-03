@@ -9,7 +9,9 @@
 
 import { Link } from 'react-router';
 import type { PresenceDrop } from '@/api/types';
+import { MetaText } from '@/components/MetaText';
 import { fleetHealthCaption, formatClockTime, formatDropDuration } from '@/lib/health';
+import { META_SEP } from '@/lib/meta';
 import { useFleetStore } from '@/store/fleetStore';
 
 const MAX_ROWS = 8;
@@ -25,7 +27,9 @@ export function FleetHealthLog() {
   return (
     <section className="panel fleet-health">
       <h2>Health</h2>
-      <p className="card-meta">{fleetHealthCaption(health, online, devices.length)}</p>
+      <p className="card-meta">
+        <MetaText text={fleetHealthCaption(health, online, devices.length)} />
+      </p>
       {rows.length > 0 ? (
         <ul className="fleet-health-log">
           {rows.map((drop) => (
@@ -34,7 +38,9 @@ export function FleetHealthLog() {
               <Link className="fleet-health-name" to={`/player/${drop.device_id}`}>
                 {drop.name || drop.device_id}
               </Link>
-              <span>{dropSummary(drop)}</span>
+              <span>
+                <MetaText text={dropSummary(drop)} />
+              </span>
             </li>
           ))}
         </ul>
@@ -46,7 +52,7 @@ export function FleetHealthLog() {
 function dropSummary(drop: PresenceDrop): string {
   const duration = formatDropDuration(drop.duration_seconds);
   const fails = `${drop.peak_failures} fail${drop.peak_failures === 1 ? '' : 's'}`;
-  const circuit = drop.slow_poll ? ' · slow-poll' : '';
-  if (drop.ended_at == null) return `down ${duration} · ${fails}${circuit}`;
-  return `${duration} · ${fails}${circuit} → recovered`;
+  const circuit = drop.slow_poll ? `${META_SEP}slow-poll` : '';
+  if (drop.ended_at == null) return `down ${duration}${META_SEP}${fails}${circuit}`;
+  return `${duration}${META_SEP}${fails}${circuit} → recovered`;
 }

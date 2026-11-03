@@ -286,7 +286,7 @@ describe('fleetHouseStatus', () => {
     );
 
     expect(status.primary).toBe('Song');
-    expect(status.detail).toBe('Spotify / Ogg Vorbis 320 kbps');
+    expect(status.detail).toBe('Spotify | Ogg Vorbis 320 kbps');
   });
 
   it('withholds art when two different streams are playing', () => {
@@ -420,7 +420,7 @@ describe('fleetHouseStatus', () => {
         ],
         null,
       ),
-    ).toBe('Meadow / TIDAL connect');
+    ).toBe('Meadow | TIDAL connect');
   });
 
   it('detects active playback including connecting', () => {

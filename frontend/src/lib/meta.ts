@@ -6,10 +6,10 @@
  *
  * Separator for compact meta lines: volume, dB, service, format, status.
  *
- * A slash stays legible beside a signed value such as -28.9 dB. A middot does not.
+ * A pipe stays legible beside a signed value such as -28.9 dB. A middot does not.
  */
 
-export const META_SEP = ' / ';
+export const META_SEP = ' | ';
 
 export function joinMeta(
   ...parts: Array<string | number | null | undefined | false>
@@ -21,9 +21,17 @@ function sameName(left: string, right: string): boolean {
   return left.trim().localeCompare(right.trim(), undefined, { sensitivity: 'accent' }) === 0;
 }
 
-/** Artist / album under a title; drops any part that only repeats a name already shown. */
-export function artistAlbumLine(title: string, artist: string, album: string): string {
-  const shownArtist = !sameName(artist, title) && artist.trim();
-  const shownAlbum = !sameName(album, title) && !sameName(album, artist) && album.trim();
-  return joinMeta(shownArtist, shownAlbum);
+export interface ArtistAlbumLines {
+  artist: string;
+  album: string;
+}
+
+/**
+ * Artist and album as separate lines under a title. A line is empty when it only repeats
+ * a name already shown above it.
+ */
+export function artistAlbumLines(title: string, artist: string, album: string): ArtistAlbumLines {
+  const shownArtist = sameName(artist, title) ? '' : artist.trim();
+  const shownAlbum = sameName(album, title) || sameName(album, artist) ? '' : album.trim();
+  return { artist: shownArtist, album: shownAlbum };
 }

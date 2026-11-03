@@ -18,6 +18,7 @@ import {
   IconSpeaker,
   IconStop,
 } from '@/components/house/HouseIcons';
+import { MetaText } from '@/components/MetaText';
 import { volumePeerGroup } from '@/lib/deviceGroups';
 import {
   deviceEndpoint,
@@ -191,7 +192,9 @@ export const PlayerRow = memo(function PlayerRow({ deviceId }: { deviceId: strin
             {device.name}
           </Link>
         </div>
-        <div className="fleet-player-hardware">{formatDeviceHardware(device)}</div>
+        <div className="fleet-player-hardware">
+          <MetaText text={formatDeviceHardware(device)} />
+        </div>
         <div className="fleet-player-meta">
           {role !== 'standalone' && (
             <span className="badge" data-role={role}>
@@ -216,7 +219,7 @@ export const PlayerRow = memo(function PlayerRow({ deviceId }: { deviceId: strin
             </div>
             {np.secondary ? (
               <div className="fleet-subtitle" title={np.secondary}>
-                {np.secondary}
+                <MetaText text={np.secondary} />
               </div>
             ) : null}
           </>

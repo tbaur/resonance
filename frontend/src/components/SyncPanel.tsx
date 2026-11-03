@@ -10,6 +10,7 @@
 
 import { useMemo, useState } from 'react';
 import type { PlayerStatus, SyncGroup } from '@/api/types';
+import { MetaSep } from '@/components/MetaText';
 import { useSyncActions } from '@/hooks/useSyncActions';
 import {
   availableFollowers,
@@ -176,9 +177,9 @@ function SyncGroupCard(props: SyncGroupCardProps) {
           {group.primary_name}
           <span className="sync-group-label-muted">
             {' '}
-            {' / '}
+            <MetaSep />
             {primaryOnline ? 'lead' : 'offline'}
-            {' / '}
+            <MetaSep />
             {roomCountLabel(followerCount + (primaryOnline ? 1 : 0))}
           </span>
         </p>
@@ -295,7 +296,7 @@ function GroupBuilder(props: GroupBuilderProps) {
           {hasGroups ? 'Start another group' : 'Start a group'}
           <span className="sync-group-label-muted">
             {' '}
-            {' / '}
+            <MetaSep />
             {leadId ? 'pick rooms to follow' : 'choose the lead room'}
           </span>
         </p>
@@ -378,7 +379,7 @@ function SyncFooter({
           {roomCountLabel(freeCount)} not linked
           {canStartSeparate ? (
             <>
-              {' / '}
+              <MetaSep />
               <button
                 type="button"
                 className="sync-text-btn"
@@ -389,7 +390,7 @@ function SyncFooter({
               </button>
             </>
           ) : (
-            <>{' / '}use Add rooms above to join a set</>
+            <><MetaSep />use Add rooms above to join a set</>
           )}
         </p>
       ) : (

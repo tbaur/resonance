@@ -11,6 +11,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { byTextContent } from './textContent';
 import { FleetBar } from '@/components/GlobalVolumeControl';
 import { playerArtSrc } from '@/lib/artwork';
 import type { PlayerStatus, SyncState } from '@/api/types';
@@ -126,7 +127,7 @@ describe('FleetBar house remote art', () => {
     const art = screen.getByRole('link', {
       name: /Now playing artwork — open Track/,
     });
-    expect(art).toHaveAttribute('href', '/player/1');
+    expect(art).toHaveAttribute('href', '/house');
     expect(art.querySelector('img')).toHaveAttribute(
       'src',
       playerArtSrc('1', 'http://10.0.0.1/cover.jpg'),
@@ -156,7 +157,7 @@ describe('FleetBar house remote art', () => {
 
     renderBar();
     expect(screen.getByText('Meadow')).toBeInTheDocument();
-    expect(screen.getByText('TIDAL connect / FLAC / CD')).toBeInTheDocument();
+    expect(screen.getByText(byTextContent('TIDAL connect | FLAC | CD'))).toBeInTheDocument();
   });
 
   it('shows track/service for parallel same-stream endpoints without room counts', () => {
@@ -191,7 +192,7 @@ describe('FleetBar house remote art', () => {
     const art = screen.getByRole('link', {
       name: /Now playing artwork — open Daybreak/,
     });
-    expect(art).toHaveAttribute('href', '/player/1');
+    expect(art).toHaveAttribute('href', '/house');
   });
 
   it('keeps the focused stream visible and switches it from Also playing', () => {
@@ -263,7 +264,7 @@ describe('FleetBar house remote art', () => {
     expect(bar?.lastElementChild).toHaveClass('fleet-bar-rail');
     expect(screen.getByRole('heading', { name: 'Bluesound' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'NAD CI S2' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'House' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'House remote' })).toHaveClass('visually-hidden');
   });
 
   it('sets Bluesound volume from house level chips', async () => {

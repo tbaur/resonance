@@ -157,7 +157,7 @@ resonance/
 - Do not hardcode device IPs — discovery finds the players.
 - Do not log secrets or full BluOS payloads.
 - Prefer small functions, typed interfaces, and tests for new paths.
-- Prefer slash (` / `) for compact meta separators in the UI (see `frontend/src/lib/meta.ts`) so signed values like dB stay readable.
+- Prefer a pipe (` | `) for compact meta separators in the UI (see `frontend/src/lib/meta.ts`) so signed values like dB stay readable.
 
 ## License
 

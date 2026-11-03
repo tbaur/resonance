@@ -9,10 +9,11 @@
 
 import { api } from '@/api/client';
 import type { PlayerStatus } from '@/api/types';
+import { MetaText } from '@/components/MetaText';
 import { SeekBar } from '@/components/SeekBar';
 import { StickyArt } from '@/components/StickyArt';
 import { playerArtSrc } from '@/lib/artwork';
-import { artistAlbumLine, joinMeta } from '@/lib/meta';
+import { artistAlbumLines, joinMeta } from '@/lib/meta';
 import { streamQualityLabel } from '@/lib/streamQuality';
 
 export type RunControl = (action: () => Promise<void>, optimistic?: Partial<PlayerStatus>) => void;
@@ -45,6 +46,7 @@ interface NowPlayingPanelProps {
 export function NowPlayingPanel({ device, activeInputName, onControl }: NowPlayingPanelProps) {
   const idle = isIdle(device);
   const metaLine = streamQualityLabel(device);
+  const lines = artistAlbumLines(device.track, device.artist, device.album);
   return (
     <section className="panel dossier-now">
       <div className="dossier-now-grid">
@@ -55,20 +57,25 @@ export function NowPlayingPanel({ device, activeInputName, onControl }: NowPlayi
           />
         </div>
         <div className="dossier-now-copy">
-          <p className="card-meta">{idle ? 'Status' : 'Now playing'}</p>
+          {idle ? <p className="card-meta">Status</p> : null}
           <h2>{nowTitle(device)}</h2>
           {!idle && (
-            <p className="dossier-now-meta">
-              {artistAlbumLine(device.track, device.artist, device.album) || '—'}
-            </p>
+            <>
+              <p className="dossier-now-meta">{lines.artist || '—'}</p>
+              {lines.album ? (
+                <p className="dossier-now-meta dossier-now-album">{lines.album}</p>
+              ) : null}
+            </>
           )}
           <p className="card-meta">
-            {joinMeta(
-              device.service || null,
-              activeInputName ? `Input ${activeInputName}` : null,
-              !idle ? metaLine || null : null,
-              !idle ? device.state : null,
-            )}
+            <MetaText
+              text={joinMeta(
+                device.service || null,
+                activeInputName ? `Input ${activeInputName}` : null,
+                !idle ? metaLine || null : null,
+                !idle ? device.state : null,
+              )}
+            />
           </p>
           {device.totlen > 0 && (
             <SeekBar

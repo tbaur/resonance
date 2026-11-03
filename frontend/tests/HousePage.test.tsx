@@ -11,6 +11,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { byTextContent } from './textContent';
 import { HousePage } from '@/components/HousePage';
 import type { PlayerStatus, SyncState } from '@/api/types';
 import { LIVE_HOUSE_SESSION } from '@/lib/houseSession';
@@ -177,7 +178,7 @@ describe('HousePage actions', () => {
     });
     renderHouse();
     expect(screen.getByRole('heading', { name: 'Health' })).toBeInTheDocument();
-    expect(screen.getByText(/2m · 3 fails → recovered/)).toBeInTheDocument();
+    expect(screen.getByText(byTextContent(/2m \| 3 fails → recovered/))).toBeInTheDocument();
   });
 
   it('lists each device once with status and firmware in the same row', () => {
@@ -187,9 +188,9 @@ describe('HousePage actions', () => {
     expect(screen.queryByRole('heading', { name: 'Rooms' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Zone M/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Zone N/ })).toBeInTheDocument();
-    expect(screen.getByText('online / play / vol 20 / fw 4.16.6')).toBeInTheDocument();
+    expect(screen.getByText(byTextContent('online | play | vol 20 | fw 4.16.6'))).toBeInTheDocument();
     expect(
-      screen.getByText('online / play / vol 20 / fw 4.10.0 / behind house newest'),
+      screen.getByText(byTextContent('online | play | vol 20 | fw 4.10.0 | behind house newest')),
     ).toBeInTheDocument();
   });
 

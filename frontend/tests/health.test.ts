@@ -71,7 +71,7 @@ describe('formatters', () => {
     expect(formatDropDuration(180)).toBe('3m');
     expect(formatDropDuration(3660)).toBe('1h 1m');
     const line = formatDropLine(drop({ started_at: 1_000, ended_at: 1_180, duration_seconds: 180 }));
-    expect(line).toMatch(/back .* · 3m$/);
+    expect(line).toMatch(/back .* \| 3m$/);
   });
 
   it('formats relative last-seen', () => {
@@ -81,7 +81,7 @@ describe('formatters', () => {
   });
 
   it('builds the fleet caption', () => {
-    expect(fleetHealthCaption(health, 8, 9)).toMatch(/8\/9 online · no drops/);
+    expect(fleetHealthCaption(health, 8, 9)).toMatch(/8\/9 online \| no drops/);
     expect(
       fleetHealthCaption({ ...health, drops: [drop({ started_at: 1_010 })] }, 8, 9),
     ).toMatch(/1 drop/);

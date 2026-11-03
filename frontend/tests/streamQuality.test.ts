@@ -50,9 +50,9 @@ describe('streamQualityLabel', () => {
   });
 
   it('keeps tiers that cannot be restated from numbers', () => {
-    expect(label('cd', 'FLAC')).toBe('FLAC / CD');
+    expect(label('cd', 'FLAC')).toBe('FLAC | CD');
     expect(label('mqa', '')).toBe('MQA');
-    expect(label('mqa', 'FLAC 24/48')).toBe('FLAC 24-bit 48 kHz / MQA');
+    expect(label('mqa', 'FLAC 24/48')).toBe('FLAC 24-bit 48 kHz | MQA');
   });
 
   it('passes unknown format text through as is', () => {
