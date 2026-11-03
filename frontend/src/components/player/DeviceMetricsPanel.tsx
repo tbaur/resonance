@@ -15,6 +15,7 @@ import type {
   PlayerStatus,
   UpgradeStatus,
 } from '@/api/types';
+import { MetaSep, MetaText } from '@/components/MetaText';
 import { PresenceBar } from '@/components/PresenceBar';
 import { VolumeNudgeButtons } from '@/components/VolumeNudgeButtons';
 import { formatDeviceHost } from '@/lib/endpoint';
@@ -121,14 +122,32 @@ function DeviceMetrics({
   return (
     <dl className="dossier-metrics">
       <Metric label="Volume">
-        {device.volume}%{device.db ? `${META_SEP}${device.db} dB` : ''}
-        {device.muted ? `${META_SEP}muted` : ''}
+        {device.volume}%
+        {device.db ? (
+          <>
+            <MetaSep />
+            {device.db} dB
+          </>
+        ) : null}
+        {device.muted ? (
+          <>
+            <MetaSep />
+            muted
+          </>
+        ) : null}
       </Metric>
       {health ? <PresenceMetric device={device} health={health} now={nowSec} /> : null}
-      <Metric label="Last drop">{lastDrop ? formatDropLine(lastDrop) : '—'}</Metric>
+      <Metric label="Last drop">
+        {lastDrop ? <MetaText text={formatDropLine(lastDrop)} /> : '—'}
+      </Metric>
       <Metric label="Failures">
         {device.consecutive_failures}
-        {slowPoll ? `${META_SEP}slow-poll` : ''}
+        {slowPoll ? (
+          <>
+            <MetaSep />
+            slow-poll
+          </>
+        ) : null}
       </Metric>
       <Metric label="Last seen">{formatRelativeAge(device.last_seen, nowSec) || '—'}</Metric>
       <Metric label="Uptime">{formatPlayerUptime(diag?.uptime) || '—'}</Metric>
@@ -138,12 +157,22 @@ function DeviceMetrics({
         {diag?.network_name ? (
           <>
             {diag.network_name}
-            {device.ip ? `${META_SEP}${formatDeviceHost(device)}` : ''}
+            {device.ip ? (
+              <>
+                <MetaSep />
+                {formatDeviceHost(device)}
+              </>
+            ) : null}
           </>
         ) : (
           formatDeviceHost(device)
         )}
-        {device.mac ? `${META_SEP}${device.mac}` : ''}
+        {device.mac ? (
+          <>
+            <MetaSep />
+            {device.mac}
+          </>
+        ) : null}
       </Metric>
       {diag?.total_songs != null && diag.total_songs !== '' ? (
         <Metric label="Library songs">{diag.total_songs}</Metric>
@@ -152,7 +181,7 @@ function DeviceMetrics({
         <dt>Firmware</dt>
         <dd title={upgrade?.message || undefined}>
           {device.fw || diag?.web_fw || '—'}
-          {firmwareSuffix(upgrade)}
+          <MetaText text={firmwareSuffix(upgrade)} />
         </dd>
       </div>
       {device.battery != null && device.battery !== '' && (

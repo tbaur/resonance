@@ -9,11 +9,12 @@
 
 import { useState } from 'react';
 import type { PlayerStatus, SyncState } from '@/api/types';
+import { MetaText } from '@/components/MetaText';
 import { StickyArt } from '@/components/StickyArt';
 import { playerArtSrc } from '@/lib/artwork';
 import type { HouseStreamSource } from '@/lib/fleetStatus';
 import { ALSO_PLAYING_VISIBLE, speakerRoster, streamPlaceLabel } from '@/lib/houseRoster';
-import { artistAlbumLine, joinMeta } from '@/lib/meta';
+import { artistAlbumLines, joinMeta } from '@/lib/meta';
 
 interface AlsoPlayingProps {
   others: HouseStreamSource[];
@@ -58,7 +59,7 @@ export function AlsoPlaying({ others, meta, devices, sync, onChoose }: AlsoPlayi
             {others.slice(ALSO_PLAYING_VISIBLE).map((source) => (
               <li key={source.key}>
                 <button type="button" onClick={() => choose(source.memberIds)}>
-                  {joinMeta(source.primary, artistAlbumLine(source.primary, source.artist, ''))}
+                  <MetaText text={joinMeta(source.primary, shownArtist(source))} />
                 </button>
               </li>
             ))}
@@ -80,6 +81,11 @@ export function AlsoPlaying({ others, meta, devices, sync, onChoose }: AlsoPlayi
   );
 }
 
+/** The stream's artist, or empty when it only repeats the title. */
+function shownArtist(source: HouseStreamSource): string {
+  return artistAlbumLines(source.primary, source.artist, '').artist;
+}
+
 function AlsoStream({
   source,
   devices,
@@ -93,7 +99,7 @@ function AlsoStream({
 }) {
   const rows = speakerRoster(source, devices, sync);
   const place = streamPlaceLabel(rows.length, rows[0]?.name ?? '');
-  const artistLine = artistAlbumLine(source.primary, source.artist, '');
+  const artistLine = shownArtist(source);
   return (
     <button type="button" className="house-also-open" onClick={onFocus}>
       <StickyArt

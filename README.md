@@ -15,7 +15,7 @@ Resonance controls every BluOS player on your network: Nodes, Pulse, NAD CI zone
 
 ## Features
 
-- **House remote** — one focused stream: artwork, title, album, source, live seek, and transport. The speaker count opens every player on that stream. Other streams sit underneath; choosing one keeps the panel on those players. Mute, Pause all, and Stop all stay on the row.
+- **House remote** — one focused stream: artwork, song, artist, and album on their own lines, source, live seek, and transport. The artwork and song open the house page. The speaker count opens every player on that stream. Other streams sit underneath; choosing one keeps the panel on those players. Mute, Pause all, and Stop all stay on the row.
 - **Fleet** — every player, live now-playing, A–Z or clustered by sync group (auto-switches to Sync when a group forms).
 - **Volume** — **Bluesound** (bluesound.com Nodes/Pulse) and **NAD CI S2** are separate sliders (different amp scales). Bluesound has 20 / 48 / 60 chips; CI S2 has 42 / 50 / 60 / 70. Other brands (NAD C658, …) use the player row only.
 - **Multi-room** — create groups, add/remove followers, group all free rooms under a lead, ungroup one set or all. Break-all also clears orphans whose primary left the network.

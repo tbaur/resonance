@@ -20,9 +20,9 @@ import type {
   UpgradeStatus,
 } from '@/api/types';
 import { DeviceSettingsPanel } from '@/components/DeviceSettingsPanel';
+import { MetaSep } from '@/components/MetaText';
 import type { RunControl } from '@/components/player/NowPlayingPanel';
 import { type BluetoothView, failedUpgrade } from '@/hooks/usePlayerDetails';
-import { META_SEP } from '@/lib/meta';
 
 const BLUETOOTH_MODES = [
   [0, 'Manual'],
@@ -61,7 +61,14 @@ export function AdvancedPanel(props: AdvancedPanelProps) {
         <h2>Advanced</h2>
         <span className="card-meta">
           queue {queue?.count ?? 0}
-          {loaded ? `${META_SEP}inputs ${inputs.length}${META_SEP}presets ${presets.length}` : null}
+          {loaded ? (
+            <>
+              <MetaSep />
+              inputs {inputs.length}
+              <MetaSep />
+              presets {presets.length}
+            </>
+          ) : null}
         </span>
       </summary>
 

@@ -9,6 +9,7 @@
  */
 
 import type { FleetHealthResponse, PresenceDrop } from '@/api/types';
+import { META_SEP } from '@/lib/meta';
 
 export type PresenceState = 'unknown' | 'up' | 'down';
 
@@ -98,8 +99,8 @@ export function formatDropDuration(totalSeconds: number): string {
 export function formatDropLine(drop: PresenceDrop): string {
   const when = formatClockTime(drop.started_at);
   const duration = formatDropDuration(drop.duration_seconds);
-  if (drop.ended_at == null) return `${when} · down ${duration}`;
-  return `${when} · back ${formatClockTime(drop.ended_at)} · ${duration}`;
+  if (drop.ended_at == null) return `${when}${META_SEP}down ${duration}`;
+  return `${when}${META_SEP}back ${formatClockTime(drop.ended_at)}${META_SEP}${duration}`;
 }
 
 export function formatRelativeAge(epochSeconds: number | null, nowSeconds: number): string {
@@ -120,7 +121,7 @@ export function fleetHealthCaption(
   const drops = health.drops.length;
   const since = health.started_at > 0 ? formatClockTime(health.started_at) : '';
   const sinceBit = since ? ` since ${since}` : '';
-  if (drops === 0) return `${online}/${total} online · no drops${sinceBit}`;
+  if (drops === 0) return `${online}/${total} online${META_SEP}no drops${sinceBit}`;
   const noun = drops === 1 ? 'drop' : 'drops';
-  return `${online}/${total} online · ${drops} ${noun}${sinceBit}`;
+  return `${online}/${total} online${META_SEP}${drops} ${noun}${sinceBit}`;
 }

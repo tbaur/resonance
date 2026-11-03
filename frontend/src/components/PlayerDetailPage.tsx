@@ -14,6 +14,7 @@ import { Link, useParams } from 'react-router';
 import { api } from '@/api/client';
 import type { PlayerStatus } from '@/api/types';
 import { AppMenu } from '@/components/AppMenu';
+import { MetaText } from '@/components/MetaText';
 import { AdvancedPanel } from '@/components/player/AdvancedPanel';
 import { DeviceMetricsPanel } from '@/components/player/DeviceMetricsPanel';
 import { NowPlayingPanel } from '@/components/player/NowPlayingPanel';
@@ -137,7 +138,7 @@ function PlayerHeader({ device, role }: { device: PlayerStatus; role: string }) 
         </Link>
         <h1 className="brand dossier-title">{device.name}</h1>
         <p className="brand-sub">
-          {joinMeta(formatDeviceHardware(device), device.fw ? `fw ${device.fw}` : '')}
+          <MetaText text={joinMeta(formatDeviceHardware(device), device.fw ? `fw ${device.fw}` : '')} />
         </p>
       </div>
       <div className="dossier-header-badges">

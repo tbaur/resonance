@@ -22,6 +22,7 @@ import {
   IconShuffle,
 } from '@/components/house/HouseIcons';
 import { SpeakerChip } from '@/components/house/SpeakerChip';
+import { MetaText } from '@/components/MetaText';
 import { SeekBar } from '@/components/SeekBar';
 import { StickyArt } from '@/components/StickyArt';
 import { useHouseTransport } from '@/hooks/useHouseTransport';
@@ -32,7 +33,7 @@ import {
   houseTransportTargets,
   type HouseStreamSource,
 } from '@/lib/fleetStatus';
-import { artistAlbumLine } from '@/lib/meta';
+import { artistAlbumLines } from '@/lib/meta';
 import {
   alsoPlayingMeta,
   focusedSource,
@@ -119,7 +120,7 @@ export function HouseRemote({ variant = 'fleet' }: HouseRemoteProps) {
         data-paused={status.isPaused ? 'true' : 'false'}
       >
         <div className="house-remote-body">
-          {focused ? <HouseArt focused={focused} /> : null}
+          {focused ? <HouseArt focused={focused} href={titleHref} /> : null}
           <HouseHeadline
             focused={focused}
             status={status}
@@ -188,24 +189,28 @@ export function HouseRemote({ variant = 'fleet' }: HouseRemoteProps) {
   );
 }
 
-function HouseArt({ focused }: { focused: HouseStreamSource }) {
+function HouseArt({ focused, href }: { focused: HouseStreamSource; href: string | null }) {
+  const art = (
+    <StickyArt
+      src={focused.leadId ? playerArtSrc(focused.leadId, focused.image) : ''}
+      className="house-remote-art-img"
+      empty={
+        <span className="house-remote-art-empty" aria-hidden="true">
+          <span className="house-remote-art-glyph" />
+        </span>
+      }
+    />
+  );
+  if (!href) return <div className="house-remote-art">{art}</div>;
   return (
     <Link
-      to={focused.leadId ? `/player/${focused.leadId}` : '/house'}
+      to={href}
       className="house-remote-art"
       aria-label={
         focused.image ? `Now playing artwork — open ${focused.primary}` : `Open ${focused.primary}`
       }
     >
-      <StickyArt
-        src={focused.leadId ? playerArtSrc(focused.leadId, focused.image) : ''}
-        className="house-remote-art-img"
-        empty={
-          <span className="house-remote-art-empty" aria-hidden="true">
-            <span className="house-remote-art-glyph" />
-          </span>
-        }
-      />
+      {art}
     </Link>
   );
 }
@@ -221,29 +226,23 @@ function HouseHeadline({
 }) {
   const primary = focused?.primary ?? status.primary;
   const detail = focused?.detail || status.detail;
-  const albumLine = focused
-    ? artistAlbumLine(focused.primary, focused.artist, focused.album)
-    : '';
+  const lines = focused
+    ? artistAlbumLines(focused.primary, focused.artist, focused.album)
+    : { artist: '', album: '' };
   return (
     <div className="house-remote-head">
-      <div className="house-remote-title-row">
-        <h2 id="fleet-actions-heading">
-          {titleHref ? (
-            <Link to={titleHref} className="house-remote-title-link">
-              House
-            </Link>
-          ) : (
-            'House'
-          )}
-        </h2>
-        {status.meta.length > 0 ? (
+      <h2 id="fleet-actions-heading" className="visually-hidden">
+        House remote
+      </h2>
+      {status.meta.length > 0 ? (
+        <div className="house-remote-title-row">
           <ul className="house-remote-meta" aria-label="House status">
             {status.meta.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ul>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       <p className="house-remote-primary" title={primary}>
         {titleHref ? (
           <Link to={titleHref} className="house-remote-status-link">
@@ -253,10 +252,13 @@ function HouseHeadline({
           primary
         )}
       </p>
-      {albumLine ? <p className="house-remote-album">{albumLine}</p> : null}
+      {lines.artist ? <p className="house-remote-album">{lines.artist}</p> : null}
+      {lines.album ? (
+        <p className="house-remote-album house-remote-album-name">{lines.album}</p>
+      ) : null}
       {(focused?.detail ?? status.detail) ? (
         <p className="house-remote-detail" title={detail}>
-          {detail}
+          <MetaText text={detail} />
         </p>
       ) : null}
     </div>

@@ -270,7 +270,7 @@ describe('PlayerDetailPage maintenance', () => {
     const details = container.querySelector('details')!;
     details.open = true;
     fireEvent(details, new Event('toggle'));
-    await waitFor(() => expect(summary()).toBe('queue 0 / inputs 1 / presets 0'));
+    await waitFor(() => expect(summary()).toBe('queue 0 | inputs 1 | presets 0'));
   });
 
   it('starts fresh when moving to another player', async () => {
@@ -292,7 +292,7 @@ describe('PlayerDetailPage maintenance', () => {
     await screen.findByRole('heading', { name: 'Zone M' });
     details().open = true;
     fireEvent(details(), new Event('toggle'));
-    await waitFor(() => expect(summary()).toBe('queue 0 / inputs 1 / presets 0'));
+    await waitFor(() => expect(summary()).toBe('queue 0 | inputs 1 | presets 0'));
 
     fireEvent.click(screen.getByRole('link', { name: 'Zone G' }));
     await screen.findByRole('heading', { name: 'Zone G' });
