@@ -17,6 +17,7 @@ from app.api.common import StateDep
 
 router = APIRouter()
 
+
 @router.get("/events")
 async def events(request: Request, state: StateDep) -> StreamingResponse:
     keepalive = state.settings.sse_keepalive_seconds

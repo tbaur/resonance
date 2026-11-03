@@ -121,11 +121,7 @@ export function HouseRemote({ variant = 'fleet' }: HouseRemoteProps) {
       >
         <div className="house-remote-body">
           {focused ? <HouseArt focused={focused} href={titleHref} /> : null}
-          <HouseHeadline
-            focused={focused}
-            status={status}
-            titleHref={titleHref}
-          />
+          <HouseHeadline focused={focused} status={status} titleHref={titleHref} />
         </div>
 
         <div className="house-remote-foot">
@@ -170,9 +166,7 @@ export function HouseRemote({ variant = 'fleet' }: HouseRemoteProps) {
               run={transport.run}
             />
           </div>
-          <p className="house-remote-keys">
-            Space or K play/pause · arrows or J/L skip · M mute
-          </p>
+          <p className="house-remote-keys">Space or K play/pause · arrows or J/L skip · M mute</p>
         </div>
       </section>
 

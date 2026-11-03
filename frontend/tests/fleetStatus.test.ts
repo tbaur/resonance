@@ -18,9 +18,7 @@ import {
 } from '@/lib/fleetStatus';
 import { houseCatchupSession, houseStoppedSession } from '@/lib/houseSession';
 
-function player(
-  partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name'>,
-): PlayerStatus {
+function player(partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name'>): PlayerStatus {
   return {
     ip: partial.ip ?? `10.0.0.${partial.id}`,
     model: '',
@@ -425,12 +423,10 @@ describe('fleetHouseStatus', () => {
 
   it('detects active playback including connecting', () => {
     expect(fleetHasActivePlayback([player({ id: '1', name: 'A' })])).toBe(false);
-    expect(
-      fleetHasActivePlayback([player({ id: '1', name: 'A', state: 'stream' })]),
-    ).toBe(true);
-    expect(
-      fleetHasActivePlayback([player({ id: '1', name: 'A', state: 'connecting' })]),
-    ).toBe(true);
+    expect(fleetHasActivePlayback([player({ id: '1', name: 'A', state: 'stream' })])).toBe(true);
+    expect(fleetHasActivePlayback([player({ id: '1', name: 'A', state: 'connecting' })])).toBe(
+      true,
+    );
   });
 
   it('clusters orphan sync members as one dominant stream', () => {

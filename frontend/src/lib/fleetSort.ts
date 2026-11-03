@@ -13,10 +13,7 @@ import { deviceEndpoint, endpointsMatch } from '@/lib/endpoint';
 
 export type FleetSortMode = 'name' | 'sync';
 
-export function sortDevices(
-  devices: PlayerStatus[],
-  mode: FleetSortMode,
-): PlayerStatus[] {
+export function sortDevices(devices: PlayerStatus[], mode: FleetSortMode): PlayerStatus[] {
   if (mode === 'name') {
     return devices.slice().sort((a, b) => a.name.localeCompare(b.name));
   }

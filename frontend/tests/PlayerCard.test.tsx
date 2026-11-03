@@ -188,7 +188,7 @@ describe('PlayerRow', () => {
     }
   });
 
-  it("unmutes a muted room when its own slider moves, as BluOS does", async () => {
+  it('unmutes a muted room when its own slider moves, as BluOS does', async () => {
     useFleetStore.setState({ devices: [{ ...zone, volume: 0, muted: true, mute_volume: 50 }] });
     render(
       <MemoryRouter>

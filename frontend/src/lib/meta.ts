@@ -11,9 +11,7 @@
 
 export const META_SEP = ' | ';
 
-export function joinMeta(
-  ...parts: Array<string | number | null | undefined | false>
-): string {
+export function joinMeta(...parts: Array<string | number | null | undefined | false>): string {
   return parts.filter((part): part is string | number => Boolean(part)).join(META_SEP);
 }
 

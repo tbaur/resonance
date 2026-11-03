@@ -274,7 +274,9 @@ describe('PlayerDetailPage maintenance', () => {
   });
 
   it('starts fresh when moving to another player', async () => {
-    useFleetStore.setState({ devices: [sample, { ...sample, id: 'player-zone-g', name: 'Zone G' }] });
+    useFleetStore.setState({
+      devices: [sample, { ...sample, id: 'player-zone-g', name: 'Zone G' }],
+    });
     getInputs.mockResolvedValue([
       { name: 'Analog', type: 'analog', id: 'analog-1', selected: false },
     ]);

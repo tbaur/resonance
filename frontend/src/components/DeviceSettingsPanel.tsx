@@ -59,9 +59,7 @@ export function DeviceSettingsPanel({ deviceId }: DeviceSettingsPanelProps) {
         setDrafts({});
         setLoadedFor(key);
         setError(
-          err instanceof ApiError
-            ? `${err.message} (${err.requestId})`
-            : 'Failed to load settings',
+          err instanceof ApiError ? `${err.message} (${err.requestId})` : 'Failed to load settings',
         );
       }
     })();
@@ -290,9 +288,7 @@ export function DeviceSettingsPanel({ deviceId }: DeviceSettingsPanelProps) {
                       type="button"
                       className="btn"
                       disabled={disabled || draft === value || !textOk}
-                      title={
-                        textOk ? undefined : setting.pattern_error || 'Enter a valid value'
-                      }
+                      title={textOk ? undefined : setting.pattern_error || 'Enter a valid value'}
                       onClick={() => void write(setting, draft)}
                     >
                       Update

@@ -35,7 +35,8 @@ export function StickyArt({ src, className, empty }: StickyArtProps) {
   if (!shown || failed) return empty;
 
   // A named cover can 404, for example on a synced follower. Retry once, then show the empty state.
-  const imageSrc = attempt > 0 ? `${shown}${shown.includes('?') ? '&' : '?'}retry=${attempt}` : shown;
+  const imageSrc =
+    attempt > 0 ? `${shown}${shown.includes('?') ? '&' : '?'}retry=${attempt}` : shown;
 
   return (
     <img

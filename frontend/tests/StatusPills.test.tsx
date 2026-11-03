@@ -15,12 +15,7 @@ import { StatusPills } from '@/components/StatusPills';
 describe('StatusPills', () => {
   it('shows live connection and player count with discovery method', () => {
     render(
-      <StatusPills
-        connection="live"
-        deviceCount={2}
-        discoveryMethod="mdns+lsdp"
-        loading={false}
-      />,
+      <StatusPills connection="live" deviceCount={2} discoveryMethod="mdns+lsdp" loading={false} />,
     );
     expect(screen.getByText('Live updates')).toBeInTheDocument();
     expect(screen.getByText(/2 players/)).toBeInTheDocument();
@@ -28,9 +23,7 @@ describe('StatusPills', () => {
   });
 
   it('shows scanning while loading', () => {
-    render(
-      <StatusPills connection="connecting" deviceCount={0} discoveryMethod="mdns" loading />,
-    );
+    render(<StatusPills connection="connecting" deviceCount={0} discoveryMethod="mdns" loading />);
     expect(screen.getByText('Connecting…')).toBeInTheDocument();
     expect(screen.getByText('Scanning…')).toBeInTheDocument();
   });

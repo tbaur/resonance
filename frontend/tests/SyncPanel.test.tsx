@@ -27,9 +27,7 @@ vi.mock('@/api/client', () => ({
   },
 }));
 
-function player(
-  partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name'>,
-): PlayerStatus {
+function player(partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name'>): PlayerStatus {
   return {
     ip: partial.ip ?? `10.0.0.${partial.id.length}`,
     model: 'NODE',
@@ -274,7 +272,10 @@ describe('SyncPanel', () => {
 
     it('ungroups everything after confirming and reports partial failure', async () => {
       syncBreak.mockResolvedValue({ action: 'sync_break', succeeded: 1, failed: 1, results: [] });
-      const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+      const confirm = vi
+        .spyOn(window, 'confirm')
+        .mockReturnValueOnce(false)
+        .mockReturnValueOnce(true);
       render(<SyncPanel />);
 
       fireEvent.click(screen.getByRole('button', { name: 'Ungroup all' }));

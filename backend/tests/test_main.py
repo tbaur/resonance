@@ -168,9 +168,7 @@ async def test_events_initial_fleet_snapshot(
     assert headers.get("x-request-id")
     assert headers.get("x-content-type-options") == "nosniff"
 
-    body = b"".join(
-        m.get("body", b"") for m in sent if m["type"] == "http.response.body"
-    ).decode()
+    body = b"".join(m.get("body", b"") for m in sent if m["type"] == "http.response.body").decode()
     assert "data:" in body
     assert '"type": "fleet"' in body or '"type":"fleet"' in body
     assert "player-zone-m" in body

@@ -174,11 +174,7 @@ describe('DeviceSettingsPanel', () => {
     const toneRow = screen.getByText('Tone Controls').closest('li')!;
     fireEvent.click(within(toneRow).getByRole('button', { name: 'On' }));
     await waitFor(() => {
-      expect(setSetting).toHaveBeenCalledWith(
-        'player-zone-m',
-        'eq-switch',
-        'ON',
-      );
+      expect(setSetting).toHaveBeenCalledWith('player-zone-m', 'eq-switch', 'ON');
     });
     await screen.findByText('Treble');
   });
@@ -189,11 +185,7 @@ describe('DeviceSettingsPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Left' }));
     await waitFor(() => {
-      expect(setSetting).toHaveBeenCalledWith(
-        'player-zone-m',
-        'channelMode',
-        'left',
-      );
+      expect(setSetting).toHaveBeenCalledWith('player-zone-m', 'channelMode', 'left');
     });
   });
 
@@ -204,11 +196,7 @@ describe('DeviceSettingsPanel', () => {
     const toneRow = screen.getByText('Tone Controls').closest('li')!;
     fireEvent.click(within(toneRow).getByRole('button', { name: 'On' }));
     await waitFor(() => {
-      expect(setSetting).toHaveBeenCalledWith(
-        'player-zone-m',
-        'eq-switch',
-        'ON',
-      );
+      expect(setSetting).toHaveBeenCalledWith('player-zone-m', 'eq-switch', 'ON');
     });
   });
 
@@ -243,11 +231,7 @@ describe('DeviceSettingsPanel', () => {
     fireEvent.change(slider, { target: { value: '2' } });
     fireEvent.pointerUp(slider, { target: slider });
     await waitFor(() => {
-      expect(setSetting).toHaveBeenCalledWith(
-        'player-zone-m',
-        'eq-treble',
-        '2',
-      );
+      expect(setSetting).toHaveBeenCalledWith('player-zone-m', 'eq-treble', '2');
     });
   });
 
@@ -263,11 +247,7 @@ describe('DeviceSettingsPanel', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Set' }));
     await waitFor(() => {
-      expect(setSetting).toHaveBeenCalledWith(
-        'player-zone-m',
-        'volumeLimits',
-        '-80,-5',
-      );
+      expect(setSetting).toHaveBeenCalledWith('player-zone-m', 'volumeLimits', '-80,-5');
     });
   });
 
@@ -284,11 +264,7 @@ describe('DeviceSettingsPanel', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Update' }));
     await waitFor(() => {
-      expect(setSetting).toHaveBeenCalledWith(
-        'player-zone-m',
-        'nodename',
-        'Zone C',
-      );
+      expect(setSetting).toHaveBeenCalledWith('player-zone-m', 'nodename', 'Zone C');
     });
   });
 
@@ -299,11 +275,7 @@ describe('DeviceSettingsPanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Reset All' }));
     await waitFor(() => {
-      expect(setSetting).toHaveBeenCalledWith(
-        'player-zone-m',
-        'reset',
-        '1',
-      );
+      expect(setSetting).toHaveBeenCalledWith('player-zone-m', 'reset', '1');
     });
     expect(confirm).toHaveBeenCalled();
     expect(getSettings.mock.calls.filter((c) => c[1] === 'audio').length).toBeGreaterThanOrEqual(2);

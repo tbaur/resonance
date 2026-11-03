@@ -91,7 +91,8 @@ Run `make` with no target to list them.
 | `make run` | Development: API with reload, then the Vite UI at http://127.0.0.1:8765/ once the API is healthy |
 | `make build` | Production UI bundle in `frontend/dist` (the backend has no build step) |
 | `make serve` | `build`, then one process serves the UI and API at http://127.0.0.1:8780/ (`SERVE_PORT`), so it can stay up while you use `make run` |
-| `make lint` | `lint-backend` (Ruff, mypy) and `lint-frontend` (ESLint, `tsc`) |
+| `make lint` | `lint-backend` (Ruff lint and format check, mypy) and `lint-frontend` (ESLint, Prettier check, `tsc`) |
+| `make format` | Rewrite the backend with `ruff format` and the frontend with Prettier. Run it before you commit, because `make lint` and CI fail on unformatted code |
 | `make test` | `test-backend` (pytest) and `test-frontend` (Vitest), each with its CI coverage gate |
 | `make check` | `lint`, `test`, and `build`: everything CI runs except the dependency audits |
 | `make clean` | Remove build output, coverage, and caches |
@@ -111,6 +112,7 @@ For one side, use `make lint-backend test-backend` or `make lint-frontend test-f
 # Backend
 cd backend
 .venv/bin/ruff check app tests
+.venv/bin/ruff format --check app tests                   # `ruff format app tests` rewrites
 .venv/bin/mypy app
 .venv/bin/pytest --cov=app && .venv/bin/coverage report  # gate: fail_under in pyproject.toml
 .venv/bin/pip-audit --progress-spinner off                # CI only
@@ -118,6 +120,7 @@ cd backend
 # Frontend
 cd frontend
 npm run lint
+npm run format:check                          # `npm run format` rewrites
 npm run typecheck
 npm run test:coverage                         # gate: thresholds in vite.config.ts
 npm audit --omit=dev --audit-level=moderate   # CI gate: production, moderate and above

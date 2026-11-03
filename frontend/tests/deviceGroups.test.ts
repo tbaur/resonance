@@ -66,9 +66,7 @@ describe('isBluesoundDevice', () => {
   });
 
   it('rejects NAD players', () => {
-    expect(isBluesoundDevice({ model: 'C658', brand: 'NAD', full_model: 'NAD C658' })).toBe(
-      false,
-    );
+    expect(isBluesoundDevice({ model: 'C658', brand: 'NAD', full_model: 'NAD C658' })).toBe(false);
     expect(isBluesoundDevice({ model: 'CI S2', brand: 'NAD', full_model: 'NAD CI S2' })).toBe(
       false,
     );
@@ -77,16 +75,14 @@ describe('isBluesoundDevice', () => {
 
 describe('isCiS2Device', () => {
   it('detects NAD CI S2 variants', () => {
-    expect(
-      isCiS2Device({ model: 'CI S2', brand: 'NAD', full_model: 'NAD CI S2' }),
-    ).toBe(true);
+    expect(isCiS2Device({ model: 'CI S2', brand: 'NAD', full_model: 'NAD CI S2' })).toBe(true);
     expect(isCiS2Device({ model: 'CI-S2', brand: 'NAD', full_model: '' })).toBe(true);
   });
 
   it('rejects residential players', () => {
-    expect(
-      isCiS2Device({ model: 'NODE', brand: 'Bluesound', full_model: 'Bluesound NODE' }),
-    ).toBe(false);
+    expect(isCiS2Device({ model: 'NODE', brand: 'Bluesound', full_model: 'Bluesound NODE' })).toBe(
+      false,
+    );
     expect(isCiS2Device({ model: 'C658', brand: 'NAD', full_model: 'NAD C658' })).toBe(false);
   });
 });

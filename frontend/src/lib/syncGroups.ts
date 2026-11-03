@@ -53,10 +53,7 @@ export function availableFollowers(
 }
 
 /** Sync state for `groups`: every room outside them is standalone. */
-export function syncStateFor(
-  groups: SyncGroup[],
-  devices: readonly PlayerStatus[],
-): SyncState {
+export function syncStateFor(groups: SyncGroup[], devices: readonly PlayerStatus[]): SyncState {
   const occupied = occupiedRoomIds(groups);
   return {
     groups,

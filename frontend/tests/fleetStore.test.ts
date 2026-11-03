@@ -146,7 +146,16 @@ describe('fleetStore', () => {
     useFleetStore.getState().setFleet([playing]);
     await useFleetStore.getState().control('player-1', async () => undefined, { state: 'stop' });
     useFleetStore.getState().setFleet([
-      { ...playing, track: '', artist: '', album: '', image: '', totlen: 0, secs: 0, state: 'stop' },
+      {
+        ...playing,
+        track: '',
+        artist: '',
+        album: '',
+        image: '',
+        totlen: 0,
+        secs: 0,
+        state: 'stop',
+      },
     ]);
     const device = useFleetStore.getState().devices[0];
     expect(device).toMatchObject({ state: 'stop', track: '', artist: '', image: '', totlen: 0 });
@@ -155,9 +164,11 @@ describe('fleetStore', () => {
   it('accepts a new track while playback is held', () => {
     useFleetStore.getState().setFleet([{ ...sample, totlen: 200, secs: 40, state: 'play' }]);
     useFleetStore.getState().holdPlayback('player-1', 10_000);
-    useFleetStore.getState().setFleet([
-      { ...sample, track: 'Next', artist: 'Other', totlen: 180, secs: 1, state: 'play' },
-    ]);
+    useFleetStore
+      .getState()
+      .setFleet([
+        { ...sample, track: 'Next', artist: 'Other', totlen: 180, secs: 1, state: 'play' },
+      ]);
     const device = useFleetStore.getState().devices[0];
     expect(device.track).toBe('Next');
     expect(device.secs).toBe(1);
@@ -165,9 +176,9 @@ describe('fleetStore', () => {
   });
 
   it('shows the new cover when a held skip already has the next image', () => {
-    useFleetStore.getState().setFleet([
-      { ...sample, image: 'http://art/a.jpg', totlen: 200, secs: 40, state: 'play' },
-    ]);
+    useFleetStore
+      .getState()
+      .setFleet([{ ...sample, image: 'http://art/a.jpg', totlen: 200, secs: 40, state: 'play' }]);
     useFleetStore.getState().holdPlayback('player-1', 10_000);
     useFleetStore.getState().setFleet([
       {
@@ -186,9 +197,9 @@ describe('fleetStore', () => {
   });
 
   it('keeps duration when a new track has no totlen yet', () => {
-    useFleetStore.getState().setFleet([
-      { ...sample, totlen: 200, secs: 40, state: 'play', can_seek: true },
-    ]);
+    useFleetStore
+      .getState()
+      .setFleet([{ ...sample, totlen: 200, secs: 40, state: 'play', can_seek: true }]);
     useFleetStore.getState().holdPlayback('player-1', 10_000);
     useFleetStore.getState().setFleet([
       {
@@ -270,9 +281,11 @@ describe('fleetStore', () => {
   });
 
   it('takes a later image for the same new track while playback is held', () => {
-    useFleetStore.getState().setFleet([
-      { ...sample, image: 'http://art/a.jpg', track: 'One', artist: 'A', state: 'play' },
-    ]);
+    useFleetStore
+      .getState()
+      .setFleet([
+        { ...sample, image: 'http://art/a.jpg', track: 'One', artist: 'A', state: 'play' },
+      ]);
     useFleetStore.getState().holdPlayback('player-1', 10_000);
     useFleetStore.getState().upsertDevice({
       ...sample,
@@ -293,9 +306,9 @@ describe('fleetStore', () => {
   });
 
   it('keeps the last cover when a held update has no image yet', () => {
-    useFleetStore.getState().setFleet([
-      { ...sample, image: 'http://player/images/one.jpg', track: 'One', artist: 'A' },
-    ]);
+    useFleetStore
+      .getState()
+      .setFleet([{ ...sample, image: 'http://player/images/one.jpg', track: 'One', artist: 'A' }]);
     useFleetStore.getState().holdPlayback('player-1', 10_000);
     useFleetStore.getState().upsertDevice({
       ...sample,
@@ -315,11 +328,9 @@ describe('fleetStore', () => {
     });
     const started = useFleetStore.getState().control('player-1', () => first, { volume: 21 });
     useFleetStore.getState().patchDevice('player-1', { volume: 30 });
-    const second = useFleetStore.getState().control(
-      'player-1',
-      () => Promise.resolve(),
-      { volume: 30 },
-    );
+    const second = useFleetStore
+      .getState()
+      .control('player-1', () => Promise.resolve(), { volume: 30 });
     await second;
     rejectFirst(new Error('late'));
     await started.catch(() => undefined);

@@ -10,11 +10,7 @@
 
 import type { PlayerStatus, SyncState } from '@/api/types';
 import { deviceEndpoint, endpointsMatch } from '@/lib/endpoint';
-import {
-  isEstablishedPlayback,
-  LIVE_HOUSE_SESSION,
-  type HouseSession,
-} from '@/lib/houseSession';
+import { isEstablishedPlayback, LIVE_HOUSE_SESSION, type HouseSession } from '@/lib/houseSession';
 import { joinMeta } from '@/lib/meta';
 import { streamQualityLabel } from '@/lib/streamQuality';
 
@@ -49,10 +45,7 @@ function firstField(focus: Cluster, field: 'track' | 'artist' | 'album'): string
 function nowPlayingLabel(focus: Cluster): { primary: string; detail: string } {
   const lead = focus.lead;
   const title = firstField(focus, 'track') || firstField(focus, 'artist');
-  const service =
-    serviceLabel(lead) ||
-    focus.members.map(serviceLabel).find(Boolean) ||
-    '';
+  const service = serviceLabel(lead) || focus.members.map(serviceLabel).find(Boolean) || '';
   const quality = resolveStreamMeta(focus);
 
   return {
@@ -162,9 +155,7 @@ function clustersFromCandidates(
           d.sync_role === 'synced' &&
           !claimed.has(d.id) &&
           (endpointsMatch(d.master, primaryEp) ||
-            primary.slaves.some((slave) =>
-              endpointsMatch(slave, deviceEndpoint(d)),
-            )),
+            primary.slaves.some((slave) => endpointsMatch(slave, deviceEndpoint(d)))),
       );
       pushGroup(primary, followers);
     }
@@ -225,9 +216,7 @@ function mergeByStreamIdentity(clusters: Cluster[]): Cluster[] {
         lead: pickLead(settling.map((cluster) => cluster.lead)),
       });
     } else {
-      const host = merged.reduce((a, b) =>
-        a.members.length >= b.members.length ? a : b,
-      );
+      const host = merged.reduce((a, b) => (a.members.length >= b.members.length ? a : b));
       attachMembers(host, settling);
     }
   }
@@ -339,8 +328,7 @@ function houseMeta(
   const meta: string[] = [];
   if (playingCount > 1) meta.push(`${playingCount} playing`);
   if (playingCount === 0 && hasSources) meta.push('Paused');
-  const groupCount =
-    sync?.groups.length ?? devices.filter((d) => d.sync_role === 'primary').length;
+  const groupCount = sync?.groups.length ?? devices.filter((d) => d.sync_role === 'primary').length;
   if (groupCount === 1) meta.push('Synced');
   else if (groupCount > 0) meta.push(`${groupCount} groups`);
   const mutedCount = devices.filter((d) => d.muted).length;
@@ -448,9 +436,7 @@ function applyCatchup(
   const members = catchupMembers(devices, pinned, sessionIds, keys);
   const pinnedSource = clusterToSource({ members, lead: pickLead(members) });
   const pinnedIds = new Set(pinnedSource.memberIds);
-  const others = live.sources.filter(
-    (source) => !source.memberIds.some((id) => pinnedIds.has(id)),
-  );
+  const others = live.sources.filter((source) => !source.memberIds.some((id) => pinnedIds.has(id)));
   return finalizeHouseStatus(devices, sync, [pinnedSource, ...others]);
 }
 
@@ -480,8 +466,7 @@ export function fleetHouseStatus(
   }
 
   const stopped =
-    session.phase === 'stopped' &&
-    !devices.some((device) => isEstablishedPlayback(device.state));
+    session.phase === 'stopped' && !devices.some((device) => isEstablishedPlayback(device.state));
   if (stopped) {
     return emptyHouseStatus({ meta: houseMeta(devices, sync, 0, false) });
   }

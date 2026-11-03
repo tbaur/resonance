@@ -126,7 +126,12 @@ export function useHouseTransport(options: HouseTransportOptions) {
       const store = useFleetStore.getState();
       const { focused, streamPlaying, allMuted, pinStream } = latest.current;
       const ids = focused ? houseTransportTargets(focused, store.devices) : [];
-      const followers = syncedFollowerIds(focused?.memberIds ?? ids, ids, store.devices, store.sync);
+      const followers = syncedFollowerIds(
+        focused?.memberIds ?? ids,
+        ids,
+        store.devices,
+        store.sync,
+      );
       const send = (fn: Command, optimistic?: Partial<PlayerStatus>) => {
         if (ids.length > 0) void sendToTargets(ids, followers, fn, optimistic);
       };

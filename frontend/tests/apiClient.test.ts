@@ -139,7 +139,13 @@ describe('api client', () => {
     ['seek', () => api.seek(id, 42), 'POST', `/devices/${id}/seek`, { seconds: 42 }],
     ['setShuffle', () => api.setShuffle(id, 1), 'POST', `/devices/${id}/shuffle`, { state: 1 }],
     ['setRepeat', () => api.setRepeat(id, 2), 'POST', `/devices/${id}/repeat`, { state: 2 }],
-    ['adjustVolume', () => api.adjustVolume(id, -2), 'POST', `/devices/${id}/volume/adjust`, { delta: -2 }],
+    [
+      'adjustVolume',
+      () => api.adjustVolume(id, -2),
+      'POST',
+      `/devices/${id}/volume/adjust`,
+      { delta: -2 },
+    ],
     ['diagnose', () => api.diagnose(id), 'GET', `/devices/${id}/diagnose`],
     ['getSettings', () => api.getSettings(id, 'audio'), 'GET', `/devices/${id}/settings/audio`],
     ['getUpgrade', () => api.getUpgrade(id), 'GET', `/devices/${id}/upgrade`],
@@ -164,9 +170,21 @@ describe('api client', () => {
     ['getQueue', () => api.getQueue(id), 'GET', `/devices/${id}/queue`],
     ['clearQueue', () => api.clearQueue(id), 'POST', `/devices/${id}/queue/clear`],
     ['getInputs', () => api.getInputs(id), 'GET', `/devices/${id}/inputs`],
-    ['setInput', () => api.setInput(id, 'spdif-1'), 'POST', `/devices/${id}/input`, { input: 'spdif-1' }],
+    [
+      'setInput',
+      () => api.setInput(id, 'spdif-1'),
+      'POST',
+      `/devices/${id}/input`,
+      { input: 'spdif-1' },
+    ],
     ['getBluetooth', () => api.getBluetooth(id), 'GET', `/devices/${id}/bluetooth`],
-    ['setBluetooth', () => api.setBluetooth(id, 3), 'POST', `/devices/${id}/bluetooth`, { mode: 3 }],
+    [
+      'setBluetooth',
+      () => api.setBluetooth(id, 3),
+      'POST',
+      `/devices/${id}/bluetooth`,
+      { mode: 3 },
+    ],
     ['getPresets', () => api.getPresets(id), 'GET', `/devices/${id}/presets`],
     ['playPreset', () => api.playPreset(id, 4), 'POST', `/devices/${id}/presets/4/play`],
     ['getSync', () => api.getSync(), 'GET', '/sync'],
@@ -219,9 +237,7 @@ describe('api client', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(
-      api.setSetting('player-zone-m', 'channelMode', 'left'),
-    ).resolves.toBeUndefined();
+    await expect(api.setSetting('player-zone-m', 'channelMode', 'left')).resolves.toBeUndefined();
 
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/v1/devices/player-zone-m/settings',

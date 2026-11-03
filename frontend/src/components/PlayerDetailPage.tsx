@@ -138,7 +138,9 @@ function PlayerHeader({ device, role }: { device: PlayerStatus; role: string }) 
         </Link>
         <h1 className="brand dossier-title">{device.name}</h1>
         <p className="brand-sub">
-          <MetaText text={joinMeta(formatDeviceHardware(device), device.fw ? `fw ${device.fw}` : '')} />
+          <MetaText
+            text={joinMeta(formatDeviceHardware(device), device.fw ? `fw ${device.fw}` : '')}
+          />
         </p>
       </div>
       <div className="dossier-header-badges">

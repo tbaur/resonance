@@ -405,4 +405,3 @@ class BluOSWebUIMixin(BluOSTransport):
                 if setting.id == setting_id:
                     return setting.control_path or ""
         return ""
-

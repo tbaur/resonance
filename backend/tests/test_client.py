@@ -365,7 +365,7 @@ async def test_set_input_uses_input_type_index(settings: Settings) -> None:
 @respx.mock
 async def test_clear_and_move_queue_use_v17_paths(settings: Settings) -> None:
     clear_route = respx.get("http://192.168.1.20:11000/Clear").mock(
-        return_value=httpx.Response(200, content=b"<playlist length=\"0\"/>")
+        return_value=httpx.Response(200, content=b'<playlist length="0"/>')
     )
     move_route = respx.get("http://192.168.1.20:11000/Move").mock(
         return_value=httpx.Response(200, content=b"<ok/>")
@@ -493,9 +493,7 @@ async def test_post_303_switches_to_get(settings: Settings) -> None:
             headers={"Location": "http://192.168.1.20:8080/done"},
         )
     )
-    respx.get("http://192.168.1.20:8080/done").mock(
-        return_value=httpx.Response(200, content=b"ok")
-    )
+    respx.get("http://192.168.1.20:8080/done").mock(return_value=httpx.Response(200, content=b"ok"))
     client = BluOSClient(settings)
     try:
         assert await client.reboot("192.168.1.20") is True
@@ -626,10 +624,7 @@ async def test_diagnostics_retries_connect_error(settings: Settings) -> None:
             httpx.ConnectError("boom"),
             httpx.Response(
                 200,
-                text=(
-                    '<div class="ui-block-a">Uptime:</div>'
-                    '<div class="ui-block-b">12h3m</div>'
-                ),
+                text=('<div class="ui-block-a">Uptime:</div><div class="ui-block-b">12h3m</div>'),
             ),
         ]
     )
@@ -708,8 +703,7 @@ async def test_settings_and_upgrade_web_ui(settings: Settings) -> None:
         assert all(s.id != "wifi" for s in player.settings)
         assert any(s.id == "ledbrightness" for s in player.settings)
         assert any(
-            s.id == "amplifierStandby" and s.control_path == "/setting"
-            for s in player.settings
+            s.id == "amplifierStandby" and s.control_path == "/setting" for s in player.settings
         )
 
         assert await client.set_device_setting("192.168.1.20", "eq-treble", "3") is True

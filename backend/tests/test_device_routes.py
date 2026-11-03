@@ -286,9 +286,7 @@ async def test_queue_inputs_bluetooth_presets(
         assert presets.status_code == 200
         assert (await http.post("/api/v1/devices/player-zone-m/presets/1/play")).status_code == 204
 
-        assert (
-            await http.post("/api/v1/devices/player-zone-m/reboot")
-        ).status_code == 204
+        assert (await http.post("/api/v1/devices/player-zone-m/reboot")).status_code == 204
     await client.aclose()
 
 

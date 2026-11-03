@@ -68,9 +68,11 @@ export function SyncPanel() {
   };
 
   const addFollower = (primaryId: string, slaveId: string, fromBuilder: boolean) => {
-    void actions.addFollower(primaryId, slaveId, fromBuilder ? closeBuilder : undefined).then(() => {
-      if (!fromBuilder && remainingFollowers(primaryId).length === 0) setAddingTo(null);
-    });
+    void actions
+      .addFollower(primaryId, slaveId, fromBuilder ? closeBuilder : undefined)
+      .then(() => {
+        if (!fromBuilder && remainingFollowers(primaryId).length === 0) setAddingTo(null);
+      });
   };
 
   const ungroup = (group: SyncGroup) => {
@@ -390,7 +392,10 @@ function SyncFooter({
               </button>
             </>
           ) : (
-            <><MetaSep />use Add rooms above to join a set</>
+            <>
+              <MetaSep />
+              use Add rooms above to join a set
+            </>
           )}
         </p>
       ) : (

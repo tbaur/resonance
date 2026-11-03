@@ -24,14 +24,10 @@ vi.mock('@/components/SyncPanel', () => ({
 }));
 
 vi.mock('@/components/PlayerCard', () => ({
-  PlayerRow: ({ deviceId }: { deviceId: string }) => (
-    <div data-testid="player-row">{deviceId}</div>
-  ),
+  PlayerRow: ({ deviceId }: { deviceId: string }) => <div data-testid="player-row">{deviceId}</div>,
 }));
 
-function player(
-  partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name'>,
-): PlayerStatus {
+function player(partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name'>): PlayerStatus {
   return {
     ip: partial.ip ?? `10.0.0.${partial.id.length}`,
     model: 'NODE',
@@ -143,9 +139,7 @@ describe('FleetPage sort', () => {
     renderFleet();
     expect(screen.getByRole('heading', { name: 'Resonance works with BluOS' })).toBeInTheDocument();
     expect(
-      screen.getByText(
-        'Live fleet control for every player on the network.',
-      ),
+      screen.getByText('Live fleet control for every player on the network.'),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', {

@@ -57,12 +57,8 @@ def test_zone_from_bluos_port(port: int, expected: int) -> None:
 
 
 def test_infer_zone_ci_primary_and_secondary() -> None:
-    assert (
-        infer_zone(11000, model="CI S2", brand="NAD", full_model="NAD CI S2") == 1
-    )
-    assert (
-        infer_zone(11010, model="CI S2", brand="NAD", full_model="NAD CI S2") == 2
-    )
+    assert infer_zone(11000, model="CI S2", brand="NAD", full_model="NAD CI S2") == 1
+    assert infer_zone(11010, model="CI S2", brand="NAD", full_model="NAD CI S2") == 2
 
 
 def test_infer_zone_omits_ordinary_primary() -> None:

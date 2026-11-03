@@ -277,4 +277,3 @@ def test_warn_if_open_to_network(host: str, token: str, expected: bool) -> None:
 
     get_settings.cache_clear()
     assert warn_if_open_to_network(Settings(host=host, api_token=token)) is expected
-

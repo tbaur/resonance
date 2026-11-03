@@ -160,9 +160,7 @@ async def test_fleet_control_does_not_rebrowse_stale_cache(
         PlayerStatus(id="player-a", ip="192.168.1.10", name="A", status="online"),
         PlayerStatus(id="player-b", ip="192.168.1.11", name="B", status="online"),
     ]
-    app, client, discovery, _ = await app_with_players(
-        settings, monkeypatch, players=players
-    )
+    app, client, discovery, _ = await app_with_players(settings, monkeypatch, players=players)
     discovery._snapshot.discovered_at = 1.0
     client.set_volume = AsyncMock(return_value=True)  # type: ignore[method-assign]
     client.set_mute = AsyncMock(return_value=True)  # type: ignore[method-assign]
