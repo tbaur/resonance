@@ -1,0 +1,5 @@
+# Formatting-only commits, skipped by `git blame` and GitHub's blame view.
+# Local git needs: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# chore: add Prettier and ruff format, enforced in make lint and CI (#56)
+e20b9d6dfd9bd6c5f921523f8f3d97cbec43f324

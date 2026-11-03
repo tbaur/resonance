@@ -6,9 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "resonance"
 version = "4.0.9"
 description = "Resonance: control every BluOS player on your network"
-readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 authors = [{ name = "tbaur" }]
 dependencies = [
   "fastapi>=0.162.0",
@@ -34,6 +33,10 @@ dev = [
 
 [project.scripts]
 resonance = "app.cli:main"
+
+# A declared root lets an editable install use a plain .pth path instead of an import hook.
+[tool.setuptools]
+package-dir = { "" = "." }
 
 [tool.setuptools.packages.find]
 where = ["."]
