@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.10](https://github.com/tbaur/resonance/compare/v4.0.9...v4.0.10) (2026-11-05)
+
+
+### Bug Fixes
+
+* shrink house remote mute and stop buttons ([#58](https://github.com/tbaur/resonance/issues/58)) ([6266a35](https://github.com/tbaur/resonance/commit/6266a35d71750fd38d05f19b1f5c2816f4862cde))
+
 ## [4.0.9](https://github.com/tbaur/resonance/compare/v4.0.8...v4.0.9) (2026-11-03)
 
 
