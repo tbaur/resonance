@@ -15,7 +15,7 @@ dependencies = [
   "httpx>=0.28.1",
   "pydantic>=2.14.2",
   "pydantic-settings>=2.15.0",
-  "zeroconf>=0.151.5",
+  "zeroconf>=0.153.0",
 ]
 
 [project.optional-dependencies]
