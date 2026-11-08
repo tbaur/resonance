@@ -303,6 +303,7 @@ class BluOSStatusMixin(BluOSTransport):
         )
         player.status = "online"
         player.last_seen = time.time()
+        player.secs_at = player.last_seen
 
     def _shell_player(
         self,

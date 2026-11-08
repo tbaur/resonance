@@ -62,6 +62,9 @@ class PlayerStatus(BaseModel):
     mqa_original_rate: int = 0
     image: str = ""
     secs: int = 0
+    # Unix time when ``secs`` was read. A long-poll answers only when the status
+    # changes, so clients add the time since then while the player is playing.
+    secs_at: float | None = None
     totlen: int = 0
     can_seek: bool = False
     shuffle: int = 0

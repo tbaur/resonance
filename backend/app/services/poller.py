@@ -47,6 +47,7 @@ _LEAD_PLAYBACK_FIELDS = (
     "stream_format",
     "mqa_original_rate",
     "secs",
+    "secs_at",
     "totlen",
     "can_seek",
     "shuffle",

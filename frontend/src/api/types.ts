@@ -62,6 +62,8 @@ export interface PlayerStatus {
   mqa_original_rate?: number;
   image: string;
   secs: number;
+  /** Unix seconds when `secs` was read from the player. */
+  secs_at?: number | null;
   totlen: number;
   can_seek: boolean;
   shuffle?: number;

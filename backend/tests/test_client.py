@@ -116,6 +116,8 @@ async def test_live_station_takes_the_song_from_the_second_line(
         assert player.artist == "Artist F & Artist G"
         assert player.album == "Album F - Single"
         assert player.secs == 3737
+        assert player.secs_at is not None
+        assert player.secs_at == player.last_seen
         assert player.totlen == 0
     finally:
         await client.aclose()

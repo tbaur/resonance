@@ -7,7 +7,7 @@
  * Volume and mute holds survive a poll. A transport hold does not freeze mute.
  */
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LIVE_HOUSE_SESSION } from '@/lib/houseSession';
 import { useFleetStore } from '@/store/fleetStore';
 import type { PlayerStatus } from '@/api/types';
@@ -108,6 +108,19 @@ describe('fleetStore', () => {
     useFleetStore.getState().setFleet([{ ...sample, muted: true, volume: 0 }]);
     expect(useFleetStore.getState().devices[0].muted).toBe(true);
     expect(useFleetStore.getState().devices[0].volume).toBe(0);
+  });
+
+  it('brings an old secs reading up to now, as after a page reload', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_060_000);
+    try {
+      useFleetStore
+        .getState()
+        .setFleet([{ ...sample, state: 'stream', secs: 3737, secs_at: 1_000_000 }]);
+      expect(useFleetStore.getState().devices[0].secs).toBe(3797);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('drops the last track length when a held skip lands on a live stream', () => {
