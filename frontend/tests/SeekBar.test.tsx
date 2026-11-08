@@ -24,12 +24,17 @@ describe('formatClock', () => {
 describe('SeekBar', () => {
   it('shows a live stream as time played with an empty fill', () => {
     const { container } = render(<SeekBar initialSecs={3737} totlen={0} playing={false} />);
-    expect(screen.getByText('1:02:17')).toBeInTheDocument();
-    expect(screen.getByText('Live')).toBeInTheDocument();
+    expect(screen.getByText('Live 1:02:17')).toBeInTheDocument();
+    expect(screen.queryByText('Live')).not.toBeInTheDocument();
     expect(container.querySelector('.dossier-progress-fill')).toHaveStyle({
       transform: 'scaleX(0)',
     });
     expect(screen.queryByRole('slider', { name: 'Seek' })).not.toBeInTheDocument();
+  });
+
+  it('shows just Live before a live stream reports any time', () => {
+    render(<SeekBar initialSecs={0} totlen={0} playing={false} />);
+    expect(screen.getByText('Live')).toBeInTheDocument();
   });
 
   it('renders a non-seekable bar when seeking is disabled', () => {

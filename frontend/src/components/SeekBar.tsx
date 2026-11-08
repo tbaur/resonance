@@ -6,7 +6,7 @@
  *
  * Seek control for a track. The fill keeps moving between polls
  * and snaps after a real seek. A live stream has no length, so its
- * fill stays empty and only the time played counts up.
+ * fill stays empty and "Live 12:42" counts up the time played.
  */
 
 import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
@@ -23,6 +23,11 @@ type SeekBarProps = {
   onSeek?: (seconds: number) => void;
 };
 
+/** "Live 12:42", or "Live" before the player reports any time. Matches the Apple TV app. */
+function liveText(secs: number): string {
+  return secs >= 1 ? `Live ${formatClock(secs)}` : 'Live';
+}
+
 function paint(
   fill: HTMLDivElement | null,
   time: HTMLSpanElement | null,
@@ -33,7 +38,7 @@ function paint(
 ): number {
   const secs = clampPlayback(raw, totlen);
   if (fill) fill.style.transform = `scaleX(${playbackProgress(secs, totlen)})`;
-  if (time) time.textContent = formatClock(secs);
+  if (time) time.textContent = totlen > 0 ? formatClock(secs) : liveText(secs);
   if (range) {
     range.setAttribute('aria-valuetext', `${formatClock(secs)} of ${formatClock(totlen)}`);
     if (!dragging) range.value = String(secs);
@@ -87,7 +92,7 @@ const SeekTrack = memo(function SeekTrack({
       </div>
       <div className="dossier-progress-times">
         <span ref={timeRef} />
-        <span>{totlen > 0 ? formatClock(totlen) : 'Live'}</span>
+        {totlen > 0 ? <span>{formatClock(totlen)}</span> : null}
       </div>
     </div>
   );
