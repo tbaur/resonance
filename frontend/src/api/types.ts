@@ -66,6 +66,11 @@ export interface PlayerStatus {
   secs_at?: number | null;
   totlen: number;
   can_seek: boolean;
+  /** A live radio stream: no length, no queue for shuffle or repeat. */
+  live?: boolean;
+  /** False on a live stream whose station offers no skip or back. */
+  can_skip?: boolean;
+  can_back?: boolean;
   shuffle?: number;
   repeat?: number;
   input_type_index: string;

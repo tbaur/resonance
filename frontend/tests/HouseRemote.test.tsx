@@ -256,6 +256,40 @@ describe('HouseRemote', () => {
     await waitFor(() => expect(skip).toHaveBeenCalledWith('1'));
   });
 
+  it('dims skip, back, shuffle, and repeat on a live station that offers none', () => {
+    useFleetStore.getState().patchDevice('1', {
+      state: 'stream',
+      totlen: 0,
+      can_seek: false,
+      live: true,
+      can_skip: false,
+      can_back: false,
+    });
+    renderRemote();
+    for (const name of ['Next track', 'Previous track', 'Shuffle off', 'Repeat off']) {
+      expect(screen.getByRole('button', { name })).toBeDisabled();
+    }
+    expect(screen.getByRole('button', { name: 'Pause house stream' })).toBeEnabled();
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(skip).not.toHaveBeenCalled();
+    expect(back).not.toHaveBeenCalled();
+  });
+
+  it('keeps skip on a live station that offers it', async () => {
+    useFleetStore.getState().patchDevice('1', {
+      state: 'stream',
+      totlen: 0,
+      live: true,
+      can_skip: true,
+      can_back: false,
+    });
+    renderRemote();
+    expect(screen.getByRole('button', { name: 'Previous track' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Next track' }));
+    await waitFor(() => expect(skip).toHaveBeenCalledWith('1'));
+  });
+
   it('seeks the house stream', async () => {
     renderRemote();
     const slider = screen.getByRole('slider', { name: 'Seek' });

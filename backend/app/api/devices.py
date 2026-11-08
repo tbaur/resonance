@@ -128,7 +128,13 @@ async def stop(device_id: str, state: StateDep) -> Response:
 
 @router.post("/devices/{device_id}/skip", status_code=204)
 async def skip(device_id: str, state: StateDep) -> Response:
-    return await run_control(state, device_id, "skip", state.client.skip)
+    device = state.discovery.get_device(device_id)
+    action = device.skip_action if device else ""
+
+    async def op(ip: str) -> bool:
+        return await state.client.skip(ip, action=action)
+
+    return await run_control(state, device_id, "skip", op)
 
 
 @router.post("/devices/{device_id}/toggle", status_code=204)
@@ -259,7 +265,13 @@ async def reboot(device_id: str, state: StateDep) -> Response:
 
 @router.post("/devices/{device_id}/back", status_code=204)
 async def back(device_id: str, state: StateDep) -> Response:
-    return await run_control(state, device_id, "back", state.client.back)
+    device = state.discovery.get_device(device_id)
+    action = device.back_action if device else ""
+
+    async def op(ip: str) -> bool:
+        return await state.client.back(ip, action=action)
+
+    return await run_control(state, device_id, "back", op)
 
 
 @router.post("/devices/{device_id}/seek", status_code=204)

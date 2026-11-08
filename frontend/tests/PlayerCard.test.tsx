@@ -188,6 +188,20 @@ describe('PlayerRow', () => {
     }
   });
 
+  it('dims Prev and Next on a live station that offers neither', () => {
+    useFleetStore.setState({
+      devices: [{ ...sample, state: 'stream', live: true, can_skip: false, can_back: false }],
+    });
+    render(
+      <MemoryRouter>
+        <PlayerRow deviceId={sample.id} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('button', { name: 'Prev' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeEnabled();
+  });
+
   it('unmutes a muted room when its own slider moves, as BluOS does', async () => {
     useFleetStore.setState({ devices: [{ ...zone, volume: 0, muted: true, mute_volume: 50 }] });
     render(

@@ -67,6 +67,13 @@ class PlayerStatus(BaseModel):
     secs_at: float | None = None
     totlen: int = 0
     can_seek: bool = False
+    # A live radio stream can skip or go back only when the station offers it, by
+    # its own action path. Queued tracks always can, with /Skip and /Back.
+    live: bool = False
+    can_skip: bool = True
+    can_back: bool = True
+    skip_action: str = ""
+    back_action: str = ""
     shuffle: int = 0
     repeat: int = 0
     input_type_index: str = ""

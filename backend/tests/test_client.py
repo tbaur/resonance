@@ -32,6 +32,7 @@ from tests.fixtures.xml_samples import (
     STATUS_ROON_MQA,
     STATUS_ROON_PCM,
     STATUS_ROON_TWOLINE,
+    STATUS_STATION_ACTIONS,
     STATUS_TIDAL_CONNECT,
     SYNC_STATUS,
     SYNC_STATUS_MUTED,
@@ -119,6 +120,9 @@ async def test_live_station_takes_the_song_from_the_second_line(
         assert player.secs_at is not None
         assert player.secs_at == player.last_seen
         assert player.totlen == 0
+        assert player.live is True
+        assert player.can_skip is False
+        assert player.can_back is False
     finally:
         await client.aclose()
 
@@ -885,3 +889,46 @@ async def test_settings_cache_invalidated_after_write(settings: Settings) -> Non
     assert ok is True
     assert ("192.168.1.20:11000", "audio") not in client._settings_page_cache
     await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_live_station_offers_only_the_actions_it_lists_with_a_url(
+    settings: Settings,
+) -> None:
+    respx.get("http://192.168.1.20:11000/SyncStatus").mock(
+        return_value=httpx.Response(200, content=SYNC_STATUS)
+    )
+    respx.get("http://192.168.1.20:11000/Status").mock(
+        return_value=httpx.Response(200, content=STATUS_STATION_ACTIONS)
+    )
+    client = BluOSClient(settings)
+    try:
+        player = await client.get_player_status("192.168.1.20", device_id="zone-s")
+        assert player.live is True
+        assert player.can_skip is True
+        assert player.skip_action == "/Action?service=Slacker&skip=0001"
+        assert player.can_back is False
+        assert player.back_action == ""
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_a_queued_track_always_skips(settings: Settings) -> None:
+    respx.get("http://192.168.1.20:11000/SyncStatus").mock(
+        return_value=httpx.Response(200, content=SYNC_STATUS)
+    )
+    respx.get("http://192.168.1.20:11000/Status").mock(
+        return_value=httpx.Response(200, content=STATUS_ROON_MQA)
+    )
+    client = BluOSClient(settings)
+    try:
+        player = await client.get_player_status("192.168.1.20", device_id="zone-r")
+        assert player.live is False
+        assert player.can_skip is True
+        assert player.can_back is True
+        assert player.skip_action == ""
+    finally:
+        await client.aclose()

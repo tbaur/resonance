@@ -127,6 +127,23 @@ STATUS_APPLE_MUSIC_LIVE = b"""<?xml version="1.0" encoding="UTF-8"?>
 </status>
 """
 
+# A live station that offers skip but not back (back has no url), as in the BluOS API document.
+STATUS_STATION_ACTIONS = b"""<?xml version="1.0" encoding="UTF-8"?>
+<status etag="s1">
+  <state>stream</state>
+  <service>Slacker</service>
+  <title1>Song S</title1>
+  <artist>Artist S</artist>
+  <secs>120</secs>
+  <streamUrl>Slacker:station:0001</streamUrl>
+  <actions>
+    <action name="back"/>
+    <action name="skip" url="/Action?service=Slacker&amp;skip=0001"/>
+    <action name="love" url="http://203.0.113.9/Action?love=0001"/>
+  </actions>
+</status>
+"""
+
 STATUS_ROON_MQA = b"""<?xml version="1.0" encoding="UTF-8"?>
 <status etag="r2">
   <state>stream</state>

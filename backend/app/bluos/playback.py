@@ -24,11 +24,20 @@ class BluOSPlaybackMixin(BluOSTransport):
     async def stop(self, ip: str) -> bool:
         return await self._command(ip, "/Stop")
 
-    async def skip(self, ip: str) -> bool:
-        return await self._command(ip, "/Skip")
+    async def skip(self, ip: str, *, action: str = "") -> bool:
+        return (
+            await self._station_command(ip, action) if action else await self._command(ip, "/Skip")
+        )
 
-    async def back(self, ip: str) -> bool:
-        return await self._command(ip, "/Back")
+    async def back(self, ip: str, *, action: str = "") -> bool:
+        return (
+            await self._station_command(ip, action) if action else await self._command(ip, "/Back")
+        )
+
+    async def _station_command(self, ip: str, action: str) -> bool:
+        """Run a radio station's own action, a path on the player such as /Action?service=…"""
+        path, _, query = action.partition("?")
+        return await self._command(ip, path, query=query)
 
     async def toggle(self, ip: str, *, state: str) -> bool:
         if state in ("play", "stream", "connecting"):

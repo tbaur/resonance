@@ -29,6 +29,7 @@ import {
 import { createLatestValueSender, type LatestValueSender } from '@/lib/latestValueSender';
 import { joinMeta } from '@/lib/meta';
 import { audibleDevices, ownVolumePatch, unmuteTitle } from '@/lib/mute';
+import { NO_BACK, NO_SKIP, canBack, canSkip } from '@/lib/stationActions';
 import { displaySyncRole } from '@/lib/syncGraph';
 import { DRAG_VOLUME_HOLD_MS, useFleetStore } from '@/store/fleetStore';
 import { memo, useEffect, useRef, useState } from 'react';
@@ -246,6 +247,8 @@ export const PlayerRow = memo(function PlayerRow({ deviceId }: { deviceId: strin
               type="button"
               className="btn btn-compact fleet-btn"
               data-action="prev"
+              disabled={!canBack(device)}
+              title={canBack(device) ? undefined : NO_BACK}
               onClick={() => void control(device.id, () => api.back(device.id))}
             >
               <IconPrev />
@@ -279,6 +282,8 @@ export const PlayerRow = memo(function PlayerRow({ deviceId }: { deviceId: strin
               type="button"
               className="btn btn-compact fleet-btn"
               data-action="next"
+              disabled={!canSkip(device)}
+              title={canSkip(device) ? undefined : NO_SKIP}
               onClick={() => void control(device.id, () => api.skip(device.id))}
             >
               <IconNext />

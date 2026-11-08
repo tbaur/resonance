@@ -14,6 +14,7 @@ import { SeekBar } from '@/components/SeekBar';
 import { StickyArt } from '@/components/StickyArt';
 import { playerArtSrc } from '@/lib/artwork';
 import { artistAlbumLines, joinMeta } from '@/lib/meta';
+import { NO_BACK, NO_SKIP, canBack, canSkip } from '@/lib/stationActions';
 import { showsPlaybackBar } from '@/lib/playbackClock';
 import { streamQualityLabel } from '@/lib/streamQuality';
 
@@ -103,7 +104,13 @@ function Transport({ device, onControl }: { device: PlayerStatus; onControl: Run
   const playing = isActive(device.state);
   return (
     <div className="transport" style={{ marginTop: 14 }}>
-      <button type="button" className="btn" onClick={() => onControl(() => api.back(device.id))}>
+      <button
+        type="button"
+        className="btn"
+        disabled={!canBack(device)}
+        title={canBack(device) ? undefined : NO_BACK}
+        onClick={() => onControl(() => api.back(device.id))}
+      >
         Prev
       </button>
       <button
@@ -122,7 +129,13 @@ function Transport({ device, onControl }: { device: PlayerStatus; onControl: Run
       >
         Stop
       </button>
-      <button type="button" className="btn" onClick={() => onControl(() => api.skip(device.id))}>
+      <button
+        type="button"
+        className="btn"
+        disabled={!canSkip(device)}
+        title={canSkip(device) ? undefined : NO_SKIP}
+        onClick={() => onControl(() => api.skip(device.id))}
+      >
         Next
       </button>
     </div>

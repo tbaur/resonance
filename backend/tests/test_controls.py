@@ -79,3 +79,17 @@ async def test_poller_refresh_one(settings: Settings, monkeypatch: pytest.Monkey
     assert updated is not None
     assert updated.volume == 11
     await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_skip_uses_the_station_action_when_there_is_one(settings: Settings) -> None:
+    route = respx.get("http://192.168.1.20:11000/Action?service=Slacker&skip=0001").mock(
+        return_value=httpx.Response(200, content=b"<skip/>")
+    )
+    client = BluOSClient(settings)
+    try:
+        assert await client.skip("192.168.1.20", action="/Action?service=Slacker&skip=0001")
+        assert route.called
+    finally:
+        await client.aclose()
