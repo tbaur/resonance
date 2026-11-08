@@ -1,5 +1,14 @@
 # Changelog
 
+## [4.1.1](https://github.com/tbaur/resonance/compare/v4.1.0...v4.1.1) (2026-11-08)
+
+
+### Bug Fixes
+
+* dim transport buttons a live station can't use ([#72](https://github.com/tbaur/resonance/issues/72)) ([b60142e](https://github.com/tbaur/resonance/commit/b60142e8939b1b626387f4bfe559f2ffabaf8308))
+* keep the playback time after a page reload ([#70](https://github.com/tbaur/resonance/issues/70)) ([c4a5bee](https://github.com/tbaur/resonance/commit/c4a5bee7d4f5dd9e873c851ef7a1ee817ceeb6b4))
+* show live time as "Live 12:42" ([#71](https://github.com/tbaur/resonance/issues/71)) ([989637b](https://github.com/tbaur/resonance/commit/989637b5f1054812c57a1a692526ed573845acb8))
+
 ## [4.1.0](https://github.com/tbaur/resonance/compare/v4.0.10...v4.1.0) (2026-11-08)
 
 
