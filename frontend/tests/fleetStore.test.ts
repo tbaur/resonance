@@ -116,8 +116,8 @@ describe('fleetStore', () => {
     try {
       useFleetStore
         .getState()
-        .setFleet([{ ...sample, state: 'stream', secs: 3737, secs_at: 1_000_000 }]);
-      expect(useFleetStore.getState().devices[0].secs).toBe(3797);
+        .setFleet([{ ...sample, state: 'play', totlen: 240, secs: 40, secs_at: 1_000_000 }]);
+      expect(useFleetStore.getState().devices[0].secs).toBe(100);
     } finally {
       vi.useRealTimers();
     }

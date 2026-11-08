@@ -6,7 +6,8 @@
  *
  * Seek control for a track. The fill keeps moving between polls
  * and snaps after a real seek. A live stream has no length, so its
- * fill stays empty and "Live 12:42" counts up the time played.
+ * fill stays empty and it reads "Live". BluOS reports no reliable
+ * time for one: AirPlay sends 0, and stations differ.
  */
 
 import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
@@ -23,11 +24,6 @@ type SeekBarProps = {
   onSeek?: (seconds: number) => void;
 };
 
-/** "Live 12:42", or "Live" before the player reports any time. Matches the Apple TV app. */
-function liveText(secs: number): string {
-  return secs >= 1 ? `Live ${formatClock(secs)}` : 'Live';
-}
-
 function paint(
   fill: HTMLDivElement | null,
   time: HTMLSpanElement | null,
@@ -38,7 +34,7 @@ function paint(
 ): number {
   const secs = clampPlayback(raw, totlen);
   if (fill) fill.style.transform = `scaleX(${playbackProgress(secs, totlen)})`;
-  if (time) time.textContent = totlen > 0 ? formatClock(secs) : liveText(secs);
+  if (time) time.textContent = totlen > 0 ? formatClock(secs) : 'Live';
   if (range) {
     range.setAttribute('aria-valuetext', `${formatClock(secs)} of ${formatClock(totlen)}`);
     if (!dragging) range.value = String(secs);
