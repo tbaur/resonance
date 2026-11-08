@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.2](https://github.com/tbaur/resonance/compare/v4.1.1...v4.1.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* show only "Live" on live streams ([#74](https://github.com/tbaur/resonance/issues/74)) ([59ccbc8](https://github.com/tbaur/resonance/commit/59ccbc8c650dcdc6f1adb6418d2a3a5d4b3752d4))
+
 ## [4.1.1](https://github.com/tbaur/resonance/compare/v4.1.0...v4.1.1) (2026-11-08)
 
 
