@@ -25,6 +25,7 @@ from tests.fixtures.xml_samples import (
     PRESETS,
     QUEUE,
     STATUS,
+    STATUS_APPLE_MUSIC_LIVE,
     STATUS_CAPTURE_OPTICAL,
     STATUS_GROUP_VOLUME,
     STATUS_MUTED,
@@ -93,6 +94,29 @@ async def test_roon_track_uses_bare_title_not_artist_prefixed_title1(
         assert player.track == "Song Title"
         assert player.artist == "Artist One / Artist Two"
         assert player.album == "Album Name"
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_live_station_takes_the_song_from_the_second_line(
+    settings: Settings,
+) -> None:
+    respx.get("http://192.168.1.20:11000/SyncStatus").mock(
+        return_value=httpx.Response(200, content=SYNC_STATUS)
+    )
+    respx.get("http://192.168.1.20:11000/Status").mock(
+        return_value=httpx.Response(200, content=STATUS_APPLE_MUSIC_LIVE)
+    )
+    client = BluOSClient(settings)
+    try:
+        player = await client.get_player_status("192.168.1.20", device_id="zone-l")
+        assert player.track == "Song F"
+        assert player.artist == "Artist F & Artist G"
+        assert player.album == "Album F - Single"
+        assert player.secs == 3737
+        assert player.totlen == 0
     finally:
         await client.aclose()
 
