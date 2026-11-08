@@ -14,6 +14,7 @@ import { SeekBar } from '@/components/SeekBar';
 import { StickyArt } from '@/components/StickyArt';
 import { playerArtSrc } from '@/lib/artwork';
 import { artistAlbumLines, joinMeta } from '@/lib/meta';
+import { showsPlaybackBar } from '@/lib/playbackClock';
 import { streamQualityLabel } from '@/lib/streamQuality';
 
 export type RunControl = (action: () => Promise<void>, optimistic?: Partial<PlayerStatus>) => void;
@@ -77,7 +78,7 @@ export function NowPlayingPanel({ device, activeInputName, onControl }: NowPlayi
               )}
             />
           </p>
-          {device.totlen > 0 && (
+          {showsPlaybackBar(device) && (
             <SeekBar
               key={device.id}
               initialSecs={device.secs}

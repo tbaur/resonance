@@ -34,6 +34,7 @@ import {
   type HouseStreamSource,
 } from '@/lib/fleetStatus';
 import { artistAlbumLines } from '@/lib/meta';
+import { showsPlaybackBar } from '@/lib/playbackClock';
 import {
   alsoPlayingMeta,
   focusedSource,
@@ -126,7 +127,7 @@ export function HouseRemote({ variant = 'fleet' }: HouseRemoteProps) {
 
         <div className="house-remote-foot">
           {focused && place ? <SpeakerChip place={place} rows={roster} /> : null}
-          {focused && totlen > 0 ? (
+          {focused && lead && showsPlaybackBar(lead) ? (
             <SeekBar
               key={lead?.id ?? 'house-seek'}
               initialSecs={lead?.secs ?? 0}

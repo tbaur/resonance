@@ -172,7 +172,9 @@ function applyPlaybackHold(incoming: PlayerStatus, previous: PlayerStatus): Play
     artist: meta.artist,
     album: meta.album,
     image,
-    totlen: keepMeta || (!stopped && incoming.totlen <= 0) ? previous.totlen : incoming.totlen,
+    // A new track never inherits the last one's length. It may be a live stream
+    // that has none, and the held value can outlast the hold until the next poll.
+    totlen: incoming.totlen <= 0 && (keepMeta || keepSecs) ? previous.totlen : incoming.totlen,
     quality: meta.quality,
     stream_format: meta.stream_format,
     mqa_original_rate: meta.mqa_original_rate,

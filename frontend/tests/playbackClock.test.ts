@@ -15,9 +15,22 @@ import {
   playbackPosition,
   playbackProgress,
   shouldSnapPlayback,
+  showsPlaybackBar,
 } from '@/lib/playbackClock';
 
 describe('playbackClock', () => {
+  it('shows the bar for a track, a live stream, or a skip whose length is pending', () => {
+    const bar = (state: string, secs: number, totlen: number, track = '') =>
+      showsPlaybackBar({ state, secs, totlen, track });
+    expect(bar('play', 30, 240)).toBe(true);
+    expect(bar('stream', 3737, 0)).toBe(true);
+    expect(bar('pause', 3737, 0)).toBe(true);
+    expect(bar('stream', 0, 0, 'Live Song')).toBe(true);
+    expect(bar('play', 0, 0, 'Next')).toBe(true);
+    expect(bar('stream', 0, 0)).toBe(false);
+    expect(bar('stop', 3737, 0, 'Song')).toBe(false);
+  });
+
   it('holds still when paused', () => {
     expect(playbackPosition(30, 1000, 4000, false)).toBe(30);
   });

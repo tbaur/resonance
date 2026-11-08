@@ -17,10 +17,21 @@ describe('formatClock', () => {
   it('formats clocks', () => {
     expect(formatClock(0)).toBe('0:00');
     expect(formatClock(90)).toBe('1:30');
+    expect(formatClock(3737)).toBe('1:02:17');
   });
 });
 
 describe('SeekBar', () => {
+  it('shows a live stream as time played with an empty fill', () => {
+    const { container } = render(<SeekBar initialSecs={3737} totlen={0} playing={false} />);
+    expect(screen.getByText('1:02:17')).toBeInTheDocument();
+    expect(screen.getByText('Live')).toBeInTheDocument();
+    expect(container.querySelector('.dossier-progress-fill')).toHaveStyle({
+      transform: 'scaleX(0)',
+    });
+    expect(screen.queryByRole('slider', { name: 'Seek' })).not.toBeInTheDocument();
+  });
+
   it('renders a non-seekable bar when seeking is disabled', () => {
     render(<SeekBar initialSecs={30} totlen={240} playing={false} />);
     expect(screen.queryByRole('slider', { name: 'Seek' })).not.toBeInTheDocument();

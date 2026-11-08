@@ -5,7 +5,8 @@
  * See LICENSE file for full license text
  *
  * Seek control for a track. The fill keeps moving between polls
- * and snaps after a real seek.
+ * and snaps after a real seek. A live stream has no length, so its
+ * fill stays empty and only the time played counts up.
  */
 
 import { memo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
@@ -86,7 +87,7 @@ const SeekTrack = memo(function SeekTrack({
       </div>
       <div className="dossier-progress-times">
         <span ref={timeRef} />
-        <span>{totlen > 0 ? formatClock(totlen) : '—'}</span>
+        <span>{totlen > 0 ? formatClock(totlen) : 'Live'}</span>
       </div>
     </div>
   );
