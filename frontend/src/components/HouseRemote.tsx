@@ -35,6 +35,7 @@ import {
 } from '@/lib/fleetStatus';
 import { artistAlbumLines } from '@/lib/meta';
 import { showsPlaybackBar } from '@/lib/playbackClock';
+import { NO_BACK, NO_QUEUE, NO_SKIP, canBack, canSkip, hasQueue } from '@/lib/stationActions';
 import {
   alsoPlayingMeta,
   focusedSource,
@@ -284,7 +285,8 @@ function HouseTransport({
       <button
         type="button"
         className="house-icon-btn"
-        disabled={disabled}
+        disabled={disabled || !canBack(lead)}
+        title={canBack(lead) ? undefined : NO_BACK}
         aria-label="Previous track"
         onClick={() => command('back', (id) => api.back(id))}
       >
@@ -303,7 +305,8 @@ function HouseTransport({
       <button
         type="button"
         className="house-icon-btn"
-        disabled={disabled}
+        disabled={disabled || !canSkip(lead)}
+        title={canSkip(lead) ? undefined : NO_SKIP}
         aria-label="Next track"
         onClick={() => command('skip', (id) => api.skip(id))}
       >
@@ -312,7 +315,8 @@ function HouseTransport({
       <button
         type="button"
         className="house-icon-btn house-icon-btn-mode"
-        disabled={disabled}
+        disabled={disabled || !hasQueue(lead)}
+        title={hasQueue(lead) ? undefined : NO_QUEUE}
         aria-label={shuffleOn ? 'Shuffle on' : 'Shuffle off'}
         aria-pressed={shuffleOn}
         onClick={() =>
@@ -326,7 +330,8 @@ function HouseTransport({
       <button
         type="button"
         className="house-icon-btn house-icon-btn-mode"
-        disabled={disabled}
+        disabled={disabled || !hasQueue(lead)}
+        title={hasQueue(lead) ? undefined : NO_QUEUE}
         aria-label={repeatLabel}
         aria-pressed={repeatMode !== 0}
         onClick={() => {

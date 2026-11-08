@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '@/api/client';
 import type { PlayerStatus, SyncState } from '@/api/types';
 import { houseTransportTargets, type HouseStreamSource } from '@/lib/fleetStatus';
+import { canBack, canSkip } from '@/lib/stationActions';
 import { displaySyncRole } from '@/lib/syncGraph';
 import { useFleetStore } from '@/store/fleetStore';
 
@@ -132,6 +133,7 @@ export function useHouseTransport(options: HouseTransportOptions) {
         store.devices,
         store.sync,
       );
+      const lead = store.devices.find((d) => d.id === ids[0]);
       const send = (fn: Command, optimistic?: Partial<PlayerStatus>) => {
         if (ids.length > 0) void sendToTargets(ids, followers, fn, optimistic);
       };
@@ -140,12 +142,12 @@ export function useHouseTransport(options: HouseTransportOptions) {
         event.preventDefault();
         send((id) => api.toggle(id), { state: streamPlaying ? 'pause' : 'play' });
       } else if (event.key === 'ArrowRight' || event.key === 'l') {
-        if (ids.length === 0) return;
+        if (ids.length === 0 || !canSkip(lead)) return;
         event.preventDefault();
         pinSkip(pinStream, ids, followers);
         send((id) => api.skip(id));
       } else if (event.key === 'ArrowLeft' || event.key === 'j') {
-        if (ids.length === 0) return;
+        if (ids.length === 0 || !canBack(lead)) return;
         event.preventDefault();
         pinSkip(pinStream, ids, followers);
         send((id) => api.back(id));

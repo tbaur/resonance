@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -30,6 +31,35 @@ from app.validators import (
 # BluOS display names that ship with the wrong brand casing.
 _SERVICE_NAME_FIXES = {"TIDAL connect": "TIDAL Connect"}
 _TITLE_SEPARATOR = " • "
+
+
+_ACTION_PATH = re.compile(r"^/[A-Za-z]+(\?[^\s#]*)?$")
+
+
+def _station_actions(actions: list[tuple[str, str]], *, live: bool) -> dict[str, object]:
+    """Skip and back for the current audio.
+
+    A live stream (a streamUrl with no length) skips only through an action the
+    station lists with a url. An action with no url, like Slacker's back, is not
+    available. Anything else uses /Skip and /Back.
+    """
+    if not live:
+        return {
+            "live": False,
+            "can_skip": True,
+            "can_back": True,
+            "skip_action": "",
+            "back_action": "",
+        }
+    paths = {name: url for name, url in actions if _ACTION_PATH.match(url)}
+    skip, back = paths.get("skip", ""), paths.get("back", "")
+    return {
+        "live": True,
+        "can_skip": bool(skip),
+        "can_back": bool(back),
+        "skip_action": skip,
+        "back_action": back,
+    }
 
 
 def _track_title(two_line_first: str, two_line_second: str, artist: str, fallback: str) -> str:
@@ -214,6 +244,18 @@ class BluOSStatusMixin(BluOSTransport):
             "secs": self._parse_int(text(root, "secs")),
             "totlen": self._parse_int(text(root, "totlen")),
             "can_seek": text(root, "canSeek") in {"1", "true", "True"},
+            **_station_actions(
+                [
+                    (attr(action, "name"), attr(action, "url"))
+                    for action in root.findall("actions/action")
+                ],
+                live=(
+                    bool(text(root, "streamUrl"))
+                    and self._parse_int(text(root, "totlen")) <= 0
+                    # Roon Ready streams carry a Raat streamUrl; Roon owns the queue.
+                    and text(root, "service") != "Raat"
+                ),
+            ),
             "shuffle": max(0, min(1, self._parse_int(text(root, "shuffle"), 0))),
             "repeat": max(0, min(2, self._parse_int(text(root, "repeat"), 0))),
             "input_type_index": text(root, "inputTypeIndex"),
@@ -280,6 +322,11 @@ class BluOSStatusMixin(BluOSTransport):
         player.secs = status.get("secs", 0)
         player.totlen = status.get("totlen", 0)
         player.can_seek = status.get("can_seek", False)
+        player.live = status.get("live", False)
+        player.can_skip = status.get("can_skip", True)
+        player.can_back = status.get("can_back", True)
+        player.skip_action = status.get("skip_action", "")
+        player.back_action = status.get("back_action", "")
         player.shuffle = status.get("shuffle", 0)
         player.repeat = status.get("repeat", 0)
         player.input_type_index = status.get("input_type_index", "")
