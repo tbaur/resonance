@@ -29,6 +29,25 @@ from app.validators import (
 
 # BluOS display names that ship with the wrong brand casing.
 _SERVICE_NAME_FIXES = {"TIDAL connect": "TIDAL Connect"}
+_TITLE_SEPARATOR = " • "
+
+
+def _track_title(two_line_first: str, two_line_second: str, artist: str, fallback: str) -> str:
+    """Roon Ready sends title1 as "Artist • Title"; twoline_title1 is the bare title.
+
+    Apple Music live stations send "Artist • Album" as twoline_title1 instead, and
+    the song only in twoline_title2 as "Title • Artist".
+    """
+    if not two_line_first:
+        return fallback
+    suffix = _TITLE_SEPARATOR + artist
+    if (
+        artist
+        and two_line_first.startswith(artist + _TITLE_SEPARATOR)
+        and two_line_second.endswith(suffix)
+    ):
+        return two_line_second[: -len(suffix)]
+    return two_line_first
 
 
 @dataclass(frozen=True)
@@ -180,8 +199,12 @@ class BluOSStatusMixin(BluOSTransport):
             "state": text(root, "state", "stop") or "stop",
             "service": display_service,
             "service_id": service,
-            # Roon Ready sends title1 as "Artist • Title"; twoline_title1 is the bare title.
-            "track": text(root, "twoline_title1") or text(root, "title1") or text(root, "title"),
+            "track": _track_title(
+                text(root, "twoline_title1"),
+                text(root, "twoline_title2"),
+                text(root, "artist"),
+                text(root, "title1") or text(root, "title"),
+            ),
             "artist": text(root, "artist") or text(root, "title2"),
             "album": text(root, "album") or text(root, "title3"),
             "quality": text(root, "quality"),

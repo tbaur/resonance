@@ -110,6 +110,23 @@ STATUS_ROON_TWOLINE = b"""<?xml version="1.0" encoding="UTF-8"?>
 </status>
 """
 
+# Apple Music live station: twoline_title1 is "Artist • Album", the song is only in twoline_title2.
+STATUS_APPLE_MUSIC_LIVE = b"""<?xml version="1.0" encoding="UTF-8"?>
+<status etag="l1">
+  <state>stream</state>
+  <service>AppleMusic</service>
+  <serviceName>Apple Music</serviceName>
+  <album>Album F - Single</album>
+  <artist>Artist F &amp; Artist G</artist>
+  <canSeek>0</canSeek>
+  <secs>3737</secs>
+  <streamUrl>AppleMusic:live:ra.0001</streamUrl>
+  <title1>Artist F &amp; Artist G \xe2\x80\xa2 Album F - Single</title1>
+  <twoline_title1>Artist F &amp; Artist G \xe2\x80\xa2 Album F - Single</twoline_title1>
+  <twoline_title2>Song F \xe2\x80\xa2 Artist F &amp; Artist G</twoline_title2>
+</status>
+"""
+
 STATUS_ROON_MQA = b"""<?xml version="1.0" encoding="UTF-8"?>
 <status etag="r2">
   <state>stream</state>
