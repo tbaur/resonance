@@ -33,8 +33,7 @@ export function shouldSnapPlayback(predicted: number, incoming: number): boolean
 
 /**
  * A track with a length gets the bar. So does anything else that is playing a
- * track or reports time played: a live stream, whose time BluOS counts from when
- * the station started, or a skip whose length has not arrived yet.
+ * track: a live stream, shown as "Live", or a skip whose length has not arrived.
  */
 export function showsPlaybackBar(
   device: Pick<PlayerStatus, 'state' | 'secs' | 'totlen' | 'track'>,
@@ -46,12 +45,17 @@ export function showsPlaybackBar(
 /**
  * `secs` as of `nowMs`. The server can hand over a reading taken long ago,
  * such as after a page reload, because a long-poll only answers on a change.
+ * A live stream shows no time, so its reading stays as sent.
  */
 export function currentSecs(
-  device: Pick<PlayerStatus, 'state' | 'secs' | 'secs_at'>,
+  device: Pick<PlayerStatus, 'state' | 'secs' | 'secs_at' | 'totlen'>,
   nowMs: number,
 ): number {
-  if (device.secs_at == null || (device.state !== 'play' && device.state !== 'stream')) {
+  if (
+    device.secs_at == null ||
+    device.totlen <= 0 ||
+    (device.state !== 'play' && device.state !== 'stream')
+  ) {
     return device.secs;
   }
   return device.secs + Math.max(0, Math.floor(nowMs / 1000 - device.secs_at));

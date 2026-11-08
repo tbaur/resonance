@@ -22,11 +22,19 @@ import {
 describe('playbackClock', () => {
   it('adds the time since the server read secs while playing', () => {
     const nowMs = 1_000_060_000;
-    expect(currentSecs({ state: 'stream', secs: 3737, secs_at: 1_000_000 }, nowMs)).toBe(3797);
-    expect(currentSecs({ state: 'play', secs: 40, secs_at: 1_000_000 }, nowMs)).toBe(100);
-    expect(currentSecs({ state: 'pause', secs: 40, secs_at: 1_000_000 }, nowMs)).toBe(40);
-    expect(currentSecs({ state: 'play', secs: 40, secs_at: null }, nowMs)).toBe(40);
-    expect(currentSecs({ state: 'play', secs: 40, secs_at: 1_000_090 }, nowMs)).toBe(40);
+    const at = (state: string, secs_at: number | null, totlen = 240) =>
+      currentSecs({ state, secs: 40, secs_at, totlen }, nowMs);
+    expect(at('stream', 1_000_000)).toBe(100);
+    expect(at('play', 1_000_000)).toBe(100);
+    expect(at('pause', 1_000_000)).toBe(40);
+    expect(at('play', null)).toBe(40);
+    expect(at('play', 1_000_090)).toBe(40);
+  });
+
+  it('does not count time on a live stream', () => {
+    expect(
+      currentSecs({ state: 'stream', secs: 0, secs_at: 1_000_000, totlen: 0 }, 1_000_060_000),
+    ).toBe(0);
   });
 
   it('shows the bar for a track, a live stream, or a skip whose length is pending', () => {
