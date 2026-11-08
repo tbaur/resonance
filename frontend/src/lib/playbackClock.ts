@@ -43,6 +43,20 @@ export function showsPlaybackBar(
   return device.state !== 'stop' && (device.secs > 0 || device.track.trim() !== '');
 }
 
+/**
+ * `secs` as of `nowMs`. The server can hand over a reading taken long ago,
+ * such as after a page reload, because a long-poll only answers on a change.
+ */
+export function currentSecs(
+  device: Pick<PlayerStatus, 'state' | 'secs' | 'secs_at'>,
+  nowMs: number,
+): number {
+  if (device.secs_at == null || (device.state !== 'play' && device.state !== 'stream')) {
+    return device.secs;
+  }
+  return device.secs + Math.max(0, Math.floor(nowMs / 1000 - device.secs_at));
+}
+
 export function playbackProgress(secs: number, totlen: number): number {
   if (totlen <= 0) return 0;
   return Math.min(1, Math.max(0, secs / totlen));

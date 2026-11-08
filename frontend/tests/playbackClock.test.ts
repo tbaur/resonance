@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest';
 import {
   PLAYBACK_SNAP_SECS,
   clampPlayback,
+  currentSecs,
   playbackPosition,
   playbackProgress,
   shouldSnapPlayback,
@@ -19,6 +20,15 @@ import {
 } from '@/lib/playbackClock';
 
 describe('playbackClock', () => {
+  it('adds the time since the server read secs while playing', () => {
+    const nowMs = 1_000_060_000;
+    expect(currentSecs({ state: 'stream', secs: 3737, secs_at: 1_000_000 }, nowMs)).toBe(3797);
+    expect(currentSecs({ state: 'play', secs: 40, secs_at: 1_000_000 }, nowMs)).toBe(100);
+    expect(currentSecs({ state: 'pause', secs: 40, secs_at: 1_000_000 }, nowMs)).toBe(40);
+    expect(currentSecs({ state: 'play', secs: 40, secs_at: null }, nowMs)).toBe(40);
+    expect(currentSecs({ state: 'play', secs: 40, secs_at: 1_000_090 }, nowMs)).toBe(40);
+  });
+
   it('shows the bar for a track, a live stream, or a skip whose length is pending', () => {
     const bar = (state: string, secs: number, totlen: number, track = '') =>
       showsPlaybackBar({ state, secs, totlen, track });

@@ -841,3 +841,17 @@ async def test_failed_refresh_is_logged_and_forgotten(
     assert poller._refreshes == {}
     assert any(record.message == "refresh_one_failed" for record in caplog.records)
     await client.aclose()
+
+
+def test_follower_copies_when_its_lead_read_secs() -> None:
+    from app.services.poller import _lead_playback
+
+    lead = PlayerStatus(
+        id="p1", ip="192.168.1.10", name="Lead", status="online", secs=90, secs_at=1000.0
+    )
+    follower = PlayerStatus(
+        id="p2", ip="192.168.1.11", name="Follow", status="online", secs_at=2000.0
+    )
+    patch = _lead_playback(lead, follower)
+    assert patch["secs"] == 90
+    assert patch["secs_at"] == 1000.0

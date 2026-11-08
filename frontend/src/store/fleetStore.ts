@@ -28,6 +28,7 @@ import {
   type HouseSession,
 } from '@/lib/houseSession';
 import { mutedPatch, unmutedPatch } from '@/lib/mute';
+import { currentSecs } from '@/lib/playbackClock';
 import { dropStaleFollowerClaims } from '@/lib/syncGraph';
 
 export type ConnectionState = 'connecting' | 'live' | 'reconnecting' | 'offline';
@@ -197,8 +198,12 @@ function mergeRemoteDevice(
   previous: PlayerStatus | undefined,
   holds: RemoteHolds,
 ): PlayerStatus {
-  if (!previous) return incoming;
-  let next = incoming;
+  const current =
+    incoming.secs_at == null
+      ? incoming
+      : { ...incoming, secs: currentSecs(incoming, holds.now), secs_at: holds.now / 1000 };
+  if (!previous) return current;
+  let next = current;
   const holdMute = (holds.muteHoldUntil[incoming.id] ?? 0) > holds.now;
   const holdVolume =
     holds.globalVolumeHoldUntil > holds.now ||
