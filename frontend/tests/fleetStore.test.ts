@@ -110,6 +110,19 @@ describe('fleetStore', () => {
     expect(useFleetStore.getState().devices[0].volume).toBe(0);
   });
 
+  it('drops the last track length when a held skip lands on a live stream', () => {
+    const playing = { ...sample, totlen: 200, secs: 40, state: 'play' };
+    useFleetStore.getState().setFleet([playing]);
+    useFleetStore.getState().holdPlayback('player-1', 10_000);
+    useFleetStore
+      .getState()
+      .setFleet([{ ...playing, track: 'Live Song', totlen: 0, secs: 3737, state: 'stream' }]);
+    const device = useFleetStore.getState().devices[0];
+    expect(device.track).toBe('Live Song');
+    expect(device.totlen).toBe(0);
+    expect(device.secs).toBe(3737);
+  });
+
   it('keeps now-playing through an empty poll while playback is held', () => {
     const playing = {
       ...sample,
@@ -196,7 +209,17 @@ describe('fleetStore', () => {
     expect(device.image).toBe('http://art/b.jpg');
   });
 
-  it('keeps duration when a new track has no totlen yet', () => {
+  it('drops the last track length when a live stream starts at zero seconds', () => {
+    const playing = { ...sample, totlen: 200, secs: 40, state: 'play' };
+    useFleetStore.getState().setFleet([playing]);
+    useFleetStore.getState().holdPlayback('player-1', 10_000);
+    useFleetStore
+      .getState()
+      .setFleet([{ ...playing, track: 'Live Song', totlen: 0, secs: 0, state: 'stream' }]);
+    expect(useFleetStore.getState().devices[0].totlen).toBe(0);
+  });
+
+  it('does not give a new track the last length while its own is pending', () => {
     useFleetStore
       .getState()
       .setFleet([{ ...sample, totlen: 200, secs: 40, state: 'play', can_seek: true }]);
@@ -214,7 +237,7 @@ describe('fleetStore', () => {
     ]);
     const device = useFleetStore.getState().devices[0];
     expect(device.track).toBe('Next');
-    expect(device.totlen).toBe(200);
+    expect(device.totlen).toBe(0);
     expect(device.can_seek).toBe(false);
     expect(device.secs).toBe(0);
   });
