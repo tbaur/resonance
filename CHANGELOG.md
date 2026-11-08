@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.1.0](https://github.com/tbaur/resonance/compare/v4.0.10...v4.1.0) (2026-11-08)
+
+
+### Features
+
+* show time played on live streams ([#68](https://github.com/tbaur/resonance/issues/68)) ([05b4542](https://github.com/tbaur/resonance/commit/05b4542eff7609f3f0c783f33e9993bec12c5729))
+
+
+### Bug Fixes
+
+* show the song title on Apple Music live stations ([#67](https://github.com/tbaur/resonance/issues/67)) ([c40ff5b](https://github.com/tbaur/resonance/commit/c40ff5be51ef26d00bb3549b65e00b833e1d65fe))
+
 ## [4.0.10](https://github.com/tbaur/resonance/compare/v4.0.9...v4.0.10) (2026-11-05)
 
 
