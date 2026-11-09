@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.0](https://github.com/tbaur/resonance/compare/v4.1.2...v4.2.0) (2026-11-09)
+
+
+### Features
+
+* use a bolder waveform favicon that stays readable in tabs ([#76](https://github.com/tbaur/resonance/issues/76)) ([4717840](https://github.com/tbaur/resonance/commit/4717840cab11735f428f2c3af089c0e294c798e6))
+
 ## [4.1.2](https://github.com/tbaur/resonance/compare/v4.1.1...v4.1.2) (2026-11-08)
 
 
