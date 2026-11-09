@@ -8,4 +8,4 @@
 PRODUCT_NAME = "Resonance"
 PACKAGE_NAME = "resonance"
 
-__version__ = "4.1.2"  # x-release-please-version
+__version__ = "4.2.0"  # x-release-please-version
