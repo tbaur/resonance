@@ -8,7 +8,7 @@
  * API says it cannot be reached.
  */
 
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SessionGate } from '@/components/SessionGate';
 
@@ -47,7 +47,9 @@ describe('SessionGate token form', () => {
     renderGate();
 
     const input = await screen.findByLabelText('API token');
-    expect(input).toHaveFocus();
+    // Focus is applied in an effect after the 401 probe. jsdom 31 can leave
+    // the page focused for a turn, so wait instead of asserting immediately.
+    await waitFor(() => expect(input).toHaveFocus());
     expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
 
     fireEvent.change(input, { target: { value: 'wrong' } });
