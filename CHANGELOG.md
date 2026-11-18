@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.1](https://github.com/tbaur/resonance/compare/v4.2.0...v4.2.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* show the default BluOS port on player addresses ([7a6f823](https://github.com/tbaur/resonance/commit/7a6f8239e19e1475c7479f971754c715903109e8))
+
 ## [4.2.0](https://github.com/tbaur/resonance/compare/v4.1.2...v4.2.0) (2026-11-09)
 
 
