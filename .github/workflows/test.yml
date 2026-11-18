@@ -60,11 +60,16 @@ jobs:
         run: npm audit --omit=dev --audit-level=moderate
       # Production dependencies are few, so the gate above misses most of the
       # tree. High and critical findings fail here, including devDependencies.
+      # picomatch <=4.0.7 (GHSA-fc5q-39xc-vjpf) has no patched release. Vite
+      # and Vitest install it for their own globs. The script allows that one
+      # advisory and fails on every other high or critical finding. It also
+      # fails on 2026-12-01, and sooner if GitHub lists a patched release.
+      # A weekly workflow runs the same reminder when nobody opens a PR.
       # A moderate dev-tree advisory often has no upstream fix, so it is
       # reported and does not fail the job.
       - name: Audit full tree
         working-directory: frontend
-        run: npm audit --audit-level=high
+        run: node --experimental-strip-types scripts/auditHigh.ts
       - name: Audit dev tree moderates (advisory only)
         continue-on-error: true
         working-directory: frontend

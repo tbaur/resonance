@@ -1,0 +1,26 @@
+name: Picomatch exception
+
+# The high audit allows one unfixed picomatch advisory. This runs even when
+# nobody opens a pull request, and it fails on the review date or as soon as
+# GitHub lists a patched release.
+
+on:
+  schedule:
+    - cron: "17 15 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: Review the exception
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - name: Fail when the exception is due or picomatch is patched
+        run: node --experimental-strip-types frontend/scripts/auditHigh.ts --review
