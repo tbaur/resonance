@@ -5,11 +5,18 @@
  * See LICENSE file for full license text
  *
  * The high audit allows the unfixed picomatch advisory and
- * fails on any other high finding, or once that advisory is gone.
+ * fails on any other high finding, once that advisory is gone,
+ * on the review date, or when GitHub lists a patched release.
  */
 
 import { describe, expect, it } from 'vitest';
-import { decideAudit, parseAuditReport } from '../scripts/auditHigh';
+import {
+  decideAudit,
+  exceptionReminders,
+  parseAuditReport,
+  parsePicomatchAdvisory,
+  reviewIsDue,
+} from '../scripts/auditHigh';
 
 const PICOMATCH_URL = 'https://github.com/advisories/GHSA-fc5q-39xc-vjpf';
 
@@ -62,5 +69,48 @@ describe('decideAudit', () => {
 
   it('rejects a report that is not an object', () => {
     expect(() => parseAuditReport(null)).toThrow(/not return an object/);
+  });
+});
+
+describe('picomatch exception reminder', () => {
+  const unfixed = { patchedVersions: null, withdrawnAt: null };
+
+  it('stays quiet before the review date while the advisory is unfixed', () => {
+    expect(reviewIsDue('2026-11-30')).toBe(false);
+    expect(exceptionReminders({ today: '2026-11-30', advisory: unfixed })).toEqual([]);
+  });
+
+  it('fails on the review date', () => {
+    expect(reviewIsDue('2026-12-01')).toBe(true);
+    expect(exceptionReminders({ today: '2026-12-01', advisory: unfixed })[0]).toMatch(
+      /due for review on 2026-12-01/,
+    );
+  });
+
+  it('fails when GitHub lists a patched release', () => {
+    const advisory = parsePicomatchAdvisory({
+      withdrawn_at: null,
+      vulnerabilities: [
+        {
+          package: { ecosystem: 'npm', name: 'picomatch' },
+          patched_versions: '>= 4.0.8',
+        },
+      ],
+    });
+    expect(exceptionReminders({ today: '2026-11-18', advisory })).toEqual([
+      'Remove the picomatch exception. A patched release exists (>= 4.0.8).',
+    ]);
+  });
+
+  it('reads an unfixed advisory', () => {
+    expect(
+      parsePicomatchAdvisory({
+        withdrawn_at: null,
+        vulnerabilities: [
+          { package: { ecosystem: 'npm', name: 'other' }, patched_versions: '>= 1.0.0' },
+          { package: { ecosystem: 'npm', name: 'picomatch' }, patched_versions: null },
+        ],
+      }),
+    ).toEqual(unfixed);
   });
 });

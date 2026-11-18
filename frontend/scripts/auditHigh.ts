@@ -7,13 +7,23 @@
  * Which high and critical npm audit findings still fail CI.
  * picomatch has no patched release. Vite and Vitest install it
  * for their own globs, and the app never imports it.
+ * The exception fails on PICOMATCH_REVIEW_BY, and sooner when
+ * GitHub lists a patched release.
  */
 
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-/** Unfixed picomatch ReDoS. Remove this when the advisory leaves the audit. */
+/** Unfixed picomatch ReDoS. Remove this when a patched release exists. */
 export const PICOMATCH_ADVISORY = 'GHSA-fc5q-39xc-vjpf';
+
+/**
+ * CI fails on this day until someone checks the advisory.
+ * Move the date only if picomatch still has no patched release.
+ */
+export const PICOMATCH_REVIEW_BY = '2026-12-01';
+
+const ADVISORY_URL = `https://api.github.com/advisories/${PICOMATCH_ADVISORY}`;
 
 const BLOCKING_SEVERITIES = new Set(['high', 'critical']);
 const GHSA_PATTERN = /GHSA-[0-9a-z-]+/i;
@@ -38,6 +48,73 @@ export type AuditDecision = {
   allowedPresent: string[];
   allowedMissing: string[];
 };
+
+export type PicomatchAdvisory = {
+  patchedVersions: string | null;
+  withdrawnAt: string | null;
+};
+
+/** UTC calendar day, so CI and a laptop agree on the review date. */
+export function utcDay(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 10);
+}
+
+/** True on the review day and after it. */
+export function reviewIsDue(today: string, reviewBy: string = PICOMATCH_REVIEW_BY): boolean {
+  return today >= reviewBy;
+}
+
+/** Read whether GitHub still lists picomatch as unfixed. */
+export function parsePicomatchAdvisory(value: unknown): PicomatchAdvisory {
+  if (!isRecord(value)) throw new Error('GitHub advisory was not an object');
+  const withdrawnAt =
+    value.withdrawn_at === null || value.withdrawn_at === undefined
+      ? null
+      : requireString(value.withdrawn_at, 'GitHub advisory withdrawn_at');
+  const vulnerabilities = value.vulnerabilities;
+  if (!Array.isArray(vulnerabilities)) {
+    throw new Error('GitHub advisory vulnerabilities was not a list');
+  }
+  for (const item of vulnerabilities) {
+    if (!isRecord(item)) throw new Error('GitHub advisory vulnerability was not an object');
+    const pkg = item.package;
+    if (!isRecord(pkg)) throw new Error('GitHub advisory package was not an object');
+    if (pkg.ecosystem !== 'npm' || pkg.name !== 'picomatch') continue;
+    const patched = item.patched_versions;
+    if (patched === null || patched === undefined) return { patchedVersions: null, withdrawnAt };
+    return {
+      patchedVersions: requireString(patched, 'patched_versions'),
+      withdrawnAt,
+    };
+  }
+  throw new Error('GitHub advisory did not mention npm picomatch');
+}
+
+/** Messages that fail CI. Empty means the exception may stay for now. */
+export function exceptionReminders(input: {
+  today: string;
+  advisory: PicomatchAdvisory;
+  reviewBy?: string;
+}): string[] {
+  const reviewBy = input.reviewBy ?? PICOMATCH_REVIEW_BY;
+  const messages: string[] = [];
+  if (input.advisory.withdrawnAt) {
+    messages.push(
+      `Remove the picomatch exception. GitHub withdrew ${PICOMATCH_ADVISORY} on ${input.advisory.withdrawnAt}.`,
+    );
+  }
+  if (input.advisory.patchedVersions) {
+    messages.push(
+      `Remove the picomatch exception. A patched release exists (${input.advisory.patchedVersions}).`,
+    );
+  }
+  if (reviewIsDue(input.today, reviewBy)) {
+    messages.push(
+      `The picomatch exception was due for review on ${reviewBy}. Check ${PICOMATCH_ADVISORY}. If there is still no patched release, move the date in frontend/scripts/auditHigh.ts. If there is one, remove the exception.`,
+    );
+  }
+  return messages;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -174,23 +251,66 @@ function readAudit(): unknown {
   }
 }
 
-function main(): void {
-  const decision = decideAudit(parseAuditReport(readAudit()));
-  if (decision.blocking.length > 0 || decision.allowedMissing.length > 0) {
+async function readAdvisory(): Promise<unknown> {
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetch(ADVISORY_URL, {
+        headers: {
+          accept: 'application/vnd.github+json',
+          'user-agent': 'resonance-audit',
+        },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) throw new Error(`GitHub advisory lookup failed (${response.status})`);
+      const value: unknown = await response.json();
+      return value;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('GitHub advisory lookup failed');
+      if (attempt < 2) {
+        const delay = 500 * 2 ** attempt + Math.floor(Math.random() * 200);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+  throw new Error(`Could not check ${PICOMATCH_ADVISORY}`, { cause: lastError });
+}
+
+async function main(): Promise<void> {
+  const reviewOnly = process.argv.includes('--review');
+  const problems = exceptionReminders({
+    today: utcDay(),
+    advisory: parsePicomatchAdvisory(await readAdvisory()),
+  });
+  if (!reviewOnly) {
+    const decision = decideAudit(parseAuditReport(readAudit()));
     if (decision.blocking.length > 0) {
-      console.error(`High audit findings:\n${decision.blocking.join('\n')}`);
+      problems.push(`High audit findings:\n${decision.blocking.join('\n')}`);
     }
     if (decision.allowedMissing.length > 0) {
-      console.error(
+      problems.push(
         `Remove the allowlist entry, the advisory is gone:\n${decision.allowedMissing.join('\n')}`,
       );
     }
+  }
+  if (problems.length > 0) {
+    console.error(problems.join('\n\n'));
     process.exit(1);
   }
   console.log(
-    `High audit allows ${decision.allowedPresent.join(', ') || PICOMATCH_ADVISORY} until picomatch publishes a patched release.`,
+    reviewOnly
+      ? `${PICOMATCH_ADVISORY} is still unfixed. The exception is reviewed again on ${PICOMATCH_REVIEW_BY}.`
+      : `High audit allows ${PICOMATCH_ADVISORY} until ${PICOMATCH_REVIEW_BY}, or sooner if a patched picomatch release exists.`,
   );
 }
 
 const entry = process.argv[1];
-if (entry && import.meta.url === pathToFileURL(entry).href) main();
+if (entry && import.meta.url === pathToFileURL(entry).href) {
+  main().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : 'Picomatch exception check failed';
+    const cause =
+      error instanceof Error && error.cause instanceof Error ? `: ${error.cause.message}` : '';
+    console.error(`${message}${cause}`);
+    process.exit(1);
+  });
+}
