@@ -18,11 +18,9 @@ export function deviceEndpoint(device: Pick<PlayerStatus, 'ip' | 'port'>): strin
   return `${device.ip}:${port}`;
 }
 
-/** Display host; include port when it is not the primary BluOS port. */
+/** Display host. Always ``ip:port``, including the default BluOS port. */
 export function formatDeviceHost(device: Pick<PlayerStatus, 'ip' | 'port'>): string {
-  const port = device.port ?? DEFAULT_BLUOS_PORT;
-  if (port === DEFAULT_BLUOS_PORT) return device.ip;
-  return `${device.ip}:${port}`;
+  return deviceEndpoint(device);
 }
 
 /** Model line for fleet/detail; appends CI zone when present. */

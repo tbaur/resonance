@@ -4,8 +4,8 @@
  * Licensed under the Apache License, Version 2.0
  * See LICENSE file for full license text
  *
- * A CI zone is shown next to the model. The default BluOS
- * port is left off the host line.
+ * A CI zone is shown next to the model. The host line
+ * always includes the BluOS port.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -41,8 +41,9 @@ describe('formatDeviceHardware', () => {
 });
 
 describe('formatDeviceHost', () => {
-  it('omits the default BluOS port', () => {
-    expect(formatDeviceHost({ ip: '192.168.1.30', port: 11000 })).toBe('192.168.1.30');
+  it('always includes the BluOS port', () => {
+    expect(formatDeviceHost({ ip: '192.168.1.30', port: 11000 })).toBe('192.168.1.30:11000');
     expect(formatDeviceHost({ ip: '192.168.1.30', port: 11010 })).toBe('192.168.1.30:11010');
+    expect(formatDeviceHost({ ip: '192.168.1.30' })).toBe('192.168.1.30:11000');
   });
 });
