@@ -124,14 +124,12 @@ npm run format:check                          # `npm run format` rewrites
 npm run typecheck
 npm run test:coverage                         # gate: thresholds in vite.config.ts
 npm audit --omit=dev --audit-level=moderate   # CI gate: production, moderate and above
-node --experimental-strip-types scripts/auditHigh.ts  # CI gate: full tree, high and critical
+npm audit --audit-level=high                  # CI gate: full tree, high and critical
 npm audit --audit-level=moderate              # CI reports moderate dev-tree advisories, non-blocking
 npm run build
 ```
 
 Coverage thresholds are defined next to the code they guard, so they stay correct as they are raised: `fail_under` in [backend/pyproject.toml](backend/pyproject.toml) for the backend, and the `thresholds` block in [frontend/vite.config.ts](frontend/vite.config.ts) for the frontend (global lines/statements/functions/branches, plus per-file floors on `src/store/fleetStore.ts`, which holds the optimistic-update logic, and `src/api/client.ts`, whose every method is pinned by a route table in `tests/apiClient.test.ts`).
-
-The full-tree high audit allows GHSA-fc5q-39xc-vjpf while picomatch has no patched release. Vite and Vitest install that package for their own globs, and the production audit does not see it. The exception fails on 2026-12-01, and sooner if GitHub lists a patched picomatch release. [Picomatch exception](.github/workflows/picomatch-exception.yml) runs that check every Monday even when nobody opens a pull request. Every other high or critical finding still fails the job.
 
 [Tests](.github/workflows/test.yml) runs the per-side make targets and the audits on pull requests and on pushes to `main`, as `Backend (Python 3.11 | 3.13 | 3.14 | 3.15)` and `Frontend`. A final `Tests passed` job fails unless every test job succeeded, and branch protection requires that one check, so the Python matrix can change without editing protection settings. The workflow also declares a `merge_group` trigger, which fires only if a merge queue is enabled. [Dependency review](.github/workflows/dependency-review.yml) blocks a pull request that adds a dependency with a known moderate or higher vulnerability. [CodeQL](.github/workflows/codeql.yml) scans the Python, TypeScript, and workflow code on pull requests, on pushes to `main`, and weekly.
 
