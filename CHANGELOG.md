@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.3](https://github.com/tbaur/resonance/compare/v4.2.2...v4.2.3) (2026-11-19)
+
+
+### Bug Fixes
+
+* revert the Dock app title bar and Valence window changes ([8bc98bb](https://github.com/tbaur/resonance/commit/8bc98bbd79db1661adc4dc56b3f63cd009a79647))
+
 ## [4.2.2](https://github.com/tbaur/resonance/compare/v4.2.1...v4.2.2) (2026-11-19)
 
 
