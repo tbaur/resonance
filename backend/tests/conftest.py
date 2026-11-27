@@ -27,7 +27,7 @@ def cover_hosts_resolve_to_themselves(
     if request.node.get_closest_marker("real_cover_dns"):
         return
 
-    async def passthrough(_self: object, host: str) -> str:
-        return host
+    async def passthrough(_self: object, host: str) -> list[str]:
+        return [host]
 
-    monkeypatch.setattr("app.bluos.transport.BluOSTransport._artwork_address", passthrough)
+    monkeypatch.setattr("app.bluos.transport.BluOSTransport._artwork_addresses", passthrough)

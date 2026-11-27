@@ -22,6 +22,7 @@ from app.validators import (
     DEFAULT_BLUOS_PORT,
     format_endpoint,
     make_device_id,
+    normalize_bluos_mac,
     parse_endpoint,
     sanitize_endpoint,
 )
@@ -54,6 +55,12 @@ class DiscoverySnapshot:
     endpoints_by_id: dict[str, str] = field(default_factory=dict)
     # canonical ip:port -> device_id
     ids_by_endpoint: dict[str, str] = field(default_factory=dict)
+
+
+def _hardware_key(player: PlayerStatus) -> tuple[str, int] | None:
+    """Chassis MAC and API port: the same player wherever DHCP puts it."""
+    mac = normalize_bluos_mac(player.mac)
+    return (mac, player.port) if mac else None
 
 
 class DiscoveryService:
@@ -257,14 +264,21 @@ class DiscoveryService:
         """Players this browse missed that the poller still reaches.
 
         Each one is kept until it has been missed ``_MISSED_BROWSES_BEFORE_REMOVAL``
-        times in a row. A player the poller cannot reach is dropped at once.
+        times in a row. A player the poller cannot reach is dropped at once, and
+        so is one that this browse found at a new address (same MAC and port):
+        its old row would otherwise stay up next to the new one while the held
+        read on the old address waits out its timeout.
         Call with the data lock held.
         """
         found_ids = {player.id for player in found}
         found_endpoints = {player.endpoint for player in found}
+        found_hardware = {_hardware_key(player) for player in found} - {None}
         kept: list[PlayerStatus] = []
         for endpoint, device in live_by_endpoint.items():
             if device.id in found_ids or endpoint in found_endpoints:
+                self._missed_browses.pop(device.id, None)
+                continue
+            if _hardware_key(device) in found_hardware:
                 self._missed_browses.pop(device.id, None)
                 continue
             misses = self._missed_browses.get(device.id, 0) + 1

@@ -23,25 +23,39 @@ import { ApiError } from '@/api/types';
 /** How often to look for the API again while it is not answering. */
 const RETRY_MS = 5000;
 
-type GateState = 'checking' | 'ready' | 'token' | 'unreachable';
+type GateState =
+  | { kind: 'checking' }
+  | { kind: 'ready' }
+  | { kind: 'token' }
+  | { kind: 'unreachable' }
+  /** The server answered and refused, for a reason a retry will not fix. */
+  | { kind: 'refused'; message: string; code: string };
 
 function isUnauthorized(err: unknown): boolean {
   return err instanceof ApiError && err.status === 401;
 }
 
-/** Ready when this browser can call the API, `token` on a 401, else `unreachable`. */
+/**
+ * Ready when this browser can call the API, `token` on a 401, `refused` on
+ * another 400 or 403 (such as a host name the server does not answer to), and
+ * `unreachable` when the server did not answer.
+ */
 async function probe(): Promise<GateState> {
   try {
     await api.listDevices();
-    return 'ready';
+    return { kind: 'ready' };
   } catch (err) {
-    return isUnauthorized(err) ? 'token' : 'unreachable';
+    if (isUnauthorized(err)) return { kind: 'token' };
+    if (err instanceof ApiError && (err.status === 400 || err.status === 403)) {
+      return { kind: 'refused', message: err.message, code: err.code };
+    }
+    return { kind: 'unreachable' };
   }
 }
 
 /** Renders `children` once the API accepts this browser; until then, the token form or a notice. */
 export function SessionGate({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<GateState>('checking');
+  const [state, setState] = useState<GateState>({ kind: 'checking' });
   const [retrying, setRetrying] = useState(false);
   const inFlight = useRef(false);
 
@@ -64,26 +78,31 @@ export function SessionGate({ children }: { children: ReactNode }) {
   useEffect(
     () =>
       onSessionLost(() => {
-        setState('token');
+        setState({ kind: 'token' });
       }),
     [],
   );
 
   useEffect(() => {
-    if (state !== 'unreachable') return undefined;
+    if (state.kind !== 'unreachable') return undefined;
     const timer = window.setInterval(check, RETRY_MS);
     return () => {
       window.clearInterval(timer);
     };
-  }, [state, check]);
+  }, [state.kind, check]);
 
-  if (state === 'ready') return <>{children}</>;
-  if (state === 'checking') return null;
-  if (state === 'unreachable') return <UnreachableNotice busy={retrying} onRetry={check} />;
+  if (state.kind === 'ready') return <>{children}</>;
+  if (state.kind === 'checking') return null;
+  if (state.kind === 'unreachable') return <UnreachableNotice busy={retrying} onRetry={check} />;
+  if (state.kind === 'refused') {
+    return (
+      <RefusedNotice message={state.message} code={state.code} busy={retrying} onRetry={check} />
+    );
+  }
   return (
     <TokenForm
       onAccepted={() => {
-        setState('ready');
+        setState({ kind: 'ready' });
       }}
     />
   );
@@ -113,6 +132,36 @@ function UnreachableNotice({ busy, onRetry }: { busy: boolean; onRetry: () => vo
       </p>
       <button type="button" className="btn session-submit" disabled={busy} onClick={onRetry}>
         Try again now
+      </button>
+    </GateCard>
+  );
+}
+
+function RefusedNotice({
+  message,
+  code,
+  busy,
+  onRetry,
+}: {
+  message: string;
+  code: string;
+  busy: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <GateCard title="Resonance refused this page">
+      <p className="session-copy" role="alert">
+        {message}
+      </p>
+      {code === 'host_not_allowed' ? (
+        <p className="session-hint">
+          Open Resonance by its IP address or <code>localhost</code>, add this name to{' '}
+          <code>RESONANCE_ALLOWED_HOSTS</code> on the server, or set{' '}
+          <code>RESONANCE_API_TOKEN</code>.
+        </p>
+      ) : null}
+      <button type="button" className="btn session-submit" disabled={busy} onClick={onRetry}>
+        Try again
       </button>
     </GateCard>
   );

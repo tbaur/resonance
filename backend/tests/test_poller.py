@@ -913,3 +913,27 @@ def test_a_removed_room_keeps_its_drop_history(settings: Settings) -> None:
     assert [drop.device_id for drop in snapshot.drops] == ["p1"]
     # The drop is closed, so it ages out of the window like any other.
     assert snapshot.drops[0].ended_at is not None
+
+
+@pytest.mark.asyncio
+async def test_a_read_for_a_player_outside_the_fleet_leaves_the_health_log_alone(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A grace-period read answers its caller, but /fleet/health holds fleet members only."""
+    client = BluOSClient(settings)
+    discovery = DiscoveryService(settings, client)
+    discovery._grace_until["gone"] = time.time() + 60
+    discovery._grace_endpoints["gone"] = "192.168.1.20:11000"
+    poller = StatusPoller(settings, discovery, client, EventBus())
+    answer = PlayerStatus(id="gone", ip="192.168.1.20", name="K", status="online")
+
+    async def load(_target: str, **_kwargs: object) -> PlayerSnapshot:
+        return PlayerSnapshot(answer, status_etag="e1")
+
+    monkeypatch.setattr(client, "load_player", load)
+    result = await poller.refresh_one("gone")
+    assert result is not None and result.id == "gone"
+    assert "gone" not in poller.health.snapshot().first_online
+    assert "gone" not in poller._status_etags
+    assert discovery.get_device("gone") is None
+    await client.aclose()

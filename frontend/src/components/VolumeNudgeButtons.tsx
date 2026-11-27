@@ -31,17 +31,21 @@ export function VolumeNudgeButtons({ value, onChange, disabled = false }: Volume
 
   const downDisabled = disabled || value <= 0;
   const upDisabled = disabled || value >= 100;
+  // Only the 0 and 100 limits end a held press. `disabled` also turns true
+  // while the house slider's write is in flight, a few milliseconds into every
+  // press, and stopping then would end each hold after one step. A release is
+  // caught by the window listeners in usePressRepeat either way.
   const down = usePressRepeat(
     () => {
       nudge(-1);
     },
-    { disabled: downDisabled },
+    { disabled: value <= 0 },
   );
   const up = usePressRepeat(
     () => {
       nudge(1);
     },
-    { disabled: upDisabled },
+    { disabled: value >= 100 },
   );
 
   return (

@@ -207,20 +207,14 @@ describe('api client', () => {
       { from_index: 1, to_index: 3 },
     ],
   ] as const)('%s calls %s %s', async (_name, call, method, path, body?: object) => {
-    // One body that passes every response shape check.
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      headers: new Headers(),
-      json: () =>
-        Promise.resolve({
-          devices: [],
-          groups: [],
-          standalone_ids: [],
-          drops: [],
-          first_online: {},
-        }),
-    });
+    const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<unknown>>((url) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve(validBodyFor(url)),
+      }),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     await call();
@@ -262,6 +256,24 @@ describe('api client', () => {
     expect(url).toBe('/api/v1/devices/..%2Ffleet%2Freboot%3Fx%3D1/play');
   });
 
+  it.each([
+    ['getQueue', () => api.getQueue('player-1'), { items: 'nope', count: 1 }],
+    ['getInputs', () => api.getInputs('player-1'), { name: 'Optical' }],
+    ['getUpgrade', () => api.getUpgrade('player-1'), { device_id: 'player-1' }],
+    ['fleetPause', () => api.fleetPause(), { succeeded: '1' }],
+  ] as const)('refuses a %s answer that is not the expected shape', async (_name, call, body) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve(body),
+      }),
+    );
+    await expect(call()).rejects.toMatchObject({ code: 'bad_response' });
+  });
+
   it('refuses a device list that is not the expected shape', async () => {
     vi.stubGlobal(
       'fetch',
@@ -298,7 +310,12 @@ describe('api client', () => {
   it('takes its abort listener off a long-lived caller signal', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({ ok: true, status: 204, headers: new Headers() }),
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ items: [], count: 0 }),
+      }),
     );
     const caller = new AbortController();
     const add = vi.spyOn(caller.signal, 'addEventListener');
@@ -323,3 +340,42 @@ describe('api client', () => {
     });
   });
 });
+
+/**
+ * A body that passes the shape check of whichever endpoint `url` names: an
+ * empty list for the list endpoints, else one object with every checked field.
+ */
+function validBodyFor(url: string): unknown {
+  if (url.endsWith('/inputs') || url.endsWith('/presets')) return [];
+  return {
+    devices: [],
+    groups: [],
+    standalone_ids: [],
+    drops: [],
+    first_online: {},
+    valence_url: '',
+    version: '0.0.0',
+    id: 'player-1',
+    device_id: 'player-1',
+    ip: '192.168.1.20',
+    name: 'Zone One',
+    volume: 0,
+    state: 'stop',
+    page_id: 'audio',
+    settings: [],
+    message: '',
+    update_available: false,
+    ok: true,
+    unique_versions: [],
+    results: [],
+    updates_available: 0,
+    checked: 0,
+    succeeded: 0,
+    failed: 0,
+    level: 0,
+    primary_id: 'lead',
+    items: [],
+    count: 0,
+    supported: false,
+  };
+}

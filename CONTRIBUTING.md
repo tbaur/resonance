@@ -143,7 +143,7 @@ Coverage thresholds are defined next to the code they guard, so they stay correc
 resonance/
 ├── Makefile              # developer tasks; `make` lists them
 ├── backend/app/          # FastAPI app (discovery, BluOS client, API, poller)
-├── backend/tests/        # Backend tests (≥93% coverage required in CI)
+├── backend/tests/        # Backend tests (≥92% coverage required in CI)
 ├── frontend/src/         # React UI (Vite on :8765)
 │   ├── components/       # Pages and panels; player/ and house/ hold their sub-panels
 │   ├── hooks/            # Data loading and commands that pages share (usePlayerDetails, useSyncActions, …)

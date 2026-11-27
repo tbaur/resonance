@@ -94,13 +94,19 @@ def _is_public(address: str) -> bool:
 def _pinned(
     parsed: ParseResult, host: str, address: str
 ) -> tuple[str, dict[str, str], dict[str, str]]:
-    """The URL with ``address`` in place of ``host``, plus the Host header and TLS name."""
+    """The URL with ``address`` in place of ``host``, plus the Host header and TLS name.
+
+    ``Connection: close`` keeps the connection out of the pool. The pool keys
+    connections by address, not by TLS name, so a pooled one could carry a
+    request for another host that shares the address, over TLS checked for
+    the first name.
+    """
     name = f"[{address}]" if ":" in address else address
     netloc = name if parsed.port is None else f"{name}:{parsed.port}"
     original = parsed.netloc.rsplit("@", 1)[-1]
     return (
         urlunparse(parsed._replace(netloc=netloc)),
-        {"Host": original},
+        {"Host": original, "Connection": "close"},
         {"sni_hostname": host},
     )
 
@@ -249,18 +255,18 @@ class BluOSTransport:
         logger.warning("redirect_limit_exceeded", extra={"device_ip": origin_ip, "url": url})
         return None
 
-    async def _artwork_address(self, host: str) -> str | None:
-        """A public address for a cover host, or None to refuse the host.
+    async def _artwork_addresses(self, host: str) -> list[str] | None:
+        """The public addresses of a cover host, IPv4 first, or None to refuse the host.
 
         Every address the name resolves to must be public. A name that points
         inside the home network (a NAS or router with a real certificate, or a
-        split-horizon DNS answer) is refused. The caller connects to the
-        address returned here, so a second, different DNS answer cannot move
+        split-horizon DNS answer) is refused. The caller connects only to
+        addresses returned here, so a second, different DNS answer cannot move
         the request after the check.
         """
         literal = _parse_ip(host)
         if literal is not None:
-            return host if literal.is_global else None
+            return [host] if literal.is_global else None
         loop = asyncio.get_running_loop()
         try:
             infos = await asyncio.wait_for(
@@ -269,10 +275,34 @@ class BluOSTransport:
             )
         except (OSError, TimeoutError):
             return None
-        addresses = [str(info[4][0]) for info in infos]
+        addresses = list(dict.fromkeys(str(info[4][0]) for info in infos))
         if not addresses or not all(_is_public(address) for address in addresses):
             return None
-        return addresses[0]
+        # The rest of the app is IPv4. Try those first, so a network whose IPv6
+        # does not route still gets its covers.
+        return sorted(addresses, key=lambda address: ":" in address)
+
+    async def _artwork_hop(
+        self,
+        url: str,
+        headers: dict[str, str],
+        extensions: dict[str, str],
+        timeout: float | httpx.Timeout | None,
+    ) -> tuple[int, str, bytes | None]:
+        """One cover request: its status, its Location, and its capped body on a 200."""
+        stream = (
+            self._client.stream("GET", url, headers=headers, extensions=extensions)
+            if timeout is None
+            else self._client.stream(
+                "GET", url, headers=headers, extensions=extensions, timeout=timeout
+            )
+        )
+        async with stream as response:
+            if response.status_code in _REDIRECT_STATUSES:
+                return response.status_code, response.headers.get("Location", ""), None
+            if response.status_code != 200:
+                return response.status_code, "", None
+            return 200, "", await _read_capped(response, MAX_ARTWORK_BYTES)
 
     async def _follow_artwork_get(
         self,
@@ -283,51 +313,55 @@ class BluOSTransport:
     ) -> bytes | None:
         """The body of a cover, following redirects that ``artwork_target`` allows.
 
-        A host other than the player is reached only at a public address that
-        was checked first, with TLS still verified for its name.
+        A host other than the player is reached only at public addresses that
+        were checked first, with TLS still verified for its name. When one
+        address does not connect, the next one is tried.
         Control calls use ``_follow_get`` and still refuse every off-player host.
         """
         current = url
-        request_timeout = httpx.USE_CLIENT_DEFAULT if timeout is None else timeout
         for _ in range(_MAX_REDIRECTS + 1):
             parsed = urlparse(current)
             host = parsed.hostname or ""
-            request_url = current
-            headers: dict[str, str] = {}
-            extensions: dict[str, str] = {}
+            attempts: list[tuple[str, dict[str, str], dict[str, str]]] = [(current, {}, {})]
             if sanitize_ip(host) != origin_ip:
-                address = await self._artwork_address(host)
-                if address is None:
+                addresses = await self._artwork_addresses(host)
+                if addresses is None:
                     logger.warning(
                         "blocked_artwork_host",
                         extra={"device_ip": origin_ip, "redirect_host": host},
                     )
                     return None
-                if address != host:
-                    request_url, headers, extensions = _pinned(parsed, host, address)
-            async with self._client.stream(
-                "GET",
-                request_url,
-                headers=headers,
-                extensions=extensions,
-                timeout=request_timeout,
-            ) as response:
-                if response.status_code not in _REDIRECT_STATUSES:
-                    if response.status_code != 200:
-                        return None
-                    return await _read_capped(response, MAX_ARTWORK_BYTES)
-                location = response.headers.get("Location", "")
-                target = artwork_target(origin_ip, current, location) if location else None
-                if target is None:
-                    redirect_host = urlparse(location).hostname
-                    logger.warning(
-                        "blocked_redirect_host",
-                        extra={"device_ip": origin_ip, "redirect_host": redirect_host},
-                    )
-                    return None
-                current = target
+                attempts = [
+                    _pinned(parsed, host, address) if address != host else (current, {}, {})
+                    for address in addresses
+                ]
+            status, location, body = await self._first_answer(attempts, timeout)
+            if status not in _REDIRECT_STATUSES:
+                return body
+            target = artwork_target(origin_ip, current, location) if location else None
+            if target is None:
+                logger.warning(
+                    "blocked_redirect_host",
+                    extra={"device_ip": origin_ip, "redirect_host": urlparse(location).hostname},
+                )
+                return None
+            current = target
         logger.warning("redirect_limit_exceeded", extra={"device_ip": origin_ip, "url": url})
         return None
+
+    async def _first_answer(
+        self,
+        attempts: list[tuple[str, dict[str, str], dict[str, str]]],
+        timeout: float | httpx.Timeout | None,
+    ) -> tuple[int, str, bytes | None]:
+        """The first of ``attempts`` that connects. The last connect error is raised."""
+        for index, (request_url, headers, extensions) in enumerate(attempts):
+            try:
+                return await self._artwork_hop(request_url, headers, extensions, timeout)
+            except (httpx.ConnectError, httpx.ConnectTimeout):
+                if index + 1 >= len(attempts):
+                    raise
+        raise httpx.ConnectError("no address to try")
 
     async def _follow_post(
         self,

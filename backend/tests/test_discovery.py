@@ -477,3 +477,38 @@ async def test_lsdp_secondary_zone_keeps_announced_port(
         "192.168.1.10:11010": "0200000000a1",
     }
     await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_a_player_found_at_a_new_address_is_not_kept_at_the_old_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """DHCP moved the player: one row at the new address, not two."""
+    settings = Settings(allow_non_private_ips=True, discovery_cache_ttl=0)
+    client = BluOSClient(settings)
+    service = DiscoveryService(settings, client)
+    old = PlayerStatus(
+        id="player-old", ip="192.168.1.20", name="Zone L", status="online", mac="02:00:00:00:00:21"
+    )
+    service._snapshot.devices = [old]
+    service._snapshot.endpoints_by_id = {old.id: old.endpoint}
+    service._snapshot.ids_by_endpoint = {old.endpoint: old.id}
+
+    async def moved(self: DiscoveryService):
+        return [DiscoveredEndpoint(ip="192.168.1.40")], "mdns"
+
+    async def status(target: str, device_id: str | None = None, node_id: str = ""):
+        return PlayerStatus(
+            id=device_id or "player-new",
+            ip=target.split(":")[0],
+            name="Zone L",
+            status="online",
+            mac="02:00:00:00:00:21",
+        )
+
+    monkeypatch.setattr(DiscoveryService, "_discover_endpoints", moved)
+    client.get_player_status = AsyncMock(side_effect=status)  # type: ignore[method-assign]
+
+    snapshot = await service.refresh()
+    assert [device.ip for device in snapshot.devices] == ["192.168.1.40"]
+    await client.aclose()

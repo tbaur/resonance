@@ -21,7 +21,7 @@ from app.config import Settings, get_settings
 from app.discovery.service import DiscoveryService, DiscoverySnapshot
 from app.main import create_app
 from app.middleware import _DEFAULT_CSP, _SWAGGER_CSP
-from tests.helpers import API_BASE, API_HEADERS
+from tests.helpers import API_BASE, API_HEADERS, wait_until
 
 
 @pytest.fixture
@@ -317,8 +317,8 @@ async def test_startup_discovers_once_before_the_poller_starts(
     async with app.router.lifespan_context(app):
         poller = app.state.app_state.poller
         assert poller.running is True
-        await asyncio.sleep(0.05)
-        # The poller found a fresh result and did not browse again.
+        # One full reconcile pass is where a stale cache would browse again.
+        await wait_until(lambda: poller.last_poll_at is not None)
         assert calls == ["refresh"]
 
 
@@ -341,3 +341,46 @@ async def test_unknown_routes_answer_with_the_error_envelope(
         body = response.json()
         assert set(body) == {"error", "message", "code", "request_id"}
         assert body["request_id"] != "-"
+
+
+@pytest.mark.asyncio
+async def test_api_only_server_answers_router_errors_with_the_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no UI to serve, the router's own 404 and 405 must still use the envelope."""
+    get_settings.cache_clear()
+    api_only = Settings(static_dir="", poll_interval=60, discovery_cache_ttl=0)
+    monkeypatch.setattr("app.main.get_settings", lambda: api_only)
+    monkeypatch.setattr("app.middleware.get_settings", lambda: api_only)
+    monkeypatch.setattr(DiscoveryService, "refresh", AsyncMock(return_value=DiscoverySnapshot()))
+    app = create_app()
+    async with app.router.lifespan_context(app):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url=API_BASE, headers=API_HEADERS
+        ) as http:
+            missing = await http.get("/api/v1/nothing-here")
+            wrong_method = await http.put("/api/v1/devices")
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "not_found"
+    assert wrong_method.status_code == 405
+    assert wrong_method.json()["code"] == "method_not_allowed"
+    assert "GET" in wrong_method.headers["allow"]
+    for response in (missing, wrong_method):
+        assert set(response.json()) == {"error", "message", "code", "request_id"}
+
+
+@pytest.mark.asyncio
+async def test_api_docs_declare_the_write_header(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Swagger's Try it out sends declared headers; without this every POST is a 403."""
+    monkeypatch.setattr("app.main.get_settings", lambda: settings)
+    app = create_app()
+    schema = app.openapi()
+    play = schema["paths"]["/api/v1/devices/{device_id}/play"]["post"]
+    header = next(p for p in play["parameters"] if p["in"] == "header")
+    assert header["name"].lower() == "x-resonance-request"
+    assert header["required"] is True
+    assert header["schema"]["default"] == "1"
+    listing = schema["paths"]["/api/v1/devices"]["get"]
+    assert all(p["in"] != "header" for p in listing.get("parameters", []))

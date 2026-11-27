@@ -175,9 +175,12 @@ def record_control_failure(state: AppState, op_name: str, device_id: str, endpoi
     Reads the result that the failed call recorded in this task.
     """
     failure = take_control_result()
-    # CallResult is falsy when it failed, so test for None, not truthiness.
-    kind = failure.kind if failure is not None else "failed"
-    detail = failure.detail if failure is not None else ""
+    # The last recorded call can be a success when a later, unrecorded step
+    # failed (a sync change the player never confirmed). That is not a kind.
+    # CallResult is falsy when it failed, so test ``ok``, not truthiness.
+    failed = failure is not None and not failure.ok
+    kind = failure.kind if failure is not None and failed else "failed"
+    detail = failure.detail if failure is not None and failed else ""
     state.poller.last_control_failure_kind = kind
     logger.warning(
         "control_failed",

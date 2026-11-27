@@ -239,15 +239,19 @@ class StatusPoller:
             stored = self.discovery.get_device(device_id) or player
             await self._publish_update(device_id, stored, fleet_before=fleet_before)
             return stored
-        self._remember_tags(device_id, snap)
         player = snap.player
         if player.stale:
             player = player.model_copy(update={"stale": False})
+        if device_id not in self.discovery.snapshot.endpoints_by_id:
+            # Not in the fleet (a grace-period read, or a rescan removed it).
+            # Answer the caller, but keep it out of the tags, the health log,
+            # and the published fleet, which hold only fleet members.
+            return player
+        self._remember_tags(device_id, snap)
         self._record_result(player)
         fleet_before = self._fleet_signature()
         if not await self.discovery.update_device(player):
-            # Not in the fleet (a grace-period read, or a rescan removed it).
-            # Answer the caller, but do not publish a room the fleet does not hold.
+            # A rescan removed it while this read was in flight.
             return player
         stored = self.discovery.get_device(device_id) or player
         await self._publish_update(device_id, stored, fleet_before=fleet_before)

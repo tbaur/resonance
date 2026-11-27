@@ -586,9 +586,9 @@ async def test_cover_host_must_resolve_only_to_public_addresses(
     monkeypatch.setattr(loop, "getaddrinfo", _resolver(*addresses))
     client = BluOSClient(settings)
     try:
-        address = await client._artwork_address("covers.example.com")
-        assert (address == addresses[0]) is allowed
-        assert (address is None) is not allowed
+        found = await client._artwork_addresses("covers.example.com")
+        assert (found == list(addresses)) is allowed
+        assert (found is None) is not allowed
     finally:
         await client.aclose()
 
@@ -614,5 +614,48 @@ async def test_cover_request_goes_to_the_checked_address_with_the_host_name(
         sent = route.calls.last.request
         assert sent.headers["host"] == "covers.example.com"
         assert sent.extensions["sni_hostname"] == "covers.example.com"
+        # Not pooled: the pool keys by address, and another name may share it.
+        assert sent.headers["connection"] == "close"
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.real_cover_dns
+@pytest.mark.asyncio
+async def test_cover_addresses_list_ipv4_first(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    loop = asyncio.get_running_loop()
+    monkeypatch.setattr(loop, "getaddrinfo", _resolver("2001:4860:4860::8844", "8.8.4.4"))
+    client = BluOSClient(settings)
+    try:
+        assert await client._artwork_addresses("covers.example.com") == [
+            "8.8.4.4",
+            "2001:4860:4860::8844",
+        ]
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.real_cover_dns
+@pytest.mark.asyncio
+@respx.mock
+async def test_cover_request_tries_the_next_address_when_one_does_not_connect(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pinning must not lose the fallback that a plain connect would have tried."""
+    loop = asyncio.get_running_loop()
+    monkeypatch.setattr(loop, "getaddrinfo", _resolver("8.8.4.4", "8.8.8.8"))
+    respx.get("https://8.8.4.4/cover.jpg").mock(side_effect=httpx.ConnectError("no route"))
+    second = respx.get("https://8.8.8.8/cover.jpg").mock(
+        return_value=httpx.Response(200, content=_JPEG, headers={"content-type": "image/jpeg"})
+    )
+    client = BluOSClient(settings)
+    try:
+        fetched = await client.fetch_artwork(
+            "192.168.1.20", "https://covers.example.com/cover.jpg", named_by_player=True
+        )
+        assert fetched is not None
+        assert second.called
     finally:
         await client.aclose()

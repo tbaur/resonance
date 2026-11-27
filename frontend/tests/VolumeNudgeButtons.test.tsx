@@ -47,6 +47,19 @@ describe('VolumeNudgeButtons', () => {
       expect(onChange.mock.calls.length).toBe(calls);
     });
 
+    it('keeps repeating while a write in flight disables the buttons', () => {
+      vi.useFakeTimers();
+      const onChange = vi.fn();
+      const { rerender } = render(<VolumeNudgeButtons value={20} onChange={onChange} />);
+      fireEvent.pointerDown(screen.getByRole('button', { name: 'Volume up' }), { button: 0 });
+      // The house slider sets `pending` about 80 ms into the press.
+      rerender(<VolumeNudgeButtons value={21} onChange={onChange} disabled />);
+      act(() => {
+        vi.advanceTimersByTime(600);
+      });
+      expect(onChange.mock.calls.length).toBeGreaterThan(2);
+    });
+
     it('stops repeating on a pointerup anywhere in the window', () => {
       vi.useFakeTimers();
       const onChange = vi.fn();

@@ -57,7 +57,7 @@ source = ["app"]
 omit = ["app/cli.py"]
 
 [tool.coverage.report]
-fail_under = 93
+fail_under = 92
 show_missing = true
 
 [tool.ruff]

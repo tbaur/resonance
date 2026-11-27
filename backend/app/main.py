@@ -13,16 +13,20 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import PRODUCT_NAME, __version__
 from app.api.errors import AppError
 from app.api.routes import router
+from app.auth import REQUEST_HEADER
 from app.bluos.client import BluOSClient
 from app.config import Settings, get_settings
 from app.discovery.service import DiscoveryService
@@ -46,6 +50,10 @@ def _resolve_static_dir(settings: Settings) -> Path | None:
     if settings.static_dir:
         return Path(settings.static_dir)
     return None
+
+
+# Codes for errors the router raises itself, so the UI can tell them apart.
+_STATUS_CODES = {404: "not_found", 405: "method_not_allowed"}
 
 
 def _error_body(code: str, message: str, request_id: str | None = None) -> dict[str, str]:
@@ -217,6 +225,35 @@ def _api_home_html(settings: Settings) -> str:
 """
 
 
+_WRITE_METHODS = frozenset({"post", "put", "patch", "delete"})
+
+
+class ResonanceAPI(FastAPI):
+    """FastAPI whose schema declares the header every write must send.
+
+    The middleware refuses a write without ``X-Resonance-Request: 1``. Declared
+    here with that default, the API docs page sends it on "Try it out".
+    """
+
+    def openapi(self) -> dict[str, Any]:
+        if self.openapi_schema:
+            return self.openapi_schema
+        schema = get_openapi(title=self.title, version=self.version, routes=self.routes)
+        header = {
+            "name": REQUEST_HEADER.decode("ascii"),
+            "in": "header",
+            "required": True,
+            "description": "Must be 1 on every request that changes state.",
+            "schema": {"type": "string", "enum": ["1"], "default": "1"},
+        }
+        for path_item in schema.get("paths", {}).values():
+            for method, operation in path_item.items():
+                if method in _WRITE_METHODS:
+                    operation.setdefault("parameters", []).append(dict(header))
+        self.openapi_schema = schema
+        return schema
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
@@ -256,7 +293,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(
+    app = ResonanceAPI(
         title=PRODUCT_NAME,
         version=__version__,
         lifespan=lifespan,
@@ -281,13 +318,21 @@ def create_app() -> FastAPI:
         )
         return JSONResponse(status_code=exc.status_code, content=detail)
 
-    @app.exception_handler(HTTPException)
-    async def http_exception_handler(_request: Request, exc: HTTPException) -> JSONResponse:
-        if isinstance(exc.detail, dict) and "code" in exc.detail:
-            return JSONResponse(status_code=exc.status_code, content=exc.detail)
+    # Starlette's class, not FastAPI's subclass: the router raises the base class
+    # for an unknown path (404) or method (405), and those need the envelope too.
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(
+        _request: Request, exc: StarletteHTTPException
+    ) -> JSONResponse:
+        headers = getattr(exc, "headers", None)
+        detail: object = exc.detail
+        if isinstance(detail, dict) and "code" in detail:
+            return JSONResponse(status_code=exc.status_code, content=detail, headers=headers)
+        code = _STATUS_CODES.get(exc.status_code, "http_error")
         return JSONResponse(
             status_code=exc.status_code,
-            content=_error_body("http_error", str(exc.detail)),
+            content=_error_body(code, str(detail)),
+            headers=headers,
         )
 
     @app.exception_handler(RequestValidationError)

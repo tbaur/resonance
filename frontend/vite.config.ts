@@ -30,8 +30,9 @@ function refuseBundledToken(mode: string): void {
   }
 }
 
-export default defineConfig(({ mode }) => {
-  refuseBundledToken(mode);
+export default defineConfig(({ command, mode }) => {
+  // Only a build writes a bundle that others can download.
+  if (command === 'build') refuseBundledToken(mode);
   return {
     plugins: [react()],
     resolve: {

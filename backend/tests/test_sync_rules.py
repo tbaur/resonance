@@ -184,3 +184,28 @@ async def test_break_all_keeps_going_when_one_group_cannot_be_resolved(
     stopped = {call.args[0] for call in client.stop.await_args_list}
     assert "192.168.1.21:11000" in stopped
     await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_an_unconfirmed_sync_change_logs_failed_not_an_empty_kind(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """RemoveSlave answered OK but the follower never left: the last call was a success."""
+    from app.bluos.result import CallResult, note_control_result
+
+    app, client, _, poller = await app_with_players(settings, monkeypatch, players=_rooms())
+
+    async def accepted_but_unconfirmed(*_args: object, **_kwargs: object) -> bool:
+        note_control_result(CallResult.success(b"<removeSlave/>"))
+        return False
+
+    client.remove_sync_slave = accepted_but_unconfirmed  # type: ignore[method-assign]
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url=API_BASE, headers=API_HEADERS
+    ) as http:
+        response = await http.post(
+            "/api/v1/sync/remove", json={"master_id": "lead", "slave_id": "follower"}
+        )
+    assert response.status_code == 502
+    assert poller.last_control_failure_kind == "failed"
+    await client.aclose()
