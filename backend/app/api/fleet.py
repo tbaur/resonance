@@ -19,21 +19,21 @@ from app.api.common import (
     chassis_representatives,
     endpoint_host,
     fleet_action,
+    record_control_failure,
 )
 from app.api.errors import AppError
-from app.bluos.result import take_control_result
 from app.models import (
     FirmwareEntry,
     FleetActionResponse,
     FleetFirmwareResponse,
     FleetHealthResponse,
     FleetUpgradeResponse,
+    FleetVolumeRequest,
     FleetVolumeResponse,
     FleetVolumeResult,
     MuteRequest,
     PlayerStatus,
     UpgradeStatus,
-    VolumeRequest,
 )
 from app.state import AppState
 from app.validators import validate_device_id
@@ -49,7 +49,7 @@ async def fleet_health(state: StateDep) -> FleetHealthResponse:
     return state.poller.health.snapshot()
 
 
-def _volume_targets(body: VolumeRequest, state: AppState) -> list[PlayerStatus]:
+def _volume_targets(body: FleetVolumeRequest, state: AppState) -> list[PlayerStatus]:
     """Online players named by ``device_ids``, or every online player when omitted."""
     if body.device_ids is None:
         targets = state.discovery.control_devices()
@@ -68,7 +68,7 @@ def _volume_targets(body: VolumeRequest, state: AppState) -> list[PlayerStatus]:
 
 
 @router.post("/fleet/volume", response_model=FleetVolumeResponse)
-async def set_fleet_volume(body: VolumeRequest, state: StateDep) -> FleetVolumeResponse:
+async def set_fleet_volume(body: FleetVolumeRequest, state: StateDep) -> FleetVolumeResponse:
     """Set volume on discovered players (optionally filtered by ``device_ids``).
 
     Muted players are left alone: a BluOS level write unmutes the player. Each
@@ -108,19 +108,7 @@ async def set_fleet_volume(body: VolumeRequest, state: StateDep) -> FleetVolumeR
         if ok:
             state.poller.schedule_refresh(device_id)
         else:
-            failure = take_control_result()
-            kind = failure.kind if failure else "failed"
-            state.poller.last_control_failure_kind = kind
-            logger.warning(
-                "control_failed",
-                extra={
-                    "op": "fleet_volume",
-                    "device_id": device_id,
-                    "device_ip": endpoint,
-                    "failure_kind": kind,
-                    "failure_detail": failure.detail if failure else "",
-                },
-            )
+            record_control_failure(state, "fleet_volume", device_id, endpoint)
         return FleetVolumeResult(device_id=device_id, name=name, ok=ok)
 
     logger.info(

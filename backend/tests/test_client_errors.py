@@ -7,6 +7,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import socket
+from collections.abc import AsyncIterator, Awaitable, Callable
+
 import httpx
 import pytest
 import respx
@@ -14,8 +18,10 @@ import respx
 from app.bluos.artwork import MAX_ARTWORK_BYTES
 from app.bluos.client import BluOSClient
 from app.bluos.result import take_control_result
+from app.bluos.transport import _backoff_seconds as real_backoff_seconds
 from app.config import Settings
-from tests.fixtures.xml_samples import QUEUE, STATUS, SYNC_STATUS
+from tests.fixtures.xml_samples import QUEUE, STATUS
+from tests.helpers import bluetooth_mode, uptime
 
 
 @pytest.fixture
@@ -35,8 +41,8 @@ async def test_get_rejects_invalid_and_blocked_ips() -> None:
     try:
         assert await client._get("not-an-ip", "/Status") is None
         assert await client._get("8.8.8.8", "/Status") is None
-        assert await client._post("bad", "/Reboot") is False
-        assert await client._post("8.8.8.8", "/Reboot") is False
+        assert await client.reboot("bad") is False
+        assert await client.reboot("8.8.8.8") is False
         assert await client.add_sync_slave("bad", "192.168.1.2") is False
         assert await client.remove_sync_slave("192.168.1.1", "bad") is False
     finally:
@@ -446,19 +452,61 @@ async def test_sync_fallback_paths(settings: Settings) -> None:
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_get_text_and_absolute_media(settings: Settings) -> None:
-    respx.get("http://192.168.1.20:11000/SyncStatus").mock(
-        return_value=httpx.Response(200, content=SYNC_STATUS)
-    )
-    respx.get("http://192.168.1.20:11000/Status").mock(
-        return_value=httpx.Response(200, content=STATUS)
-    )
+async def test_absolute_media_url(settings: Settings) -> None:
     client = BluOSClient(settings)
     try:
-        text = await client._get_text("192.168.1.20", "/Status")
-        assert text is not None
         assert client._absolute_media_url("192.168.1.20", "http://cdn/x.png") == "http://cdn/x.png"
         assert client._absolute_media_url("192.168.1.20", "") == ""
+    finally:
+        await client.aclose()
+
+
+async def _chunks(size: int) -> AsyncIterator[bytes]:
+    for _ in range(size // 1024):
+        yield b"<" * 1024
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_oversized_reply_without_length_is_refused_while_streaming(
+    settings: Settings,
+) -> None:
+    """No Content-Length: the cap must still hold, by counting bytes as they arrive."""
+    small = settings.model_copy(update={"max_xml_size": 4096})
+    respx.get("http://192.168.1.20:11000/Status").mock(
+        return_value=httpx.Response(200, content=_chunks(64 * 1024))
+    )
+    client = BluOSClient(small)
+    try:
+        result = await client._transport_get("192.168.1.20", "/Status", retries=1)
+        assert result.ok is False
+        assert result.detail == "payload too large"
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_timeouts_back_off_before_the_retry(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    respx.get("http://192.168.1.20:11000/Status").mock(side_effect=httpx.ReadTimeout("slow"))
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr("app.bluos.transport.asyncio.sleep", fake_sleep)
+    monkeypatch.setattr("app.bluos.transport._backoff_seconds", real_backoff_seconds)
+    client = BluOSClient(settings)
+    try:
+        result = await client._transport_get("192.168.1.20", "/Status", retries=3)
+        assert result.kind == "timeout"
+        # Two waits between three attempts, none after the last one.
+        assert len(sleeps) == 2
+        # Jittered between half and all of 1.1 s, then of 2.1 s.
+        assert 0.55 <= sleeps[0] <= 1.1
+        assert 1.05 <= sleeps[1] <= 2.1
     finally:
         await client.aclose()
 
@@ -483,7 +531,7 @@ async def test_bluetooth_modes_and_queue_parse(settings: Settings) -> None:
     try:
         queue = await client.get_queue("192.168.1.20")
         assert queue is not None and queue.count == 1
-        assert await client.get_bluetooth_mode("192.168.1.20") == "Automatic"
+        assert await bluetooth_mode(client, "192.168.1.20") == "Automatic"
     finally:
         await client.aclose()
 
@@ -496,11 +544,118 @@ async def test_uptime_http_error(settings: Settings) -> None:
     )
     client = BluOSClient(settings)
     try:
-        assert await client.get_uptime("192.168.1.20") is None
+        assert await uptime(client, "192.168.1.20") is None
         blocked = BluOSClient(Settings(allow_non_private_ips=False))
         try:
-            assert await blocked.get_uptime("8.8.8.8") is None
+            assert await uptime(blocked, "8.8.8.8") is None
         finally:
             await blocked.aclose()
+    finally:
+        await client.aclose()
+
+
+def _resolver(*addresses: str) -> Callable[..., Awaitable[list[tuple[object, ...]]]]:
+    async def getaddrinfo(*_args: object, **_kwargs: object) -> list[tuple[object, ...]]:
+        return [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", (address, 443)) for address in addresses
+        ]
+
+    return getaddrinfo
+
+
+@pytest.mark.real_cover_dns
+@pytest.mark.parametrize(
+    ("addresses", "allowed"),
+    [
+        (("8.8.4.4",), True),
+        (("192.168.1.9",), False),
+        (("8.8.4.4", "10.0.0.9"), False),
+        (("127.0.0.1",), False),
+        (("169.254.169.254",), False),
+    ],
+)
+@pytest.mark.asyncio
+async def test_cover_host_must_resolve_only_to_public_addresses(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+    addresses: tuple[str, ...],
+    allowed: bool,
+) -> None:
+    """A name with a real certificate that points into the home network is refused."""
+    loop = asyncio.get_running_loop()
+    monkeypatch.setattr(loop, "getaddrinfo", _resolver(*addresses))
+    client = BluOSClient(settings)
+    try:
+        found = await client._artwork_addresses("covers.example.com")
+        assert (found == list(addresses)) is allowed
+        assert (found is None) is not allowed
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.real_cover_dns
+@pytest.mark.asyncio
+@respx.mock
+async def test_cover_request_goes_to_the_checked_address_with_the_host_name(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The request connects to the address that passed the check; TLS still checks the name."""
+    loop = asyncio.get_running_loop()
+    monkeypatch.setattr(loop, "getaddrinfo", _resolver("8.8.4.4"))
+    route = respx.get("https://8.8.4.4/cover.jpg").mock(
+        return_value=httpx.Response(200, content=_JPEG, headers={"content-type": "image/jpeg"})
+    )
+    client = BluOSClient(settings)
+    try:
+        fetched = await client.fetch_artwork(
+            "192.168.1.20", "https://covers.example.com/cover.jpg", named_by_player=True
+        )
+        assert fetched is not None
+        sent = route.calls.last.request
+        assert sent.headers["host"] == "covers.example.com"
+        assert sent.extensions["sni_hostname"] == "covers.example.com"
+        # Not pooled: the pool keys by address, and another name may share it.
+        assert sent.headers["connection"] == "close"
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.real_cover_dns
+@pytest.mark.asyncio
+async def test_cover_addresses_list_ipv4_first(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    loop = asyncio.get_running_loop()
+    monkeypatch.setattr(loop, "getaddrinfo", _resolver("2001:4860:4860::8844", "8.8.4.4"))
+    client = BluOSClient(settings)
+    try:
+        assert await client._artwork_addresses("covers.example.com") == [
+            "8.8.4.4",
+            "2001:4860:4860::8844",
+        ]
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.real_cover_dns
+@pytest.mark.asyncio
+@respx.mock
+async def test_cover_request_tries_the_next_address_when_one_does_not_connect(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Pinning must not lose the fallback that a plain connect would have tried."""
+    loop = asyncio.get_running_loop()
+    monkeypatch.setattr(loop, "getaddrinfo", _resolver("8.8.4.4", "8.8.8.8"))
+    respx.get("https://8.8.4.4/cover.jpg").mock(side_effect=httpx.ConnectError("no route"))
+    second = respx.get("https://8.8.8.8/cover.jpg").mock(
+        return_value=httpx.Response(200, content=_JPEG, headers={"content-type": "image/jpeg"})
+    )
+    client = BluOSClient(settings)
+    try:
+        fetched = await client.fetch_artwork(
+            "192.168.1.20", "https://covers.example.com/cover.jpg", named_by_player=True
+        )
+        assert fetched is not None
+        assert second.called
     finally:
         await client.aclose()

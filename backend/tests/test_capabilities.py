@@ -64,3 +64,11 @@ def test_infer_zone_ci_primary_and_secondary() -> None:
 def test_infer_zone_omits_ordinary_primary() -> None:
     assert infer_zone(11000, model="NODE", brand="Bluesound") is None
     assert not model_is_multi_zone_ci(model="C658", brand="NAD", full_model="NAD C658")
+
+
+@pytest.mark.parametrize(
+    ("full_model", "expected"),
+    [("NAD CI S2", False), ("CIS2", False), ("NAD CI S25", None), ("CI S2X", None)],
+)
+def test_bluetooth_models_match_whole_words(full_model: str, expected: bool | None) -> None:
+    assert model_has_bluetooth(full_model=full_model) is expected

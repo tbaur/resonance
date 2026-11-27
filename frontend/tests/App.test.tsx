@@ -18,7 +18,7 @@ function ok() {
     ok: true,
     status: 200,
     headers: new Headers(),
-    json: async () => ({ devices: [], discovered_at: null, discovery_method: '' }),
+    json: () => Promise.resolve({ devices: [], discovered_at: null, discovery_method: '' }),
   };
 }
 

@@ -71,6 +71,9 @@ export interface PlayerStatus {
   /** False on a live stream whose station offers no skip or back. */
   can_skip?: boolean;
   can_back?: boolean;
+  /** A station's own skip or back action path; empty when /Skip and /Back apply. */
+  skip_action?: string;
+  back_action?: string;
   shuffle?: number;
   repeat?: number;
   input_type_index: string;
@@ -82,6 +85,8 @@ export interface DevicesResponse {
   devices: PlayerStatus[];
   discovered_at: number | null;
   discovery_method: string;
+  /** The server's clock (Unix seconds) when it answered. */
+  server_time?: number;
 }
 
 export interface PresenceDrop {
@@ -92,6 +97,11 @@ export interface PresenceDrop {
   duration_seconds: number;
   peak_failures: number;
   slow_poll: boolean;
+}
+
+export interface VersionInfo {
+  version: string;
+  name: string;
 }
 
 /** Addresses of companion apps. An empty string means the app is not set up. */
@@ -229,6 +239,8 @@ export interface UpgradeStatus {
   device_id: string;
   name: string;
   ip: string;
+  /** BluOS API port of the player that was checked. */
+  port?: number;
   current_fw: string;
   update_available: boolean;
   message: string;
@@ -246,6 +258,8 @@ export interface FirmwareEntry {
   device_id: string;
   name: string;
   ip: string;
+  /** BluOS API port; tells CI zones on one chassis apart. */
+  port?: number;
   model: string;
   fw: string;
   status: string;

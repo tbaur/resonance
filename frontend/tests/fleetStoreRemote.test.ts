@@ -22,13 +22,13 @@ const fleetStop = vi.fn();
 
 vi.mock('@/api/client', () => ({
   api: {
-    listDevices: (...args: unknown[]) => listDevices(...args),
-    refreshDevices: (...args: unknown[]) => refreshDevices(...args),
-    getSync: (...args: unknown[]) => getSync(...args),
-    getFleetHealth: (...args: unknown[]) => getFleetHealth(...args),
-    fleetMute: (...args: unknown[]) => fleetMute(...args),
-    fleetPause: (...args: unknown[]) => fleetPause(...args),
-    fleetStop: (...args: unknown[]) => fleetStop(...args),
+    listDevices: (...args: unknown[]): unknown => listDevices(...args),
+    refreshDevices: (...args: unknown[]): unknown => refreshDevices(...args),
+    getSync: (...args: unknown[]): unknown => getSync(...args),
+    getFleetHealth: (...args: unknown[]): unknown => getFleetHealth(...args),
+    fleetMute: (...args: unknown[]): unknown => fleetMute(...args),
+    fleetPause: (...args: unknown[]): unknown => fleetPause(...args),
+    fleetStop: (...args: unknown[]): unknown => fleetStop(...args),
   },
 }));
 
@@ -111,7 +111,7 @@ describe('fleetStore remote sync', () => {
     await useFleetStore.getState().load();
 
     // Server said 9, but the user is mid-drag at 55.
-    expect(useFleetStore.getState().devices[0].volume).toBe(55);
+    expect(useFleetStore.getState().devices[0]?.volume).toBe(55);
   });
 
   it('load keeps the fleet painted while polling with devices present', async () => {
@@ -160,8 +160,8 @@ describe('fleetStore remote sync', () => {
     });
     await useFleetStore.getState().refresh();
 
-    expect(useFleetStore.getState().devices[0].muted).toBe(true);
-    expect(useFleetStore.getState().devices[0].volume).toBe(0);
+    expect(useFleetStore.getState().devices[0]?.muted).toBe(true);
+    expect(useFleetStore.getState().devices[0]?.volume).toBe(0);
   });
 
   it('drops holds for devices that left the fleet', () => {
@@ -204,8 +204,8 @@ describe('fleetStore remote sync', () => {
     await useFleetStore.getState().fleetMuteAll(true);
 
     const device = useFleetStore.getState().devices[0];
-    expect(device.muted).toBe(false);
-    expect(device.volume).toBe(20);
+    expect(device?.muted).toBe(false);
+    expect(device?.volume).toBe(20);
     expect(useFleetStore.getState().muteHoldUntil['player-1']).toBeUndefined();
     expect(useFleetStore.getState().toast).toBe('Fleet mute failed');
   });
@@ -216,7 +216,7 @@ describe('fleetStore remote sync', () => {
 
     await useFleetStore.getState().fleetPauseAll();
 
-    expect(useFleetStore.getState().devices[0].state).toBe('play');
+    expect(useFleetStore.getState().devices[0]?.state).toBe('play');
     expect(useFleetStore.getState().playbackHoldUntil['player-1']).toBeUndefined();
     expect(useFleetStore.getState().toast).toBe('Pause all failed');
   });
@@ -227,7 +227,7 @@ describe('fleetStore remote sync', () => {
 
     await useFleetStore.getState().fleetStopAll();
 
-    expect(useFleetStore.getState().devices[0].state).toBe('play');
+    expect(useFleetStore.getState().devices[0]?.state).toBe('play');
     expect(useFleetStore.getState().houseSession).toEqual(LIVE_HOUSE_SESSION);
     expect(useFleetStore.getState().toast).toBe('Stop all failed');
   });
@@ -238,7 +238,7 @@ describe('fleetStore remote sync', () => {
 
     await useFleetStore.getState().fleetPauseAll();
 
-    expect(useFleetStore.getState().devices[0].state).toBe('pause');
+    expect(useFleetStore.getState().devices[0]?.state).toBe('pause');
     expect(useFleetStore.getState().toast).toBeNull();
   });
 });

@@ -45,7 +45,9 @@ export function AlsoPlaying({ others, meta, devices, sync, onChoose }: AlsoPlayi
                 className="house-also-more"
                 aria-expanded={moreOpen}
                 aria-label={`${overflow} more streams`}
-                onClick={() => setMoreOpen((open) => !open)}
+                onClick={() => {
+                  setMoreOpen((open) => !open);
+                }}
               >
                 {overflow} more
               </button>
@@ -58,7 +60,12 @@ export function AlsoPlaying({ others, meta, devices, sync, onChoose }: AlsoPlayi
           <ul className="house-also-more-list" aria-label="More streams">
             {others.slice(ALSO_PLAYING_VISIBLE).map((source) => (
               <li key={source.key}>
-                <button type="button" onClick={() => choose(source.memberIds)}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    choose(source.memberIds);
+                  }}
+                >
                   <MetaText text={joinMeta(source.primary, shownArtist(source))} />
                 </button>
               </li>
@@ -73,7 +80,9 @@ export function AlsoPlaying({ others, meta, devices, sync, onChoose }: AlsoPlayi
             source={source}
             devices={devices}
             sync={sync}
-            onFocus={() => choose(source.memberIds)}
+            onFocus={() => {
+              choose(source.memberIds);
+            }}
           />
         ))}
       </div>

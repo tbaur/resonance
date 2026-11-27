@@ -7,7 +7,8 @@
  * The fleet: every player, sort, the volume bar, and sync groups.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { api } from '@/api/client';
 import { AppMenu } from '@/components/AppMenu';
 import { FleetBar } from '@/components/GlobalVolumeControl';
 import { PlayerRow } from '@/components/PlayerCard';
@@ -95,7 +96,9 @@ export function FleetPage() {
                 type="button"
                 className="fleet-sort-btn"
                 aria-label={`Sort by player, currently ${fleetSortLabel(sortMode)}. Click to switch.`}
-                onClick={() => setSortMode((mode) => nextFleetSortMode(mode))}
+                onClick={() => {
+                  setSortMode((mode) => nextFleetSortMode(mode));
+                }}
               >
                 <span>Player</span>
                 <span className="fleet-sort-mode">{fleetSortLabel(sortMode)}</span>
@@ -123,6 +126,7 @@ export function FleetPage() {
         <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
           Resonance v{APP_VERSION}
         </a>
+        <ServerVersion />
         <span className="footer-credit"> / by tbaur</span>
       </footer>
 
@@ -130,7 +134,13 @@ export function FleetPage() {
         <div className="toast" role="status">
           {toast}
           <div style={{ marginTop: 8 }}>
-            <button type="button" className="btn" onClick={() => setToast(null)}>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setToast(null);
+              }}
+            >
               Dismiss
             </button>
           </div>
@@ -138,4 +148,27 @@ export function FleetPage() {
       )}
     </div>
   );
+}
+
+/**
+ * The server's version, shown only when it differs from this page's. A page
+ * left open across an upgrade, or a stale build, then says so: bug reports
+ * need the server's version.
+ */
+function ServerVersion() {
+  const [server, setServer] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void api
+      .version()
+      .then((info) => {
+        if (live) setServer(info.version);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (!server || server === APP_VERSION) return null;
+  return <span className="footer-credit"> (server v{server})</span>;
 }

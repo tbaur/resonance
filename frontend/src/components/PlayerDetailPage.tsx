@@ -47,20 +47,24 @@ function PlayerDetail({ id }: { id: string }) {
   const control = useFleetStore((s) => s.control);
   const toggleMute = useFleetStore((s) => s.toggleMute);
   const health = useFleetStore((s) => s.health);
+  const loading = useFleetStore((s) => s.loading);
 
   const [detailError, setDetailError] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const { queue, setQueue } = usePlayerQueue(id, setDetailError);
-  const { diag, upgrade, setUpgrade, interruptScrapes } = usePlayerScrapes(id);
-  const advanced = useAdvancedDetails(id, advancedOpen, setDetailError);
+  // Read nothing from the server until the fleet names this player. The id
+  // comes from the address bar, so an unknown one must not reach the API.
+  const knownId = device ? id : '';
+  const { queue, setQueue } = usePlayerQueue(knownId, setDetailError);
+  const { diag, upgrade, setUpgrade, interruptScrapes } = usePlayerScrapes(knownId);
+  const advanced = useAdvancedDetails(knownId, advancedOpen, setDetailError);
   const commitDeviceVolume = useDeviceVolumeCommit(device?.id);
 
   if (!device) {
     return (
       <div className="app-shell">
         <Link to="/">← Fleet</Link>
-        <div className="empty" style={{ marginTop: 16 }}>
-          Player not found. It may have left the network.
+        <div className="empty" style={{ marginTop: 16 }} aria-live="polite">
+          {loading ? 'Loading player…' : 'Player not found. It may have left the network.'}
         </div>
       </div>
     );
@@ -166,7 +170,13 @@ function PlayerToast() {
     <div className="toast" role="status">
       {toast}
       <div style={{ marginTop: 8 }}>
-        <button type="button" className="btn" onClick={() => setToast(null)}>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            setToast(null);
+          }}
+        >
           Dismiss
         </button>
       </div>

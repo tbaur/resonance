@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException
 
 from app.logging import request_id_var
 from app.models import ErrorBody
@@ -24,7 +24,3 @@ class AppError(HTTPException):
                 request_id=request_id_var.get("-"),
             ).model_dump(),
         )
-
-
-def get_request_id(request: Request) -> str:
-    return getattr(request.state, "request_id", request_id_var.get("-"))

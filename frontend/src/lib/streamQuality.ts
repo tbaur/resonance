@@ -33,11 +33,11 @@ function khzLabel(value: number): string {
 
 function parseFormat(raw: string): ParsedFormat {
   const lossy = LOSSY_FORMAT.exec(raw);
-  if (lossy) return { codec: lossy[1], kbps: Number(lossy[2]), bits: null, khz: null };
+  if (lossy) return { codec: lossy[1] ?? '', kbps: Number(lossy[2]), bits: null, khz: null };
   const lossless = LOSSLESS_FORMAT.exec(raw);
   if (lossless) {
     return {
-      codec: lossless[1],
+      codec: lossless[1] ?? '',
       kbps: null,
       bits: Number(lossless[2]),
       khz: khzLabel(Number(lossless[3])),
@@ -80,8 +80,8 @@ function tierLabel(tier: string, format: ParsedFormat): string | null {
 
 /** Format BluOS quality, streamFormat, and the MQA original rate as one meta segment group. */
 export function streamQualityLabel(info: StreamInfo): string {
-  const format = parseFormat(info.stream_format?.trim() ?? '');
-  const quality = info.quality?.trim() ?? '';
+  const format = parseFormat(info.stream_format.trim());
+  const quality = info.quality.trim();
   const qualityKbps = kbpsFromQuality(quality);
 
   if (quality.toLowerCase().startsWith('mqa')) {

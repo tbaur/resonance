@@ -13,7 +13,7 @@ from httpx import ASGITransport, AsyncClient
 from app.config import Settings
 from app.models import PlayerStatus
 from app.services.health import HealthLog
-from tests.helpers import app_with_players
+from tests.helpers import API_BASE, API_HEADERS, app_with_players
 
 
 def _player(**kwargs: object) -> PlayerStatus:
@@ -102,7 +102,7 @@ async def test_fleet_health_endpoint(settings: Settings, monkeypatch: pytest.Mon
         now=1_010,
     )
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.get("/api/v1/fleet/health")
         assert response.status_code == 200
         body = response.json()

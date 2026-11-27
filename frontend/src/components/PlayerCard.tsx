@@ -74,7 +74,8 @@ function volumesAreLinked(devices: PlayerStatus[], deviceId: string): boolean {
   const group = volumePeerGroup(me);
   if (group === 'independent') return false;
   const peers = audibleDevices(devices.filter((d) => volumePeerGroup(d) === group));
-  return peers.length > 1 && peers.every((d) => d.volume === peers[0].volume);
+  const firstVolume = peers[0]?.volume;
+  return peers.length > 1 && peers.every((d) => d.volume === firstVolume);
 }
 
 function followedName(

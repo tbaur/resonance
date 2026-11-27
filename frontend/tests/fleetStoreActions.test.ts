@@ -15,6 +15,7 @@ import { ApiError } from '@/api/types';
 import { useDeviceVolumeCommit } from '@/hooks/usePlayerDetails';
 import { LIVE_HOUSE_SESSION } from '@/lib/houseSession';
 import { useFleetStore } from '@/store/fleetStore';
+import { must } from './must';
 
 const listDevices = vi.fn();
 const refreshDevices = vi.fn();
@@ -28,15 +29,15 @@ const setVolume = vi.fn();
 
 vi.mock('@/api/client', () => ({
   api: {
-    setVolume: (...args: unknown[]) => setVolume(...args),
-    listDevices: (...args: unknown[]) => listDevices(...args),
-    refreshDevices: (...args: unknown[]) => refreshDevices(...args),
-    getSync: (...args: unknown[]) => getSync(...args),
-    getFleetHealth: (...args: unknown[]) => getFleetHealth(...args),
-    setFleetVolume: (...args: unknown[]) => setFleetVolume(...args),
-    setMute: (...args: unknown[]) => setMute(...args),
-    fleetMute: (...args: unknown[]) => fleetMute(...args),
-    fleetReboot: (...args: unknown[]) => fleetReboot(...args),
+    setVolume: (...args: unknown[]): unknown => setVolume(...args),
+    listDevices: (...args: unknown[]): unknown => listDevices(...args),
+    refreshDevices: (...args: unknown[]): unknown => refreshDevices(...args),
+    getSync: (...args: unknown[]): unknown => getSync(...args),
+    getFleetHealth: (...args: unknown[]): unknown => getFleetHealth(...args),
+    setFleetVolume: (...args: unknown[]): unknown => setFleetVolume(...args),
+    setMute: (...args: unknown[]): unknown => setMute(...args),
+    fleetMute: (...args: unknown[]): unknown => fleetMute(...args),
+    fleetReboot: (...args: unknown[]): unknown => fleetReboot(...args),
   },
 }));
 
@@ -102,7 +103,11 @@ function result(succeeded: number, failed: number) {
 }
 
 const store = () => useFleetStore.getState();
-const device = (id: string) => store().devices.find((d) => d.id === id)!;
+const device = (id: string) =>
+  must(
+    store().devices.find((d) => d.id === id),
+    `player ${id}`,
+  );
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -189,6 +194,41 @@ describe('setFleetVolume', () => {
     expect(store().globalVolumeHoldUntil).toBe(0);
     expect(store().toast).toBe('Volume failed (req-9)');
     expect(listDevices).toHaveBeenCalledOnce();
+    // Nothing changed on the players, so the reload must show their real levels.
+    expect(store().devices.map((d) => d.volume)).toEqual([30, 40]);
+  });
+
+  it('shows the real level again after a failed scoped write', async () => {
+    store().setFleet([base, second]);
+    setFleetVolume.mockRejectedValue(apiError('Volume failed'));
+    listDevices.mockResolvedValue(fleetResponse([base, second]));
+
+    await store().setFleetVolume(5, ['player-2']);
+
+    expect(device('player-2').volume).toBe(40);
+    expect(store().volumeHoldUntil['player-2']).toBeUndefined();
+  });
+});
+
+describe('control', () => {
+  it('a failed write restores only the fields it painted', async () => {
+    store().setFleet([base]);
+    let fail: (err: unknown) => void = () => undefined;
+    const pending = store().control(
+      'player-1',
+      () =>
+        new Promise<undefined>((_resolve, reject) => {
+          fail = reject;
+        }),
+      { volume: 50 },
+    );
+    // The server reports a new track while the volume write is in flight.
+    store().upsertDevice({ ...base, track: 'Newer Track' });
+    fail(apiError('Volume failed'));
+    await pending;
+
+    expect(device('player-1').volume).toBe(30);
+    expect(device('player-1').track).toBe('Newer Track');
   });
 });
 
@@ -255,10 +295,12 @@ describe('control', () => {
     });
     expect(device('player-1')).toMatchObject({ muted: false, volume: 40 });
 
-    await waitFor(() => expect(setVolume).toHaveBeenCalledWith('player-1', 40));
-    await waitFor(() =>
-      expect(device('player-1')).toMatchObject({ muted: true, volume: 0, mute_volume: 45 }),
-    );
+    await waitFor(() => {
+      expect(setVolume).toHaveBeenCalledWith('player-1', 40);
+    });
+    await waitFor(() => {
+      expect(device('player-1')).toMatchObject({ muted: true, volume: 0, mute_volume: 45 });
+    });
     expect(setVolume).toHaveBeenCalledTimes(1);
   });
 });

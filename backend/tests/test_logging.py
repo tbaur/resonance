@@ -72,20 +72,11 @@ def test_configure_logging_sets_json_handler() -> None:
     assert any(isinstance(h.formatter, JsonFormatter) for h in root.handlers)
 
 
-def test_get_request_id_helper() -> None:
-    from app.api.errors import get_request_id
-    from app.logging import request_id_var
-
-    class Req:
-        state = type("S", (), {"request_id": "from-state"})()
-
-    assert get_request_id(Req()) == "from-state"  # type: ignore[arg-type]
-    token = request_id_var.set("from-ctx")
-    try:
-
-        class Bare:
-            state = type("S", (), {})()
-
-        assert get_request_id(Bare()) == "from-ctx"  # type: ignore[arg-type]
-    finally:
-        request_id_var.reset(token)
+def test_uvicorn_loggers_go_through_the_json_handler() -> None:
+    """uvicorn's own handlers would print plain text next to the JSON lines."""
+    uvicorn_error = logging.getLogger("uvicorn.error")
+    uvicorn_error.addHandler(logging.StreamHandler())
+    uvicorn_error.propagate = False
+    configure_logging("INFO")
+    assert uvicorn_error.handlers == []
+    assert uvicorn_error.propagate is True

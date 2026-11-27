@@ -57,11 +57,20 @@ export function AppMenu() {
         aria-label="Menu"
         aria-expanded={isOpen}
         aria-controls={panelId}
-        onClick={() => setIsOpen((open) => !open)}
+        onClick={() => {
+          setIsOpen((open) => !open);
+        }}
       >
         <IconMenu open={isOpen} />
       </button>
-      {isOpen ? <AppMenuPanel id={panelId} onNavigate={() => setIsOpen(false)} /> : null}
+      {isOpen ? (
+        <AppMenuPanel
+          id={panelId}
+          onNavigate={() => {
+            setIsOpen(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

@@ -51,6 +51,7 @@ function isOnishLabel(label: string): boolean {
 export function orderChoiceOptions(options: ChoiceOption[]): ChoiceOption[] {
   if (options.length !== 2) return options;
   const [a, b] = options;
+  if (!a || !b) return options;
   if (isOnishLabel(a.label) && isOffishLabel(b.label)) return options;
   if (isOffishLabel(a.label) && isOnishLabel(b.label)) return [b, a];
   return options;

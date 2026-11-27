@@ -88,7 +88,9 @@ export function NowPlayingPanel({ device, activeInputName, onControl }: NowPlayi
               canSeek={device.can_seek}
               onSeek={
                 device.can_seek
-                  ? (seconds) => onControl(() => api.seek(device.id, seconds), { secs: seconds })
+                  ? (seconds) => {
+                      onControl(() => api.seek(device.id, seconds), { secs: seconds });
+                    }
                   : undefined
               }
             />
@@ -109,23 +111,27 @@ function Transport({ device, onControl }: { device: PlayerStatus; onControl: Run
         className="btn"
         disabled={!canBack(device)}
         title={canBack(device) ? undefined : NO_BACK}
-        onClick={() => onControl(() => api.back(device.id))}
+        onClick={() => {
+          onControl(() => api.back(device.id));
+        }}
       >
         Prev
       </button>
       <button
         type="button"
         className="btn btn-primary"
-        onClick={() =>
-          onControl(() => api.toggle(device.id), { state: playing ? 'pause' : 'play' })
-        }
+        onClick={() => {
+          onControl(() => api.toggle(device.id), { state: playing ? 'pause' : 'play' });
+        }}
       >
         {playing ? 'Pause' : 'Play'}
       </button>
       <button
         type="button"
         className="btn"
-        onClick={() => onControl(() => api.stop(device.id), { state: 'stop' })}
+        onClick={() => {
+          onControl(() => api.stop(device.id), { state: 'stop' });
+        }}
       >
         Stop
       </button>
@@ -134,7 +140,9 @@ function Transport({ device, onControl }: { device: PlayerStatus; onControl: Run
         className="btn"
         disabled={!canSkip(device)}
         title={canSkip(device) ? undefined : NO_SKIP}
-        onClick={() => onControl(() => api.skip(device.id))}
+        onClick={() => {
+          onControl(() => api.skip(device.id));
+        }}
       >
         Next
       </button>

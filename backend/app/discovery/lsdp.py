@@ -37,6 +37,8 @@ _MIN_WAIT_SECONDS = 0.01
 _RECV_BUFFER_BYTES = 4096
 _IFF_UP = 0x1
 _IFF_BROADCAST = 0x2
+# sys.platform prefixes whose struct sockaddr starts with sa_len, then sa_family.
+_BSD_PLATFORMS = ("darwin", "freebsd", "openbsd", "netbsd", "dragonfly")
 
 
 @dataclass
@@ -56,7 +58,9 @@ class LSDPDiscovery:
 
     def __init__(self, timeout: float = 5.0) -> None:
         self.timeout = timeout
-        self.discovered_devices: dict[tuple[str, int], LSDPDevice] = {}
+        # Keyed by node, class, and port: one chassis announces each CI zone as
+        # its own record with the same node ID and class, told apart by port.
+        self.discovered_devices: dict[tuple[str, int, int | None], LSDPDevice] = {}
         self._accepted_classes = frozenset(QUERIED_CLASSES)
 
     def discover(self, class_ids: list[int] | None = None) -> list[LSDPDevice]:
@@ -157,12 +161,13 @@ class LSDPDiscovery:
             # Players send the raw MAC bytes. Decoding them as text drops bytes >= 0x80,
             # and two chassis whose MACs differ only in those bytes would share one key.
             node_id = node.hex()
-            self.discovered_devices[(node_id, class_id)] = LSDPDevice(
+            port = _announced_port(txt_records)
+            self.discovered_devices[(node_id, class_id, port)] = LSDPDevice(
                 node_id=node_id,
                 ip=ip,
                 class_id=class_id,
                 txt_records=txt_records,
-                port=_announced_port(txt_records),
+                port=port,
             )
 
 
@@ -309,7 +314,7 @@ def _ipv4_at(sockaddr: int | None) -> str | None:
         return None
     raw = ctypes.string_at(sockaddr, 8)
     # BSD sockaddr starts with a length byte. Linux starts with a 16-bit family.
-    family = raw[1] if sys.platform == "darwin" else struct.unpack_from("=H", raw)[0]
+    family = raw[1] if sys.platform.startswith(_BSD_PLATFORMS) else struct.unpack_from("=H", raw)[0]
     if family != socket.AF_INET:
         return None
     address = socket.inet_ntoa(raw[4:8])

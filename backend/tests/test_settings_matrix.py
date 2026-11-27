@@ -37,7 +37,8 @@ WRITE_CASES = [
     ("reset", "1", "/alsa_setting", "alsa_setting"),
     ("ledbrightness", "dim", "/setting", "setting"),
     ("nodename", "Zone C", "/Name", "Name"),
-    ("amplifierStandby", "OFF", "/setting", "setting"),
+    # Not on this fixture's Settings pages, so there is no control path to use.
+    ("amplifierStandby", "OFF", "", "web_ui"),
 ]
 
 
@@ -138,12 +139,7 @@ async def test_write_matrix_hits_expected_endpoint(
 
     client = BluOSClient(settings)
     try:
-        ok = await client.set_device_setting(
-            "192.168.1.20",
-            setting_id,
-            value,
-            control_path=control_path,
-        )
+        ok = await client.set_device_setting("192.168.1.20", setting_id, value)
         assert ok is True
         if expected == "alsa_setting":
             assert alsa.called
@@ -201,21 +197,44 @@ async def test_write_resolves_control_path_when_omitted(settings: Settings) -> N
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_web_ui_fallback_when_bluos_path_fails(settings: Settings) -> None:
-    respx.get(url__regex=r".*/audiomodes.*").mock(return_value=httpx.Response(500))
+async def test_web_ui_fallback_when_the_player_has_no_such_path(settings: Settings) -> None:
+    respx.get(url__regex=r".*/Settings.*").mock(side_effect=_settings_route)
+    respx.get(url__regex=r".*/audiomodes.*").mock(return_value=httpx.Response(404))
     web = respx.post("http://192.168.1.20/settings").mock(
         return_value=httpx.Response(200, text="ok")
     )
     client = BluOSClient(settings)
     try:
-        ok = await client.set_device_setting(
-            "192.168.1.20",
-            "channelMode",
-            "left",
-            control_path="/audiomodes",
-        )
-        assert ok is True
+        assert await client.set_device_setting("192.168.1.20", "channelMode", "left") is True
         assert web.called
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.asyncio
+@respx.mock
+@pytest.mark.parametrize(
+    "failure",
+    [httpx.Response(500), httpx.ReadTimeout("slow")],
+    ids=["server-error", "timeout"],
+)
+async def test_no_web_ui_write_after_a_control_path_failure(
+    settings: Settings, failure: httpx.Response | Exception
+) -> None:
+    """The player may have applied a write that timed out, so it is not sent twice."""
+    respx.get(url__regex=r".*/Settings.*").mock(side_effect=_settings_route)
+    route = respx.get(url__regex=r".*/audiomodes.*")
+    if isinstance(failure, Exception):
+        route.mock(side_effect=failure)
+    else:
+        route.mock(return_value=failure)
+    web = respx.post("http://192.168.1.20/settings").mock(
+        return_value=httpx.Response(200, text="ok")
+    )
+    client = BluOSClient(settings)
+    try:
+        assert await client.set_device_setting("192.168.1.20", "channelMode", "left") is False
+        assert not web.called
     finally:
         await client.aclose()
 

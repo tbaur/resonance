@@ -34,6 +34,12 @@ SYNC_RECHECK_SECONDS = 60.0
 # A player reports a new syncStat before its /SyncStatus shows the new group.
 # When syncStat changes, read the player once more after this pause.
 SYNC_SETTLE_SECONDS = 3.0
+# The reconcile loop ticks about once a second. A pass that includes a full
+# rediscovery also waits for the browse window and the enrich reads, and each
+# enrich read may retry (_ENRICH_READ_ATTEMPTS tries, with backoff between them).
+_WEDGE_BASE_SECONDS = 15.0
+_ENRICH_READ_ATTEMPTS = 3
+_ENRICH_BACKOFF_SECONDS = 5.0
 # Playback fields a grouped follower shows from its lead. Volume and mute stay
 # on the follower; those come from its own /SyncStatus hold.
 _LEAD_PLAYBACK_FIELDS = (
@@ -127,6 +133,15 @@ class StatusPoller:
         self.last_error_kind: str | None = None
         self.last_control_failure_kind: str | None = None
 
+    def wedge_seconds(self) -> float:
+        """How long the reconcile loop may go without a tick before it counts as stuck.
+
+        A healthy pass can include one rediscovery, so the limit covers the
+        browse window plus the slowest enrich read.
+        """
+        enrich = _ENRICH_READ_ATTEMPTS * self.settings.device_http_timeout + _ENRICH_BACKOFF_SECONDS
+        return _WEDGE_BASE_SECONDS + self.settings.discovery_timeout + enrich
+
     def is_wedged(self) -> bool:
         """True when the reconcile task has died or stopped ticking."""
         task = self._task
@@ -134,7 +149,7 @@ class StatusPoller:
             return True
         if self.last_poll_at is None:
             return False
-        return time.time() - self.last_poll_at > 15
+        return time.time() - self.last_poll_at > self.wedge_seconds()
 
     def presence_counts(self) -> tuple[int, int]:
         devices = self.discovery.snapshot.devices
@@ -224,13 +239,20 @@ class StatusPoller:
             stored = self.discovery.get_device(device_id) or player
             await self._publish_update(device_id, stored, fleet_before=fleet_before)
             return stored
-        self._remember_tags(device_id, snap)
         player = snap.player
         if player.stale:
             player = player.model_copy(update={"stale": False})
+        if device_id not in self.discovery.snapshot.endpoints_by_id:
+            # Not in the fleet (a grace-period read, or a rescan removed it).
+            # Answer the caller, but keep it out of the tags, the health log,
+            # and the published fleet, which hold only fleet members.
+            return player
+        self._remember_tags(device_id, snap)
         self._record_result(player)
         fleet_before = self._fleet_signature()
-        await self.discovery.update_device(player)
+        if not await self.discovery.update_device(player):
+            # A rescan removed it while this read was in flight.
+            return player
         stored = self.discovery.get_device(device_id) or player
         await self._publish_update(device_id, stored, fleet_before=fleet_before)
         return stored
@@ -381,11 +403,6 @@ class StatusPoller:
                 logger.exception("device_watch_failed id=%s", device_id)
                 await self._sleep(self.settings.poll_interval)
 
-    async def _poll_once(self) -> None:
-        """One sequential status pass (tests). Production uses per-device watchers."""
-        for device in list(self.discovery.snapshot.devices):
-            await self._cycle_device(device)
-
     async def _cycle_device(self, device: PlayerStatus) -> None:
         await self._wait_until_due(device.id)
         if self._stop.is_set():
@@ -406,7 +423,10 @@ class StatusPoller:
         try:
             snap = await self._fetch_snapshot(device)
         except asyncio.CancelledError:
-            if self._stop.is_set():
+            # interrupt() cancels only the inner read, and the cycle just ends.
+            # A cancel aimed at this watcher (stop, reconcile) must keep going.
+            this_task = asyncio.current_task()
+            if self._stop.is_set() or (this_task is not None and this_task.cancelling()):
                 raise
             return
         except Exception as exc:
@@ -528,7 +548,7 @@ class StatusPoller:
         up, marked stale, so one blip does not look like the player left.
         """
         kind = exc.kind if isinstance(exc, PlayerMiss) else type(exc).__name__
-        logger.debug("poll_device_error id=%s err=%s", device.id, exc)
+        logger.debug("poll_device_error id=%s kind=%s", device.id, kind)
         # A status that landed while this read was failing is newer than `device`.
         device = self.discovery.get_device(device.id) or device
         prev_failures = self._failures.get(device.id, 0)
@@ -620,7 +640,9 @@ class StatusPoller:
         self._control_holdoff_until.pop(device_id, None)
         self._failures.pop(device_id, None)
         self._next_due.pop(device_id, None)
-        self.health.forget(device_id)
+        # Keep the drop history: it ages out of the 24 h window on its own, and
+        # a room that comes back should still show the drop that removed it.
+        self.health.forget_presence(device_id)
 
     async def _cancel_watchers(self) -> None:
         tasks = list(self._watchers.values())

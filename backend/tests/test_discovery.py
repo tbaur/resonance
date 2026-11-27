@@ -104,39 +104,83 @@ async def test_refresh_keeps_live_player_when_enrich_would_miss(
 async def test_refresh_keeps_poll_that_lands_during_enrich(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """A poll stored while a new room is being enriched wins over the copy seen before."""
     settings = Settings(allow_non_private_ips=True, discovery_cache_ttl=0)
     client = BluOSClient(settings)
     service = DiscoveryService(settings, client)
+    known = PlayerStatus(id="n1", ip="192.168.1.20", name="Zone L", status="online", volume=1)
+    service._snapshot.devices = [known]
+    service._snapshot.endpoints_by_id = {known.id: known.endpoint}
+    service._snapshot.ids_by_endpoint = {known.endpoint: known.id}
 
     async def fake_endpoints(self: DiscoveryService):
-        return [DiscoveredEndpoint(ip="192.168.1.21", port=11000, node_id="n2")], "mdns"
+        return [
+            DiscoveredEndpoint(ip="192.168.1.20", port=11000, node_id="n1"),
+            DiscoveredEndpoint(ip="192.168.1.21", port=11000, node_id="n2"),
+        ], "mdns"
 
     async def fake_status(target: str, device_id: str | None = None, node_id: str = ""):
+        # The poller publishes a newer volume for the known room meanwhile.
+        await service.update_device(known.model_copy(update={"volume": 7}))
         host = target.split(":")[0]
-        # A poll publishes a newer volume while enrich is in flight.
-        await service.update_device(
-            PlayerStatus(
-                id=device_id or "player-new",
-                ip=host,
-                name="Zone R",
-                status="online",
-                volume=7,
-            )
-        )
-        return PlayerStatus(
-            id=device_id or "player-new",
-            ip=host,
-            name="Zone R",
-            status="online",
-            volume=1,
-        )
+        return PlayerStatus(id=device_id or "n2", ip=host, name="Zone R", status="online")
 
     monkeypatch.setattr(DiscoveryService, "_discover_endpoints", fake_endpoints)
     client.get_player_status = AsyncMock(side_effect=fake_status)  # type: ignore[method-assign]
 
     snapshot = await service.refresh()
-    assert len(snapshot.devices) == 1
-    assert snapshot.devices[0].volume == 7
+    by_id = {device.id: device for device in snapshot.devices}
+    assert set(by_id) == {"n1", "n2"}
+    assert by_id["n1"].volume == 7
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_keeps_a_reachable_room_through_missed_browses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One lost announce must not drop a room the poller still reaches."""
+    settings = Settings(allow_non_private_ips=True, discovery_cache_ttl=0)
+    client = BluOSClient(settings)
+    service = DiscoveryService(settings, client)
+    room = PlayerStatus(id="n1", ip="192.168.1.20", name="Zone L", status="online")
+    service._snapshot.devices = [room]
+    service._snapshot.endpoints_by_id = {room.id: room.endpoint}
+    service._snapshot.ids_by_endpoint = {room.endpoint: room.id}
+
+    async def nothing_found(self: DiscoveryService):
+        return [], "mdns"
+
+    monkeypatch.setattr(DiscoveryService, "_discover_endpoints", nothing_found)
+    for _ in range(2):
+        snapshot = await service.refresh()
+        assert [device.id for device in snapshot.devices] == ["n1"]
+        assert service.is_in_grace("n1") is False
+    # The third miss in a row removes it, into the grace period.
+    snapshot = await service.refresh()
+    assert snapshot.devices == []
+    assert service.is_in_grace("n1") is True
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_refresh_drops_an_unreachable_room_on_the_first_missed_browse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = Settings(allow_non_private_ips=True, discovery_cache_ttl=0)
+    client = BluOSClient(settings)
+    service = DiscoveryService(settings, client)
+    room = PlayerStatus(id="n1", ip="192.168.1.20", name="Zone L", status="online", stale=True)
+    service._snapshot.devices = [room]
+    service._snapshot.endpoints_by_id = {room.id: room.endpoint}
+    service._snapshot.ids_by_endpoint = {room.endpoint: room.id}
+
+    async def nothing_found(self: DiscoveryService):
+        return [], "mdns"
+
+    monkeypatch.setattr(DiscoveryService, "_discover_endpoints", nothing_found)
+    snapshot = await service.refresh()
+    assert snapshot.devices == []
     await client.aclose()
 
 
@@ -278,7 +322,7 @@ async def test_grace_preserves_ip_after_drop(monkeypatch: pytest.MonkeyPatch) ->
     ]
     service._snapshot.discovered_at = 1.0
 
-    async def empty_refresh(self: DiscoveryService, *, force: bool = True):
+    async def empty_refresh(self: DiscoveryService):
         now = __import__("time").time()
         self._grace_until[device_id] = now + settings.discovered_grace_ttl
         self._grace_endpoints[device_id] = "192.168.1.55:11000"
@@ -291,7 +335,7 @@ async def test_grace_preserves_ip_after_drop(monkeypatch: pytest.MonkeyPatch) ->
         )
         return self._snapshot
 
-    monkeypatch.setattr(DiscoveryService, "_refresh", empty_refresh)
+    monkeypatch.setattr(DiscoveryService, "refresh", empty_refresh)
     await service.refresh()
     assert device_id not in service.snapshot.endpoints_by_id
     assert service.is_known_id(device_id)
@@ -300,7 +344,7 @@ async def test_grace_preserves_ip_after_drop(monkeypatch: pytest.MonkeyPatch) ->
 
 
 @pytest.mark.asyncio
-async def test_empty_fleet_get_devices_uses_cache(
+async def test_empty_fleet_result_counts_as_fresh(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.bluos.client import BluOSClient
@@ -325,9 +369,10 @@ async def test_empty_fleet_get_devices_uses_cache(
     first = await service.refresh()
     assert first.devices == []
     assert calls["n"] == 1
-    second = await service.get_devices()
-    assert second.discovered_at == first.discovered_at
-    assert calls["n"] == 1  # cached empty
+    # An empty result stays fresh for empty_fleet_rediscovery_seconds, so the
+    # poller does not run a browse on every tick.
+    assert service.cache_fresh() is True
+    assert calls["n"] == 1
     await client.aclose()
 
 
@@ -359,14 +404,13 @@ async def test_discovery_cache_grace_and_enrich_error(
     assert snap.devices == []
     assert snap.discovered_at is not None
     # Empty fleets cache for empty_fleet_rediscovery_seconds (avoid discovery storms).
-    cached = await service.get_devices()
-    assert cached.devices == []
-    assert cached.discovered_at == snap.discovered_at
+    assert service.cache_fresh() is True
 
-    # update_device appends unknown player
+    # A read for a player outside the fleet is not stored: membership comes
+    # from discovery, so a late poll cannot add a removed room back.
     extra = PlayerStatus(id="extra", ip="192.168.1.30", name="X", status="online")
-    await service.update_device(extra)
-    assert any(d.id == "extra" for d in service.snapshot.devices)
+    assert await service.update_device(extra) is False
+    assert not any(d.id == "extra" for d in service.snapshot.devices)
 
     assert service.get_device("missing") is None
     assert service.is_in_grace("extra") is False
@@ -432,4 +476,39 @@ async def test_lsdp_secondary_zone_keeps_announced_port(
         "192.168.1.10:11000": "0200000000a1",
         "192.168.1.10:11010": "0200000000a1",
     }
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_a_player_found_at_a_new_address_is_not_kept_at_the_old_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """DHCP moved the player: one row at the new address, not two."""
+    settings = Settings(allow_non_private_ips=True, discovery_cache_ttl=0)
+    client = BluOSClient(settings)
+    service = DiscoveryService(settings, client)
+    old = PlayerStatus(
+        id="player-old", ip="192.168.1.20", name="Zone L", status="online", mac="02:00:00:00:00:21"
+    )
+    service._snapshot.devices = [old]
+    service._snapshot.endpoints_by_id = {old.id: old.endpoint}
+    service._snapshot.ids_by_endpoint = {old.endpoint: old.id}
+
+    async def moved(self: DiscoveryService):
+        return [DiscoveredEndpoint(ip="192.168.1.40")], "mdns"
+
+    async def status(target: str, device_id: str | None = None, node_id: str = ""):
+        return PlayerStatus(
+            id=device_id or "player-new",
+            ip=target.split(":")[0],
+            name="Zone L",
+            status="online",
+            mac="02:00:00:00:00:21",
+        )
+
+    monkeypatch.setattr(DiscoveryService, "_discover_endpoints", moved)
+    client.get_player_status = AsyncMock(side_effect=status)  # type: ignore[method-assign]
+
+    snapshot = await service.refresh()
+    assert [device.ip for device in snapshot.devices] == ["192.168.1.40"]
     await client.aclose()

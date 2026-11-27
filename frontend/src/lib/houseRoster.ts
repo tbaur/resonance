@@ -112,7 +112,9 @@ export function focusedSource(
   memberIds: readonly string[] | null,
 ): HouseStreamSource | null {
   if (sources.length === 0) return null;
-  if (!memberIds || memberIds.length === 0) return sources[0];
+  if (!memberIds || memberIds.length === 0) return sources[0] ?? null;
   const wanted = new Set(memberIds);
-  return sources.find((source) => source.memberIds.some((id) => wanted.has(id))) ?? sources[0];
+  return (
+    sources.find((source) => source.memberIds.some((id) => wanted.has(id))) ?? sources[0] ?? null
+  );
 }

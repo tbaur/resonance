@@ -53,3 +53,16 @@ def test_settings_read_resonance_prefixed_env(monkeypatch: pytest.MonkeyPatch) -
     assert settings.port == 9123
     assert settings.log_level == "DEBUG"
     assert settings.host == "127.0.0.1"
+
+
+def test_bluos_port_matches_the_endpoint_validator() -> None:
+    """validate_bluos_port() refuses ports below 1024, so the setting must too."""
+    with pytest.raises(ValidationError):
+        Settings(bluos_port=80)
+    assert Settings(bluos_port=1024).bluos_port == 1024
+
+
+def test_allowed_hosts_parse_lowercase() -> None:
+    assert Settings(allowed_hosts=" Music.Example.NET , ").allowed_host_set() == {
+        "music.example.net"
+    }

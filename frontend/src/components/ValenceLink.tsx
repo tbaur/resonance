@@ -20,8 +20,12 @@ export function ValenceLink() {
   useEffect(() => {
     api
       .links()
-      .then((links) => setUrl(links.valence_url))
-      .catch(() => setUrl(''));
+      .then((links) => {
+        setUrl(links.valence_url);
+      })
+      .catch(() => {
+        setUrl('');
+      });
   }, []);
 
   if (!WEB_ADDRESS.test(url)) return null;

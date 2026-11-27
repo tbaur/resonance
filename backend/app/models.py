@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import time
 from enum import Enum
 from typing import Any, Literal
 
@@ -89,6 +90,9 @@ class PlayerStatus(BaseModel):
 
 class VolumeRequest(BaseModel):
     level: int = Field(ge=0, le=100)
+
+
+class FleetVolumeRequest(VolumeRequest):
     # None → entire fleet; non-empty list → scoped; empty list is rejected by the route.
     device_ids: list[str] | None = Field(default=None, max_length=256)
 
@@ -185,7 +189,6 @@ class DeviceSettingsResponse(BaseModel):
 class SettingWriteRequest(BaseModel):
     id: str = Field(min_length=1, max_length=64)
     value: str = Field(default="", max_length=512)
-    control_path: str = Field(default="", max_length=128)
 
     @field_validator("id")
     @classmethod
@@ -203,18 +206,6 @@ class SettingWriteRequest(BaseModel):
         if any(ch in value for ch in ("\x00", "\n", "\r")):
             raise ValueError("invalid setting value")
         return value
-
-    @field_validator("control_path")
-    @classmethod
-    def validate_control_path(cls, value: str) -> str:
-        cleaned = value.strip()
-        if not cleaned:
-            return ""
-        if not cleaned.startswith("/") or "://" in cleaned or "?" in cleaned or ".." in cleaned:
-            raise ValueError("invalid control path")
-        if not all(ch.isalnum() or ch in "/_-" for ch in cleaned):
-            raise ValueError("invalid control path")
-        return cleaned
 
 
 class UpgradeStatus(BaseModel):
@@ -413,3 +404,6 @@ class DevicesResponse(BaseModel):
     devices: list[PlayerStatus]
     discovered_at: float | None = None
     discovery_method: str = ""
+    # This server's clock (Unix seconds) when it answered. A browser whose clock
+    # is off compares ``secs_at`` against this, not against its own time.
+    server_time: float = Field(default_factory=time.time)

@@ -12,12 +12,11 @@ import re
 from app.validators import DEFAULT_BLUOS_PORT
 
 # Known models without a Bluetooth radio / bluetoothAutoplay capture setting.
-# Matched as whole tokens against brand + model + full_model (case-insensitive).
-_NO_BLUETOOTH_MODEL_TOKENS = frozenset(
-    {
-        "ci s2",
-        "cis2",
-    }
+# Each entry is a run of whole words matched against brand + model + full_model
+# (case-insensitive, punctuation as spaces), so "CI S2" matches but "CI S25" does not.
+_NO_BLUETOOTH_MODEL_TOKENS: tuple[tuple[str, ...], ...] = (
+    ("ci", "s2"),
+    ("cis2",),
 )
 
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
@@ -34,15 +33,12 @@ def model_has_bluetooth(model: str = "", brand: str = "", full_model: str = "") 
     ``None`` means capability is unknown from model identity alone — callers should
     inspect capture settings for a ``bluetoothAutoplay`` setting.
     """
-    text = _normalize_model_text(brand, model, full_model)
-    if not text:
+    words = _normalize_model_text(brand, model, full_model).split()
+    if not words:
         return None
-    compact = text.replace(" ", "")
-    for token in _NO_BLUETOOTH_MODEL_TOKENS:
-        if " " in token:
-            if token in text:
-                return False
-        elif token in compact:
+    for run in _NO_BLUETOOTH_MODEL_TOKENS:
+        size = len(run)
+        if any(tuple(words[i : i + size]) == run for i in range(len(words) - size + 1)):
             return False
     return None
 

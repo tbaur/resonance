@@ -8,48 +8,54 @@
  * shows the token form or a notice.
  */
 
-import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { apiToken } from '@/api/auth';
+import {
+  type ReactNode,
+  type SyntheticEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import { onSessionLost } from '@/api/auth';
 import { api } from '@/api/client';
 import { ApiError } from '@/api/types';
 
 /** How often to look for the API again while it is not answering. */
 const RETRY_MS = 5000;
 
-type GateState = 'checking' | 'ready' | 'token' | 'unreachable';
+type GateState =
+  | { kind: 'checking' }
+  | { kind: 'ready' }
+  | { kind: 'token' }
+  | { kind: 'unreachable' }
+  /** The server answered and refused, for a reason a retry will not fix. */
+  | { kind: 'refused'; message: string; code: string };
 
 function isUnauthorized(err: unknown): boolean {
   return err instanceof ApiError && err.status === 401;
 }
 
-/** Ready when this browser can call the API, `token` on a 401, else `unreachable`. */
+/**
+ * Ready when this browser can call the API, `token` on a 401, `refused` on
+ * another 400 or 403 (such as a host name the server does not answer to), and
+ * `unreachable` when the server did not answer.
+ */
 async function probe(): Promise<GateState> {
   try {
     await api.listDevices();
-    return 'ready';
+    return { kind: 'ready' };
   } catch (err) {
-    return isUnauthorized(err) ? 'token' : 'unreachable';
-  }
-}
-
-/**
- * Trade a token built into the bundle for the session cookie first, because
- * cover art requests from <img> cannot send Authorization. A rejected bundle
- * token can just mean the server has no token set, so probe before asking.
- */
-async function connect(): Promise<GateState> {
-  if (!apiToken) return probe();
-  try {
-    await api.openSession(apiToken);
-    return 'ready';
-  } catch (err) {
-    return isUnauthorized(err) ? probe() : 'unreachable';
+    if (isUnauthorized(err)) return { kind: 'token' };
+    if (err instanceof ApiError && (err.status === 400 || err.status === 403)) {
+      return { kind: 'refused', message: err.message, code: err.code };
+    }
+    return { kind: 'unreachable' };
   }
 }
 
 /** Renders `children` once the API accepts this browser; until then, the token form or a notice. */
 export function SessionGate({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<GateState>('checking');
+  const [state, setState] = useState<GateState>({ kind: 'checking' });
   const [retrying, setRetrying] = useState(false);
   const inFlight = useRef(false);
 
@@ -57,7 +63,7 @@ export function SessionGate({ children }: { children: ReactNode }) {
     if (inFlight.current) return;
     inFlight.current = true;
     setRetrying(true);
-    void connect()
+    void probe()
       .then(setState)
       .finally(() => {
         inFlight.current = false;
@@ -67,16 +73,39 @@ export function SessionGate({ children }: { children: ReactNode }) {
 
   useEffect(check, [check]);
 
-  useEffect(() => {
-    if (state !== 'unreachable') return undefined;
-    const timer = window.setInterval(check, RETRY_MS);
-    return () => window.clearInterval(timer);
-  }, [state, check]);
+  // A 401 anywhere (the server's token changed, or it restarted with a new
+  // one) means the cookie stopped working: ask for the token again.
+  useEffect(
+    () =>
+      onSessionLost(() => {
+        setState({ kind: 'token' });
+      }),
+    [],
+  );
 
-  if (state === 'ready') return <>{children}</>;
-  if (state === 'checking') return null;
-  if (state === 'unreachable') return <UnreachableNotice busy={retrying} onRetry={check} />;
-  return <TokenForm onAccepted={() => setState('ready')} />;
+  useEffect(() => {
+    if (state.kind !== 'unreachable') return undefined;
+    const timer = window.setInterval(check, RETRY_MS);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [state.kind, check]);
+
+  if (state.kind === 'ready') return <>{children}</>;
+  if (state.kind === 'checking') return null;
+  if (state.kind === 'unreachable') return <UnreachableNotice busy={retrying} onRetry={check} />;
+  if (state.kind === 'refused') {
+    return (
+      <RefusedNotice message={state.message} code={state.code} busy={retrying} onRetry={check} />
+    );
+  }
+  return (
+    <TokenForm
+      onAccepted={() => {
+        setState({ kind: 'ready' });
+      }}
+    />
+  );
 }
 
 function GateCard({ title, children }: { title: string; children: ReactNode }) {
@@ -108,6 +137,36 @@ function UnreachableNotice({ busy, onRetry }: { busy: boolean; onRetry: () => vo
   );
 }
 
+function RefusedNotice({
+  message,
+  code,
+  busy,
+  onRetry,
+}: {
+  message: string;
+  code: string;
+  busy: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <GateCard title="Resonance refused this page">
+      <p className="session-copy" role="alert">
+        {message}
+      </p>
+      {code === 'host_not_allowed' ? (
+        <p className="session-hint">
+          Open Resonance by its IP address or <code>localhost</code>, add this name to{' '}
+          <code>RESONANCE_ALLOWED_HOSTS</code> on the server, or set{' '}
+          <code>RESONANCE_API_TOKEN</code>.
+        </p>
+      ) : null}
+      <button type="button" className="btn session-submit" disabled={busy} onClick={onRetry}>
+        Try again
+      </button>
+    </GateCard>
+  );
+}
+
 function TokenForm({ onAccepted }: { onAccepted: () => void }) {
   const [token, setToken] = useState('');
   const [visible, setVisible] = useState(false);
@@ -117,7 +176,7 @@ function TokenForm({ onAccepted }: { onAccepted: () => void }) {
 
   useEffect(() => inputRef.current?.focus(), []);
 
-  const submit = async (event: FormEvent) => {
+  const submit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
     const value = token.trim();
     if (!value || busy) return;
@@ -156,13 +215,17 @@ function TokenForm({ onAccepted }: { onAccepted: () => void }) {
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? 'api-token-error' : undefined}
             value={token}
-            onChange={(event) => setToken(event.target.value)}
+            onChange={(event) => {
+              setToken(event.target.value);
+            }}
           />
           <button
             type="button"
             className="btn btn-quiet session-reveal"
             aria-controls="api-token"
-            onClick={() => setVisible((shown) => !shown)}
+            onClick={() => {
+              setVisible((shown) => !shown);
+            }}
           >
             {visible ? 'Hide' : 'Show'}
           </button>

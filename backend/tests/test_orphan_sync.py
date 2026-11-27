@@ -24,6 +24,7 @@ from app.services.events import EventBus
 from app.services.poller import StatusPoller
 from app.services.sync import build_sync_state, orphan_primary_id
 from app.state import AppState
+from tests.helpers import API_BASE, API_HEADERS
 
 
 @pytest.fixture
@@ -170,7 +171,6 @@ async def test_sync_break_orphans_via_reparent(
         return self._snapshot
 
     monkeypatch.setattr(DiscoveryService, "refresh", seeded)
-    monkeypatch.setattr(DiscoveryService, "get_devices", seeded)
 
     app = create_app()
     client = BluOSClient(settings)
@@ -207,7 +207,7 @@ async def test_sync_break_orphans_via_reparent(
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/sync/break")
     assert response.status_code == 200
     body = response.json()
@@ -231,11 +231,11 @@ async def test_sync_break_donors_exclude_other_group_members(
     settings: Settings,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+
     async def seeded(self: DiscoveryService, *args, **kwargs):
         return self._snapshot
 
     monkeypatch.setattr(DiscoveryService, "refresh", seeded)
-    monkeypatch.setattr(DiscoveryService, "get_devices", seeded)
 
     app = create_app()
     client = BluOSClient(settings)
@@ -279,6 +279,11 @@ async def test_sync_break_donors_exclude_other_group_members(
     poller.refresh_one = AsyncMock(return_value=None)  # type: ignore[method-assign]
     client.remove_sync_slave = AsyncMock(return_value=True)  # type: ignore[method-assign]
     client.stop = AsyncMock(return_value=True)  # type: ignore[method-assign]
+    # The other group's lead is read after its follower leaves. Answer it here,
+    # so the test never opens a socket to a LAN address.
+    client.get_player_status = AsyncMock(  # type: ignore[method-assign]
+        return_value=other_primary.model_copy(update={"slaves": []})
+    )
     app.state.app_state = AppState(
         settings=settings,
         client=client,
@@ -288,7 +293,7 @@ async def test_sync_break_donors_exclude_other_group_members(
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/sync/break")
     assert response.status_code == 200
     args = client.remove_sync_slave.await_args

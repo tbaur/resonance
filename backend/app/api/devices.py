@@ -85,8 +85,11 @@ async def device_art(device_id: str, state: StateDep, image: str = "") -> Respon
     # A group shows the cover of whichever member reports one, so any player's
     # current image counts as named by a player.
     named_by_player = any(d.image == target for d in state.discovery.snapshot.devices)
-    # Free the status hold so the cover GET is not queued behind a 100s poll.
-    await state.poller.interrupt([device_id])
+    if state.client.artwork_is_on_player(endpoint, target):
+        # Free the status hold so the cover GET is not queued behind a 100s poll.
+        # A cover from an internet host does not use the player, so it leaves
+        # the hold alone.
+        await state.poller.interrupt([device_id])
     fetched = await state.client.fetch_artwork(endpoint, target, named_by_player=named_by_player)
     if fetched is None:
         raise AppError(404, "artwork_not_found", "Artwork unavailable")
@@ -139,11 +142,10 @@ async def skip(device_id: str, state: StateDep) -> Response:
 
 @router.post("/devices/{device_id}/toggle", status_code=204)
 async def toggle(device_id: str, state: StateDep) -> Response:
-    ip = await require_device(state, device_id)
     device = state.discovery.get_device(device_id)
     state_name = device.state if device else "stop"
 
-    async def op(_: str) -> bool:
+    async def op(ip: str) -> bool:
         return await state.client.toggle(ip, state=state_name)
 
     return await run_control(state, device_id, "toggle", op)
@@ -170,10 +172,10 @@ async def volume_adjust(device_id: str, body: VolumeAdjustRequest, state: StateD
     else:
         raise AppError(502, "bluos_status_failed", "Failed to read player volume")
 
-    async def op(_: str) -> bool:
-        return await state.client.adjust_volume(ip, body.delta, current)
+    async def op(endpoint: str) -> bool:
+        return await state.client.adjust_volume(endpoint, body.delta, current)
 
-    return await run_control(state, device_id, "volume_adjust", op)
+    return await run_control(state, device_id, "volume_adjust", op, endpoint=ip)
 
 
 @router.get("/devices/{device_id}/diagnose", response_model=DiagnoseResponse)
@@ -233,10 +235,8 @@ async def get_device_settings(
 async def set_device_setting(
     device_id: str, body: SettingWriteRequest, state: StateDep
 ) -> Response:
-    ip = await require_device(state, device_id)
-
-    async def op(_: str) -> bool:
-        return await state.client.set_device_setting(ip, body.id, body.value, control_path="")
+    async def op(ip: str) -> bool:
+        return await state.client.set_device_setting(ip, body.id, body.value)
 
     return await run_control(state, device_id, "setting", op)
 
@@ -255,9 +255,7 @@ async def device_upgrade(device_id: str, state: StateDep) -> UpgradeStatus:
 
 @router.post("/devices/{device_id}/reboot", status_code=204)
 async def reboot(device_id: str, state: StateDep) -> Response:
-    ip = await require_device(state, device_id)
-
-    async def op(_: str) -> bool:
+    async def op(ip: str) -> bool:
         return await state.client.reboot(ip)
 
     return await run_control(state, device_id, "reboot", op)
@@ -276,9 +274,7 @@ async def back(device_id: str, state: StateDep) -> Response:
 
 @router.post("/devices/{device_id}/seek", status_code=204)
 async def seek(device_id: str, body: SeekRequest, state: StateDep) -> Response:
-    ip = await require_device(state, device_id)
-
-    async def op(_: str) -> bool:
+    async def op(ip: str) -> bool:
         return await state.client.seek(ip, body.seconds)
 
     return await run_control(state, device_id, "seek", op)
@@ -286,9 +282,7 @@ async def seek(device_id: str, body: SeekRequest, state: StateDep) -> Response:
 
 @router.post("/devices/{device_id}/shuffle", status_code=204)
 async def shuffle(device_id: str, body: ShuffleRequest, state: StateDep) -> Response:
-    ip = await require_device(state, device_id)
-
-    async def op(_: str) -> bool:
+    async def op(ip: str) -> bool:
         return await state.client.set_shuffle(ip, body.state)
 
     return await run_control(state, device_id, "shuffle", op)
@@ -296,9 +290,7 @@ async def shuffle(device_id: str, body: ShuffleRequest, state: StateDep) -> Resp
 
 @router.post("/devices/{device_id}/repeat", status_code=204)
 async def repeat(device_id: str, body: RepeatRequest, state: StateDep) -> Response:
-    ip = await require_device(state, device_id)
-
-    async def op(_: str) -> bool:
+    async def op(ip: str) -> bool:
         return await state.client.set_repeat(ip, body.state)
 
     return await run_control(state, device_id, "repeat", op)
@@ -306,9 +298,7 @@ async def repeat(device_id: str, body: RepeatRequest, state: StateDep) -> Respon
 
 @router.post("/devices/{device_id}/volume", status_code=204)
 async def volume(device_id: str, body: VolumeRequest, state: StateDep) -> Response:
-    ip = await require_device(state, device_id)
-
-    async def op(_: str) -> bool:
+    async def op(ip: str) -> bool:
         return await state.client.set_volume(ip, body.level)
 
     return await run_control(state, device_id, "volume", op)
@@ -316,9 +306,7 @@ async def volume(device_id: str, body: VolumeRequest, state: StateDep) -> Respon
 
 @router.post("/devices/{device_id}/mute", status_code=204)
 async def mute(device_id: str, body: MuteRequest, state: StateDep) -> Response:
-    ip = await require_device(state, device_id)
-
-    async def op(_: str) -> bool:
+    async def op(ip: str) -> bool:
         return await state.client.set_mute(ip, body.mute)
 
     return await run_control(state, device_id, "mute", op)
@@ -340,9 +328,7 @@ async def queue_clear(device_id: str, state: StateDep) -> Response:
 
 @router.post("/devices/{device_id}/queue/move", status_code=204)
 async def queue_move(device_id: str, body: QueueMoveRequest, state: StateDep) -> Response:
-    ip = await require_device(state, device_id)
-
-    async def op(_: str) -> bool:
+    async def op(ip: str) -> bool:
         return await state.client.move_queue_item(ip, body.from_index, body.to_index)
 
     return await run_control(state, device_id, "queue_move", op)
@@ -359,9 +345,7 @@ async def inputs(device_id: str, state: StateDep) -> list[AudioInput]:
 
 @router.post("/devices/{device_id}/input", status_code=204)
 async def set_input(device_id: str, body: InputRequest, state: StateDep) -> Response:
-    ip = await require_device(state, device_id)
-
-    async def op(_: str) -> bool:
+    async def op(ip: str) -> bool:
         return await state.client.set_input(ip, body.input)
 
     return await run_control(state, device_id, "input", op)
@@ -389,10 +373,10 @@ async def set_bluetooth(device_id: str, body: BluetoothRequest, state: StateDep)
     if info is None or not info.supported:
         raise AppError(404, "bluetooth_unsupported", "This player does not support Bluetooth")
 
-    async def op(_: str) -> bool:
-        return await state.client.set_bluetooth_mode(ip, body.mode)
+    async def op(endpoint: str) -> bool:
+        return await state.client.set_bluetooth_mode(endpoint, body.mode)
 
-    return await run_control(state, device_id, "bluetooth", op)
+    return await run_control(state, device_id, "bluetooth", op, endpoint=ip)
 
 
 @router.get("/devices/{device_id}/presets")
@@ -410,9 +394,7 @@ async def play_preset(
     preset_id: Annotated[int, Path(ge=1, le=10_000)],
     state: StateDep,
 ) -> Response:
-    ip = await require_device(state, device_id)
-
-    async def op(_: str) -> bool:
+    async def op(ip: str) -> bool:
         return await state.client.play_preset(ip, preset_id)
 
     return await run_control(state, device_id, "preset", op)

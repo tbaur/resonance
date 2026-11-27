@@ -297,7 +297,9 @@ describe('FleetBar house remote art', () => {
     expect(screen.getByRole('button', { name: 'Set Bluesound volume to 60' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Set Bluesound volume to 48' }));
-    await waitFor(() => expect(setFleetVolume).toHaveBeenCalledWith(48, ['1']));
+    await waitFor(() => {
+      expect(setFleetVolume).toHaveBeenCalledWith(48, ['1']);
+    });
   });
 
   it('sets NAD CI S2 volume from level chips', async () => {
@@ -331,7 +333,9 @@ describe('FleetBar house remote art', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Set NAD CI S2 volume to 42' }));
-    await waitFor(() => expect(setFleetVolume).toHaveBeenCalledWith(42, ['2']));
+    await waitFor(() => {
+      expect(setFleetVolume).toHaveBeenCalledWith(42, ['2']);
+    });
   });
 
   it('keeps a group linked when one room is muted, and names the muted room', () => {
@@ -480,6 +484,8 @@ describe('FleetBar house remote art', () => {
     fireEvent.change(screen.getByLabelText('Set volume on Bluesound players'), {
       target: { value: '20' },
     });
-    await waitFor(() => expect(setFleetVolume).toHaveBeenCalledWith(20, ['1']));
+    await waitFor(() => {
+      expect(setFleetVolume).toHaveBeenCalledWith(20, ['1']);
+    });
   });
 });

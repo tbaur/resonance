@@ -17,6 +17,7 @@ import {
   houseTransportTargets,
 } from '@/lib/fleetStatus';
 import { houseCatchupSession, houseStoppedSession } from '@/lib/houseSession';
+import { must } from './must';
 
 function player(partial: Partial<PlayerStatus> & Pick<PlayerStatus, 'id' | 'name'>): PlayerStatus {
   return {
@@ -708,14 +709,14 @@ describe('fleetHouseStatus', () => {
       }),
     ];
     const groupedStatus = fleetHouseStatus(grouped, syncGroup('1', 'Zone L', ['2'], ['Zone M']));
-    expect(houseTransportTargets(groupedStatus.sources[0], grouped)).toEqual(['1']);
+    expect(houseTransportTargets(must(groupedStatus.sources[0]), grouped)).toEqual(['1']);
 
     const parallel = [
       player({ id: '1', name: 'Zone H', state: 'play', track: 'Daybreak', artist: 'M' }),
       player({ id: '2', name: 'Zone K', state: 'stream', track: 'Daybreak', artist: 'M' }),
     ];
     const parallelStatus = fleetHouseStatus(parallel, null);
-    expect(houseTransportTargets(parallelStatus.sources[0], parallel)).toEqual(['1']);
+    expect(houseTransportTargets(must(parallelStatus.sources[0]), parallel)).toEqual(['1']);
   });
 
   it('collapses a skip split back into one house stream', () => {

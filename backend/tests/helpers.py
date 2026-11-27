@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Callable
 from unittest.mock import AsyncMock
 
 import pytest
@@ -20,6 +22,10 @@ from app.services.events import EventBus
 from app.services.poller import StatusPoller
 from app.state import AppState
 
+# What the UI sends: a loopback Host and the header that every state change needs.
+API_BASE = "http://127.0.0.1"
+API_HEADERS = {"X-Resonance-Request": "1"}
+
 
 async def app_with_players(
     settings: Settings,
@@ -30,7 +36,6 @@ async def app_with_players(
         return self._snapshot
 
     monkeypatch.setattr(DiscoveryService, "refresh", seeded)
-    monkeypatch.setattr(DiscoveryService, "get_devices", seeded)
 
     # Default production spacing is 50ms; tests fire many requests back-to-back.
     # Opt in to 429 behavior by passing api_rate_limit_seconds other than the default.
@@ -78,3 +83,30 @@ async def app_with_players(
         poller=poller,
     )
     return app, client, discovery, poller
+
+
+async def poll_once(poller: StatusPoller) -> None:
+    """One sequential status pass over the fleet. Production runs a watcher per player."""
+    for device in list(poller.discovery.snapshot.devices):
+        await poller._cycle_device(device)
+
+
+async def bluetooth_mode(client: BluOSClient, ip: str) -> str | None:
+    """The Bluetooth mode label, or None when unsupported or unreachable."""
+    info = await client.get_bluetooth_info(ip)
+    return info.mode if info is not None and info.supported else None
+
+
+async def uptime(client: BluOSClient, ip: str) -> str | None:
+    """Uptime from the device web UI diagnostics page."""
+    parsed = await client.get_diagnostics(ip)
+    return None if parsed is None else parsed.get("uptime")
+
+
+async def wait_until(predicate: Callable[[], bool], timeout: float = 5.0) -> None:
+    """Wait for ``predicate`` to hold, checking each loop turn. Fails after ``timeout``."""
+    deadline = asyncio.get_running_loop().time() + timeout
+    while not predicate():
+        if asyncio.get_running_loop().time() >= deadline:
+            raise AssertionError("condition not met in time")
+        await asyncio.sleep(0.005)

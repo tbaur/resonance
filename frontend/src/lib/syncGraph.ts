@@ -40,16 +40,17 @@ export function dropStaleFollowerClaims(
   if (!sync) return devices;
   const { followerIds, primaryIds } = membership(sync);
   let changed = false;
-  const next = devices.map((device) => {
+  const next: PlayerStatus[] = [];
+  for (const device of devices) {
     if (device.sync_role === 'synced' && !followerIds.has(device.id)) {
       changed = true;
-      return { ...device, sync_role: 'standalone' as const, master: '', slaves: [] };
-    }
-    if (device.sync_role === 'primary' && !primaryIds.has(device.id)) {
+      next.push({ ...device, sync_role: 'standalone', master: '', slaves: [] });
+    } else if (device.sync_role === 'primary' && !primaryIds.has(device.id)) {
       changed = true;
-      return { ...device, sync_role: 'standalone' as const, slaves: [], group: '' };
+      next.push({ ...device, sync_role: 'standalone', slaves: [], group: '' });
+    } else {
+      next.push(device);
     }
-    return device;
-  });
+  }
   return changed ? next : devices;
 }

@@ -7,56 +7,87 @@
  * Browser calls to /api/v1. Failures become ApiError and keep the request id.
  */
 
-import type {
-  ApiErrorBody,
-  AppLinks,
-  AudioInput,
-  BluetoothResponse,
-  DeviceSettingsResponse,
-  DiagnoseResponse,
-  DevicesResponse,
-  FleetActionResponse,
-  FleetFirmwareResponse,
-  FleetHealthResponse,
-  FleetUpgradeResponse,
-  FleetVolumeResponse,
-  PlayerStatus,
-  Preset,
-  QueueResponse,
-  SyncEnableResponse,
-  SyncState,
-  UpgradeStatus,
-} from './types';
+import type { ApiErrorBody } from './types';
 import { ApiError } from './types';
-import { apiToken, REQUEST_HEADER } from './auth';
+import { REQUEST_HEADER, reportSessionLost } from './auth';
+import {
+  isAppLinks,
+  isAudioInputs,
+  isBluetooth,
+  isDeviceSettings,
+  isDevicesResponse,
+  isDiagnose,
+  isFleetAction,
+  isFleetFirmware,
+  isFleetHealth,
+  isFleetUpgrades,
+  isFleetVolume,
+  isPlayerStatus,
+  isPresets,
+  isQueue,
+  isRecord,
+  isSyncEnable,
+  isSyncState,
+  isUpgradeStatus,
+  isVersionInfo,
+} from './shapes';
 
 const BASE = '/api/v1';
 const FETCH_TIMEOUT_MS = 15_000;
 
-async function parseError(response: Response): Promise<ApiError> {
-  try {
-    const body = (await response.json()) as ApiErrorBody;
-    return new ApiError(response.status, body);
-  } catch {
-    return new ApiError(response.status, {
-      error: 'http_error',
-      message: response.statusText || 'Request failed',
-      code: 'http_error',
-      request_id: response.headers.get('X-Request-ID') || '-',
-    });
-  }
+function stringField(body: Record<string, unknown>, key: string): string {
+  const value = body[key];
+  return typeof value === 'string' ? value : '';
 }
 
-function abortWhenEither(left: AbortSignal, right: AbortSignal): AbortSignal {
+/** The server's error envelope, or a generic one when the body is not that shape. */
+async function parseError(response: Response): Promise<ApiError> {
+  const fallback: ApiErrorBody = {
+    error: 'http_error',
+    message: response.statusText || 'Request failed',
+    code: 'http_error',
+    request_id: response.headers.get('X-Request-ID') ?? '-',
+  };
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    return new ApiError(response.status, fallback);
+  }
+  if (!isRecord(body)) return new ApiError(response.status, fallback);
+  return new ApiError(response.status, {
+    error: stringField(body, 'error') || fallback.error,
+    message: stringField(body, 'message') || fallback.message,
+    code: stringField(body, 'code') || fallback.code,
+    request_id: stringField(body, 'request_id') || fallback.request_id,
+  });
+}
+
+/**
+ * A signal that aborts when either input does. The listeners come off as soon
+ * as one fires or `release` runs, so a long-lived caller signal does not
+ * collect one listener per request.
+ */
+function abortWhenEither(
+  left: AbortSignal,
+  right: AbortSignal,
+): { signal: AbortSignal; release: () => void } {
   const merged = new AbortController();
-  const abort = () => merged.abort();
+  const abort = () => {
+    merged.abort();
+  };
   if (left.aborted || right.aborted) {
     abort();
-    return merged.signal;
+    return { signal: merged.signal, release: () => undefined };
   }
+  const release = () => {
+    left.removeEventListener('abort', abort);
+    right.removeEventListener('abort', abort);
+  };
   left.addEventListener('abort', abort, { once: true });
   right.addEventListener('abort', abort, { once: true });
-  return merged.signal;
+  merged.signal.addEventListener('abort', release, { once: true });
+  return { signal: merged.signal, release };
 }
 
 function timeoutError(): ApiError {
@@ -68,7 +99,47 @@ function timeoutError(): ApiError {
   });
 }
 
-async function request<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
+/** Checks that a JSON body has the shape the caller expects, before it is used. */
+type Shape<T> = (body: unknown) => body is T;
+
+function badShape(path: string): ApiError {
+  return new ApiError(502, {
+    error: 'bad_response',
+    message: `Unexpected response from ${path}`,
+    code: 'bad_response',
+    request_id: '-',
+  });
+}
+
+/** One path segment. An id is data, so it must not add a segment or a query. */
+function seg(value: string | number): string {
+  return encodeURIComponent(String(value));
+}
+
+/** The shape for endpoints that answer 204: any body is ignored. */
+const NO_BODY = 'no-body';
+
+type RequestInitWithJson = RequestInit & { json?: unknown };
+
+/**
+ * One API call. Every JSON answer is checked against `shape` before the caller
+ * sees it, so a payload that is not what the views expect fails here.
+ */
+function request(
+  path: string,
+  init: RequestInitWithJson | undefined,
+  shape: typeof NO_BODY,
+): Promise<undefined>;
+function request<T>(
+  path: string,
+  init: RequestInitWithJson | undefined,
+  shape: Shape<T>,
+): Promise<T>;
+async function request(
+  path: string,
+  init: RequestInitWithJson | undefined,
+  shape: Shape<unknown> | typeof NO_BODY,
+): Promise<unknown> {
   const headers = new Headers(init?.headers);
   let body = init?.body;
   if (init?.json !== undefined) {
@@ -76,18 +147,15 @@ async function request<T>(path: string, init?: RequestInit & { json?: unknown })
     body = JSON.stringify(init.json);
   }
   headers.set(REQUEST_HEADER, '1');
-  // A caller-supplied token (the session form) wins over the built-in one.
-  if (apiToken && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${apiToken}`);
-  }
-  const rest = { ...(init ?? {}) } as RequestInit & { json?: unknown };
+  const rest: RequestInitWithJson = { ...(init ?? {}) };
   delete rest.json;
   const timeoutController = new AbortController();
-  const timeoutId = window.setTimeout(() => timeoutController.abort(), FETCH_TIMEOUT_MS);
-  const userSignal = rest.signal;
-  const signal = userSignal
-    ? abortWhenEither(userSignal, timeoutController.signal)
-    : timeoutController.signal;
+  const timeoutId = window.setTimeout(() => {
+    timeoutController.abort();
+  }, FETCH_TIMEOUT_MS);
+  const userSignal = rest.signal ?? undefined;
+  const merged = userSignal ? abortWhenEither(userSignal, timeoutController.signal) : undefined;
+  const signal = merged ? merged.signal : timeoutController.signal;
   try {
     const response = await fetch(`${BASE}${path}`, {
       ...rest,
@@ -97,12 +165,15 @@ async function request<T>(path: string, init?: RequestInit & { json?: unknown })
       signal,
     });
     if (!response.ok) {
+      // The session form reports its own wrong token; anything else means the
+      // cookie stopped working and the browser must sign in again.
+      if (response.status === 401 && path !== '/session') reportSessionLost();
       throw await parseError(response);
     }
-    if (response.status === 204) {
-      return undefined as T;
-    }
-    return (await response.json()) as T;
+    if (shape === NO_BODY) return undefined;
+    const parsed: unknown = response.status === 204 ? undefined : await response.json();
+    if (!shape(parsed)) throw badShape(path);
+    return parsed;
   } catch (err) {
     if (err instanceof ApiError) {
       throw err;
@@ -115,97 +186,126 @@ async function request<T>(path: string, init?: RequestInit & { json?: unknown })
     throw err;
   } finally {
     window.clearTimeout(timeoutId);
+    merged?.release();
   }
 }
 
 export const api = {
   /** Trade an API token for the HttpOnly session cookie. */
   openSession: (token: string) =>
-    request<void>('/session', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    }),
-  links: () => request<AppLinks>('/links'),
-  listDevices: () => request<DevicesResponse>('/devices'),
-  refreshDevices: () => request<DevicesResponse>('/devices/refresh', { method: 'POST' }),
-  getDevice: (id: string) => request<PlayerStatus>(`/devices/${id}`),
-  play: (id: string) => request<void>(`/devices/${id}/play`, { method: 'POST' }),
-  pause: (id: string) => request<void>(`/devices/${id}/pause`, { method: 'POST' }),
-  stop: (id: string) => request<void>(`/devices/${id}/stop`, { method: 'POST' }),
-  skip: (id: string) => request<void>(`/devices/${id}/skip`, { method: 'POST' }),
-  back: (id: string) => request<void>(`/devices/${id}/back`, { method: 'POST' }),
-  toggle: (id: string) => request<void>(`/devices/${id}/toggle`, { method: 'POST' }),
+    request(
+      '/session',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      NO_BODY,
+    ),
+  links: () => request('/links', undefined, isAppLinks),
+  version: () => request('/version', undefined, isVersionInfo),
+  listDevices: () => request('/devices', undefined, isDevicesResponse),
+  refreshDevices: () => request('/devices/refresh', { method: 'POST' }, isDevicesResponse),
+  getDevice: (id: string) => request(`/devices/${seg(id)}`, undefined, isPlayerStatus),
+  play: (id: string) => request(`/devices/${seg(id)}/play`, { method: 'POST' }, NO_BODY),
+  pause: (id: string) => request(`/devices/${seg(id)}/pause`, { method: 'POST' }, NO_BODY),
+  stop: (id: string) => request(`/devices/${seg(id)}/stop`, { method: 'POST' }, NO_BODY),
+  skip: (id: string) => request(`/devices/${seg(id)}/skip`, { method: 'POST' }, NO_BODY),
+  back: (id: string) => request(`/devices/${seg(id)}/back`, { method: 'POST' }, NO_BODY),
+  toggle: (id: string) => request(`/devices/${seg(id)}/toggle`, { method: 'POST' }, NO_BODY),
   seek: (id: string, seconds: number) =>
-    request<void>(`/devices/${id}/seek`, { method: 'POST', json: { seconds } }),
+    request(`/devices/${seg(id)}/seek`, { method: 'POST', json: { seconds } }, NO_BODY),
   setShuffle: (id: string, state: 0 | 1) =>
-    request<void>(`/devices/${id}/shuffle`, { method: 'POST', json: { state } }),
+    request(`/devices/${seg(id)}/shuffle`, { method: 'POST', json: { state } }, NO_BODY),
   setRepeat: (id: string, state: 0 | 1 | 2) =>
-    request<void>(`/devices/${id}/repeat`, { method: 'POST', json: { state } }),
-  adjustVolume: (id: string, delta: number) =>
-    request<void>(`/devices/${id}/volume/adjust`, { method: 'POST', json: { delta } }),
+    request(`/devices/${seg(id)}/repeat`, { method: 'POST', json: { state } }, NO_BODY),
   diagnose: (id: string, init?: RequestInit) =>
-    request<DiagnoseResponse>(`/devices/${id}/diagnose`, { cache: 'no-store', ...init }),
+    request(`/devices/${seg(id)}/diagnose`, { cache: 'no-store', ...init }, isDiagnose),
   getSettings: (id: string, pageId: 'audio' | 'player', init?: RequestInit) =>
-    request<DeviceSettingsResponse>(`/devices/${id}/settings/${pageId}`, init),
+    request(`/devices/${seg(id)}/settings/${pageId}`, init, isDeviceSettings),
   setSetting: (id: string, settingId: string, value: string) =>
-    request<void>(`/devices/${id}/settings`, {
-      method: 'POST',
-      json: { id: settingId, value },
-    }),
+    request(
+      `/devices/${seg(id)}/settings`,
+      {
+        method: 'POST',
+        json: { id: settingId, value },
+      },
+      NO_BODY,
+    ),
   getUpgrade: (id: string, init?: RequestInit) =>
-    request<UpgradeStatus>(`/devices/${id}/upgrade`, init),
-  fleetFirmware: () => request<FleetFirmwareResponse>('/fleet/firmware'),
-  fleetUpgrades: () => request<FleetUpgradeResponse>('/fleet/upgrades'),
-  getFleetHealth: () => request<FleetHealthResponse>('/fleet/health'),
-  reboot: (id: string) => request<void>(`/devices/${id}/reboot`, { method: 'POST' }),
+    request(`/devices/${seg(id)}/upgrade`, init, isUpgradeStatus),
+  fleetFirmware: () => request('/fleet/firmware', undefined, isFleetFirmware),
+  fleetUpgrades: () => request('/fleet/upgrades', undefined, isFleetUpgrades),
+  getFleetHealth: () => request('/fleet/health', undefined, isFleetHealth),
+  reboot: (id: string) => request(`/devices/${seg(id)}/reboot`, { method: 'POST' }, NO_BODY),
   setVolume: (id: string, level: number) =>
-    request<void>(`/devices/${id}/volume`, { method: 'POST', json: { level } }),
+    request(`/devices/${seg(id)}/volume`, { method: 'POST', json: { level } }, NO_BODY),
   setFleetVolume: (level: number, deviceIds?: string[]) =>
-    request<FleetVolumeResponse>('/fleet/volume', {
-      method: 'POST',
-      json: deviceIds === undefined ? { level } : { level, device_ids: deviceIds },
-    }),
+    request(
+      '/fleet/volume',
+      {
+        method: 'POST',
+        json: deviceIds === undefined ? { level } : { level, device_ids: deviceIds },
+      },
+      isFleetVolume,
+    ),
   fleetMute: (mute: boolean) =>
-    request<FleetActionResponse>('/fleet/mute', { method: 'POST', json: { mute } }),
-  fleetPause: () => request<FleetActionResponse>('/fleet/pause', { method: 'POST' }),
-  fleetStop: () => request<FleetActionResponse>('/fleet/stop', { method: 'POST' }),
-  fleetReboot: () => request<FleetActionResponse>('/fleet/reboot', { method: 'POST' }),
+    request('/fleet/mute', { method: 'POST', json: { mute } }, isFleetAction),
+  fleetPause: () => request('/fleet/pause', { method: 'POST' }, isFleetAction),
+  fleetStop: () => request('/fleet/stop', { method: 'POST' }, isFleetAction),
+  fleetReboot: () => request('/fleet/reboot', { method: 'POST' }, isFleetAction),
   setMute: (id: string, mute: boolean) =>
-    request<void>(`/devices/${id}/mute`, { method: 'POST', json: { mute } }),
-  getQueue: (id: string, init?: RequestInit) =>
-    request<QueueResponse>(`/devices/${id}/queue`, init),
-  clearQueue: (id: string) => request<void>(`/devices/${id}/queue/clear`, { method: 'POST' }),
+    request(`/devices/${seg(id)}/mute`, { method: 'POST', json: { mute } }, NO_BODY),
+  getQueue: (id: string, init?: RequestInit) => request(`/devices/${seg(id)}/queue`, init, isQueue),
+  clearQueue: (id: string) =>
+    request(`/devices/${seg(id)}/queue/clear`, { method: 'POST' }, NO_BODY),
   getInputs: (id: string, init?: RequestInit) =>
-    request<AudioInput[]>(`/devices/${id}/inputs`, init),
+    request(`/devices/${seg(id)}/inputs`, init, isAudioInputs),
   setInput: (id: string, input: string) =>
-    request<void>(`/devices/${id}/input`, { method: 'POST', json: { input } }),
+    request(`/devices/${seg(id)}/input`, { method: 'POST', json: { input } }, NO_BODY),
   getBluetooth: (id: string, init?: RequestInit) =>
-    request<BluetoothResponse>(`/devices/${id}/bluetooth`, init),
+    request(`/devices/${seg(id)}/bluetooth`, init, isBluetooth),
   setBluetooth: (id: string, mode: 0 | 1 | 2 | 3) =>
-    request<void>(`/devices/${id}/bluetooth`, { method: 'POST', json: { mode } }),
-  getPresets: (id: string, init?: RequestInit) => request<Preset[]>(`/devices/${id}/presets`, init),
+    request(`/devices/${seg(id)}/bluetooth`, { method: 'POST', json: { mode } }, NO_BODY),
+  getPresets: (id: string, init?: RequestInit) =>
+    request(`/devices/${seg(id)}/presets`, init, isPresets),
   playPreset: (id: string, presetId: string | number) =>
-    request<void>(`/devices/${id}/presets/${presetId}/play`, { method: 'POST' }),
-  getSync: () => request<SyncState>('/sync'),
+    request(`/devices/${seg(id)}/presets/${seg(presetId)}/play`, { method: 'POST' }, NO_BODY),
+  getSync: () => request('/sync', undefined, isSyncState),
   syncAdd: (masterId: string, slaveId: string) =>
-    request<void>('/sync/add', {
-      method: 'POST',
-      json: { master_id: masterId, slave_id: slaveId },
-    }),
+    request(
+      '/sync/add',
+      {
+        method: 'POST',
+        json: { master_id: masterId, slave_id: slaveId },
+      },
+      NO_BODY,
+    ),
   syncEnable: (primaryId: string) =>
-    request<SyncEnableResponse>('/sync/enable', {
-      method: 'POST',
-      json: { primary_id: primaryId },
-    }),
+    request(
+      '/sync/enable',
+      {
+        method: 'POST',
+        json: { primary_id: primaryId },
+      },
+      isSyncEnable,
+    ),
   syncRemove: (masterId: string, slaveId: string) =>
-    request<void>('/sync/remove', {
-      method: 'POST',
-      json: { master_id: masterId, slave_id: slaveId },
-    }),
-  syncBreak: () => request<FleetActionResponse>('/sync/break', { method: 'POST' }),
+    request(
+      '/sync/remove',
+      {
+        method: 'POST',
+        json: { master_id: masterId, slave_id: slaveId },
+      },
+      NO_BODY,
+    ),
+  syncBreak: () => request('/sync/break', { method: 'POST' }, isFleetAction),
   moveQueueItem: (id: string, fromIndex: number, toIndex: number) =>
-    request<void>(`/devices/${id}/queue/move`, {
-      method: 'POST',
-      json: { from_index: fromIndex, to_index: toIndex },
-    }),
+    request(
+      `/devices/${seg(id)}/queue/move`,
+      {
+        method: 'POST',
+        json: { from_index: fromIndex, to_index: toIndex },
+      },
+      NO_BODY,
+    ),
 };

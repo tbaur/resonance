@@ -11,13 +11,24 @@ import asyncio
 
 import pytest
 
-from app.services.events import EventBus
+from app.services.events import EventBus, EventQueue
+
+
+async def _subscribe(bus: EventBus) -> EventQueue:
+    queue, _initial = await bus.subscribe_with_snapshot("fleet", lambda: {})
+    return queue
+
+
+async def _is_closed(bus: EventBus) -> bool:
+    queue, initial = await bus.subscribe_with_snapshot("fleet", lambda: {})
+    await bus.unsubscribe(queue)
+    return initial is None
 
 
 @pytest.mark.asyncio
 async def test_event_bus_publish_and_subscribe() -> None:
     bus = EventBus(max_queue_size=2)
-    queue = await bus.subscribe()
+    queue = await _subscribe(bus)
     await bus.publish("fleet", {"ok": True})
     payload = await asyncio.wait_for(queue.get(), timeout=1)
     assert '"fleet"' in payload
@@ -27,7 +38,7 @@ async def test_event_bus_publish_and_subscribe() -> None:
 @pytest.mark.asyncio
 async def test_event_bus_backpressure_drops_oldest() -> None:
     bus = EventBus(max_queue_size=1)
-    queue = await bus.subscribe()
+    queue = await _subscribe(bus)
     await bus.publish("a", 1)
     await bus.publish("b", 2)
     payload = await asyncio.wait_for(queue.get(), timeout=1)
@@ -73,14 +84,14 @@ async def test_subscribe_with_snapshot_after_close_has_no_snapshot() -> None:
 @pytest.mark.asyncio
 async def test_close_ends_every_subscriber_even_when_full() -> None:
     bus = EventBus(max_queue_size=1)
-    idle = await bus.subscribe()
-    full = await bus.subscribe()
+    idle = await _subscribe(bus)
+    full = await _subscribe(bus)
     await bus.publish("a", 1)
     await idle.get()
 
     bus.close()
 
-    assert bus.closed
+    assert await _is_closed(bus)
     assert await asyncio.wait_for(idle.get(), timeout=1) is None
     assert await asyncio.wait_for(full.get(), timeout=1) is None
 
@@ -88,7 +99,7 @@ async def test_close_ends_every_subscriber_even_when_full() -> None:
 @pytest.mark.asyncio
 async def test_publish_after_close_cannot_evict_the_stop_marker() -> None:
     bus = EventBus(max_queue_size=1)
-    queue = await bus.subscribe()
+    queue = await _subscribe(bus)
     bus.close()
     await bus.publish("late", 1)
     assert queue.get_nowait() is None
@@ -96,12 +107,11 @@ async def test_publish_after_close_cannot_evict_the_stop_marker() -> None:
 
 
 @pytest.mark.asyncio
-async def test_subscribe_after_close_gets_the_stop_marker() -> None:
+async def test_close_twice_is_safe() -> None:
     bus = EventBus()
     bus.close()
     bus.close()
-    queue = await bus.subscribe()
-    assert queue.get_nowait() is None
+    assert await _is_closed(bus)
 
 
 def test_event_bus_subscriber_count() -> None:
@@ -116,7 +126,23 @@ async def test_event_bus_subscriber_count_live() -> None:
     from app.services.events import EventBus
 
     bus = EventBus()
-    q = await bus.subscribe()
+    q = await _subscribe(bus)
     assert bus.subscriber_count == 1
     await bus.unsubscribe(q)
     assert bus.subscriber_count == 0
+
+
+@pytest.mark.asyncio
+async def test_every_event_carries_the_server_clock() -> None:
+    import json
+    import time
+
+    bus = EventBus()
+    queue, initial = await bus.subscribe_with_snapshot("fleet", lambda: {})
+    await bus.publish("device", {"id": "p1"})
+    before = time.time()
+    for raw in (initial, queue.get_nowait()):
+        assert raw is not None
+        sent_at = json.loads(raw)["sent_at"]
+        assert abs(sent_at - before) < 5
+    await bus.unsubscribe(queue)

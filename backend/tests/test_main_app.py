@@ -21,6 +21,7 @@ from app.config import Settings, get_settings
 from app.discovery.service import DiscoveryService, DiscoverySnapshot
 from app.main import create_app
 from app.middleware import _DEFAULT_CSP, _SWAGGER_CSP
+from tests.helpers import API_BASE, API_HEADERS, wait_until
 
 
 @pytest.fixture
@@ -54,7 +55,7 @@ async def test_lifespan_starts_and_stops(
     app = create_app()
     async with app.router.lifespan_context(app):
         transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as http:
+        async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
             health = await http.get("/api/v1/healthz")
             assert health.status_code == 200
             alias = await http.get("/health", follow_redirects=False)
@@ -122,7 +123,10 @@ async def test_stop_signal_closes_the_event_bus_while_the_app_runs(
             assert callable(chained)
             chained(signal.SIGTERM, None)
             await asyncio.sleep(0)
-            assert app.state.app_state.events.closed
+            _queue, initial = await app.state.app_state.events.subscribe_with_snapshot(
+                "fleet", dict
+            )
+            assert initial is None
             assert server_stops == [signal.SIGTERM]
         assert signal.getsignal(signal.SIGTERM) is server_handler
     finally:
@@ -143,7 +147,7 @@ async def test_lifespan_survives_initial_discovery_failure(
     app = create_app()
     async with app.router.lifespan_context(app):
         transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as http:
+        async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
             assert (await http.get("/api/v1/healthz")).status_code == 200
 
 
@@ -186,7 +190,7 @@ async def test_exception_handlers(
 
     async with app.router.lifespan_context(app):
         transport = ASGITransport(app=app, raise_app_exceptions=False)
-        async with AsyncClient(transport=transport, base_url="http://test") as http:
+        async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
             http_err = await http.get("/__test/http")
             assert http_err.status_code == 418
             assert http_err.json()["code"] == "http_error"
@@ -222,7 +226,7 @@ async def test_root_serves_api_home_when_spa_missing(
     app = create_app()
     async with app.router.lifespan_context(app):
         transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as http:
+        async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
             home = await http.get("/")
             assert home.status_code == 200
             assert "text/html" in home.headers["content-type"]
@@ -254,7 +258,7 @@ async def test_root_serves_spa_index_when_built(
     app = create_app()
     async with app.router.lifespan_context(app):
         transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as http:
+        async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
             response = await http.get("/")
             assert response.status_code == 200
             assert "ok" in response.text
@@ -277,3 +281,106 @@ def test_warn_if_open_to_network(host: str, token: str, expected: bool) -> None:
 
     get_settings.cache_clear()
     assert warn_if_open_to_network(Settings(host=host, api_token=token)) is expected
+
+
+def test_no_static_dir_means_an_api_only_server() -> None:
+    """The development API must not serve whatever build is left in frontend/dist."""
+    from app.main import _resolve_static_dir
+
+    assert _resolve_static_dir(Settings(static_dir="")) is None
+    assert _resolve_static_dir(Settings(static_dir="/srv/ui")) == Path("/srv/ui")
+
+
+def test_api_home_escapes_the_ui_origin() -> None:
+    from app.main import _api_home_html
+
+    html = _api_home_html(Settings(cors_origins='http://127.0.0.1:8765/"><script>x</script>'))
+    assert "<script>x</script>" not in html
+    assert "&lt;script&gt;" in html
+
+
+@pytest.mark.asyncio
+async def test_startup_discovers_once_before_the_poller_starts(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    async def refresh(self: DiscoveryService) -> DiscoverySnapshot:
+        calls.append("refresh")
+        self._snapshot = DiscoverySnapshot(discovered_at=__import__("time").time())
+        return self._snapshot
+
+    monkeypatch.setattr(DiscoveryService, "refresh", refresh)
+    monkeypatch.setattr("app.main.get_settings", lambda: settings)
+    app = create_app()
+    async with app.router.lifespan_context(app):
+        poller = app.state.app_state.poller
+        assert poller.running is True
+        # One full reconcile pass is where a stale cache would browse again.
+        await wait_until(lambda: poller.last_poll_at is not None)
+        assert calls == ["refresh"]
+
+
+@pytest.mark.asyncio
+async def test_unknown_routes_answer_with_the_error_envelope(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(DiscoveryService, "refresh", AsyncMock(return_value=DiscoverySnapshot()))
+    monkeypatch.setattr("app.main.get_settings", lambda: settings)
+    app = create_app()
+    async with app.router.lifespan_context(app):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url=API_BASE, headers=API_HEADERS
+        ) as http:
+            missing = await http.get("/api/v1/nothing-here")
+            missing_file = await http.get("/favicon.svg")
+    for response in (missing, missing_file):
+        assert response.status_code == 404
+        body = response.json()
+        assert set(body) == {"error", "message", "code", "request_id"}
+        assert body["request_id"] != "-"
+
+
+@pytest.mark.asyncio
+async def test_api_only_server_answers_router_errors_with_the_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With no UI to serve, the router's own 404 and 405 must still use the envelope."""
+    get_settings.cache_clear()
+    api_only = Settings(static_dir="", poll_interval=60, discovery_cache_ttl=0)
+    monkeypatch.setattr("app.main.get_settings", lambda: api_only)
+    monkeypatch.setattr("app.middleware.get_settings", lambda: api_only)
+    monkeypatch.setattr(DiscoveryService, "refresh", AsyncMock(return_value=DiscoverySnapshot()))
+    app = create_app()
+    async with app.router.lifespan_context(app):
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url=API_BASE, headers=API_HEADERS
+        ) as http:
+            missing = await http.get("/api/v1/nothing-here")
+            wrong_method = await http.put("/api/v1/devices")
+    assert missing.status_code == 404
+    assert missing.json()["code"] == "not_found"
+    assert wrong_method.status_code == 405
+    assert wrong_method.json()["code"] == "method_not_allowed"
+    assert "GET" in wrong_method.headers["allow"]
+    for response in (missing, wrong_method):
+        assert set(response.json()) == {"error", "message", "code", "request_id"}
+
+
+@pytest.mark.asyncio
+async def test_api_docs_declare_the_write_header(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Swagger's Try it out sends declared headers; without this every POST is a 403."""
+    monkeypatch.setattr("app.main.get_settings", lambda: settings)
+    app = create_app()
+    schema = app.openapi()
+    play = schema["paths"]["/api/v1/devices/{device_id}/play"]["post"]
+    header = next(p for p in play["parameters"] if p["in"] == "header")
+    assert header["name"].lower() == "x-resonance-request"
+    assert header["required"] is True
+    assert header["schema"]["default"] == "1"
+    listing = schema["paths"]["/api/v1/devices"]["get"]
+    assert all(p["in"] != "header" for p in listing.get("parameters", []))

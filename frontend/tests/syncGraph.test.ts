@@ -55,7 +55,7 @@ describe('syncGraph', () => {
   it('keeps device role when no sync snapshot is loaded yet', () => {
     const follower = player({ id: 'zone-r', sync_role: 'synced', master: '10.0.0.1:11000' });
     expect(displaySyncRole(follower, null)).toBe('synced');
-    expect(dropStaleFollowerClaims([follower], null)[0].sync_role).toBe('synced');
+    expect(dropStaleFollowerClaims([follower], null)[0]?.sync_role).toBe('synced');
   });
 
   it('hides leftover SYNCED once the runtime group is gone', () => {
@@ -69,8 +69,8 @@ describe('syncGraph', () => {
     const sync: SyncState = { groups: [], standalone_ids: ['zone-n', 'zone-r'] };
     expect(displaySyncRole(patio, sync)).toBe('standalone');
     const next = dropStaleFollowerClaims([lead, patio], sync);
-    expect(next[1].sync_role).toBe('standalone');
-    expect(next[1].master).toBe('');
+    expect(next[1]?.sync_role).toBe('standalone');
+    expect(next[1]?.master).toBe('');
   });
 
   it('keeps a confirmed follower and orphan listed in the graph', () => {
@@ -90,6 +90,6 @@ describe('syncGraph', () => {
       standalone_ids: [],
     };
     expect(displaySyncRole(patio, sync)).toBe('synced');
-    expect(dropStaleFollowerClaims([patio], sync)[0].sync_role).toBe('synced');
+    expect(dropStaleFollowerClaims([patio], sync)[0]?.sync_role).toBe('synced');
   });
 });

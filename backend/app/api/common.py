@@ -169,8 +169,45 @@ async def begin_control(state: AppState, device_ids: Sequence[str]) -> None:
     await state.poller.interrupt(device_ids)
 
 
-async def run_control(state: AppState, device_id: str, op_name: str, coro: ControlOp) -> Response:
-    ip = await require_device(state, device_id)
+def record_control_failure(state: AppState, op_name: str, device_id: str, endpoint: str) -> None:
+    """Log why a control call failed and keep its kind for /readyz.
+
+    Reads the result that the failed call recorded in this task.
+    """
+    failure = take_control_result()
+    # The last recorded call can be a success when a later, unrecorded step
+    # failed (a sync change the player never confirmed). That is not a kind.
+    # CallResult is falsy when it failed, so test ``ok``, not truthiness.
+    failed = failure is not None and not failure.ok
+    kind = failure.kind if failure is not None and failed else "failed"
+    detail = failure.detail if failure is not None and failed else ""
+    state.poller.last_control_failure_kind = kind
+    logger.warning(
+        "control_failed",
+        extra={
+            "op": op_name,
+            "device_id": device_id,
+            "device_ip": endpoint,
+            "failure_kind": kind,
+            "failure_detail": detail,
+        },
+    )
+
+
+async def run_control(
+    state: AppState,
+    device_id: str,
+    op_name: str,
+    coro: ControlOp,
+    *,
+    endpoint: str | None = None,
+) -> Response:
+    """Run one control call on a player and answer 204, or raise 502 on failure.
+
+    Pass ``endpoint`` when the route already resolved the player, so the
+    address (and, in grace, its MAC check) is not looked up twice.
+    """
+    ip = endpoint if endpoint is not None else await require_device(state, device_id)
     logger.info(
         "control_op",
         extra={"op": op_name, "device_id": device_id, "device_ip": ip},
@@ -178,20 +215,7 @@ async def run_control(state: AppState, device_id: str, op_name: str, coro: Contr
     await begin_control(state, [device_id])
     ok = await coro(ip)
     if not ok:
-        failure = take_control_result()
-        kind = failure.kind if failure else "failed"
-        detail = failure.detail if failure else ""
-        state.poller.last_control_failure_kind = kind
-        logger.warning(
-            "control_failed",
-            extra={
-                "op": op_name,
-                "device_id": device_id,
-                "device_ip": ip,
-                "failure_kind": kind,
-                "failure_detail": detail,
-            },
-        )
+        record_control_failure(state, op_name, device_id, ip)
         raise AppError(502, "bluos_control_failed", f"BluOS {op_name} failed")
     state.poller.schedule_refresh(device_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -225,20 +249,7 @@ async def fleet_action(
         if ok:
             state.poller.schedule_refresh(device_id)
         else:
-            failure = take_control_result()
-            kind = failure.kind if failure else "failed"
-            detail = failure.detail if failure else ""
-            state.poller.last_control_failure_kind = kind
-            logger.warning(
-                "control_failed",
-                extra={
-                    "op": f"fleet_{action}",
-                    "device_id": device_id,
-                    "device_ip": endpoint,
-                    "failure_kind": kind,
-                    "failure_detail": detail,
-                },
-            )
+            record_control_failure(state, f"fleet_{action}", device_id, endpoint)
         return FleetVolumeResult(device_id=device_id, name=name, ok=ok)
 
     results = await asyncio.gather(*(one(d.id, d.name, d.endpoint) for d in devices))

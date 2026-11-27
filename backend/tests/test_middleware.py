@@ -16,7 +16,7 @@ from app.auth import SESSION_COOKIE, session_cookie_value
 from app.config import Settings, get_settings
 from app.middleware import _authorized, _client_ip
 from app.models import UpgradeStatus
-from tests.helpers import app_with_players
+from tests.helpers import API_BASE, API_HEADERS, app_with_players
 
 TOKEN = b"secret-token"
 COOKIE = session_cookie_value(TOKEN)
@@ -104,8 +104,9 @@ async def test_api_token_required_when_configured(
     monkeypatch.setattr("app.main.get_settings", lambda: settings)
     monkeypatch.setattr("app.middleware.get_settings", lambda: settings)
     app, client, _, _ = await app_with_players(settings, monkeypatch)
+    client.pause = AsyncMock(return_value=True)  # type: ignore[method-assign]
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         denied = await http.get("/api/v1/devices")
         assert denied.status_code == 401
         assert denied.json()["code"] == "unauthorized"
@@ -128,7 +129,8 @@ async def test_api_token_required_when_configured(
 
         # The client now holds the issued cookie.
         assert (await http.get("/api/v1/devices")).status_code == 200
-        cookie_post = await http.post("/api/v1/fleet/pause")
+        # The client sends the request header by default; leave it off here.
+        cookie_post = await http.post("/api/v1/fleet/pause", headers={"X-Resonance-Request": ""})
         assert cookie_post.status_code == 401
         cookie_ok = await http.post(
             "/api/v1/fleet/pause",
@@ -162,7 +164,7 @@ async def test_api_token_accepts_x_api_token_and_forwarded_for(
     monkeypatch.setattr("app.middleware.get_settings", lambda: settings)
     app, client, _, _ = await app_with_players(settings, monkeypatch)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         via_header = await http.get(
             "/api/v1/devices",
             headers={"X-API-Token": "sse-secret", "X-Forwarded-For": "10.0.0.9"},
@@ -202,7 +204,7 @@ async def test_hot_get_rate_limit_returns_429(
         )
     )
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         first = await http.get("/api/v1/fleet/upgrades")
         second = await http.get("/api/v1/fleet/upgrades")
         assert first.status_code == 200

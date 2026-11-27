@@ -19,6 +19,7 @@ from app.services.events import EventBus
 from app.services.poller import StatusPoller
 from app.services.sync import build_sync_state, drop_stale_follower_claims
 from app.state import AppState
+from tests.helpers import API_BASE, API_HEADERS
 
 
 @pytest.fixture
@@ -121,7 +122,6 @@ async def _app_with_player(settings: Settings, monkeypatch: pytest.MonkeyPatch):
         return self._snapshot
 
     monkeypatch.setattr(DiscoveryService, "refresh", seeded)
-    monkeypatch.setattr(DiscoveryService, "get_devices", seeded)
     app = create_app()
     client = BluOSClient(settings)
     events = EventBus()
@@ -170,7 +170,7 @@ async def test_ssrf_unknown_device_rejected(settings: Settings, monkeypatch: pyt
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/devices/player-unknown/play")
         assert response.status_code == 404
         body = response.json()
@@ -183,7 +183,7 @@ async def test_ssrf_unknown_device_rejected(settings: Settings, monkeypatch: pyt
 async def test_volume_validation(settings: Settings, monkeypatch: pytest.MonkeyPatch):
     app, client = await _app_with_player(settings, monkeypatch)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post(
             "/api/v1/devices/player-zone-m/volume",
             json={"level": 250},
@@ -196,7 +196,7 @@ async def test_volume_validation(settings: Settings, monkeypatch: pytest.MonkeyP
 async def test_health_and_version(settings: Settings, monkeypatch: pytest.MonkeyPatch):
     app, client = await _app_with_player(settings, monkeypatch)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         health = await http.get("/api/v1/healthz")
         assert health.status_code == 200
         version = await http.get("/api/v1/version")
@@ -217,7 +217,7 @@ async def test_links_name_a_configured_valence(settings: Settings, monkeypatch: 
     settings.valence_url = "https://valence.example.com"
     app, client = await _app_with_player(settings, monkeypatch)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         links = await http.get("/api/v1/links")
         assert links.json() == {"valence_url": "https://valence.example.com"}
     await client.aclose()

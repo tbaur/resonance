@@ -28,6 +28,7 @@ from tests.fixtures.xml_samples import (
     SYNC_STATUS_MUTED,
     SYNC_STATUS_SLAVE,
 )
+from tests.helpers import poll_once
 
 STATUS_SKIP = STATUS.replace(b'etag="2"', b'etag="3"').replace(b"Song Title", b"Next Song")
 STATUS_SYNC_CHANGED = STATUS.replace(b'etag="2"', b'etag="4"').replace(
@@ -61,7 +62,7 @@ def _poller(settings: Settings, client: BluOSClient) -> tuple[StatusPoller, Disc
     discovery = DiscoveryService(settings, client)
     player = PlayerStatus(id="p1", ip="192.168.1.20", name="K", status="online")
     discovery._snapshot.devices = [player]
-    discovery._snapshot.ips_by_id = {"p1": "192.168.1.20:11000"}
+    discovery._snapshot.endpoints_by_id = {"p1": "192.168.1.20:11000"}
     discovery._snapshot.discovered_at = time.time()
     return StatusPoller(settings, discovery, client, EventBus()), discovery
 
@@ -389,10 +390,10 @@ async def test_poller_second_cycle_long_polls_status(settings: Settings) -> None
     client = BluOSClient(settings)
     poller, discovery = _poller(settings, client)
     try:
-        await poller._poll_once()
+        await poll_once(poller)
         assert discovery.snapshot.devices[0].track == "Song Title"
         assert poller._status_etags["p1"] == "2"
-        await poller._poll_once()
+        await poll_once(poller)
         assert discovery.snapshot.devices[0].track == "Next Song"
         assert poller._status_etags["p1"] == "3"
         assert status_route.calls[1].request.url.params["etag"] == "2"
@@ -438,18 +439,18 @@ async def test_poller_rereads_syncstatus_when_syncstat_never_moves(
     clock = {"now": 1000.0}
     monkeypatch.setattr("app.services.poller.time.monotonic", lambda: clock["now"])
     try:
-        await poller._poll_once()
+        await poll_once(poller)
         assert discovery.snapshot.devices[0].sync_role == SyncRole.STANDALONE
 
         # Same syncStat soon after: the cached SyncStatus is reused.
         clock["now"] += 5
-        await poller._poll_once()
+        await poll_once(poller)
         assert plain_reads == 1
         assert discovery.snapshot.devices[0].sync_role == SyncRole.STANDALONE
 
         # Same syncStat, but the last read is old: read it again.
         clock["now"] += 60
-        await poller._poll_once()
+        await poll_once(poller)
         assert plain_reads == 2
         follower = discovery.snapshot.devices[0]
         assert follower.sync_role == SyncRole.SYNCED
@@ -475,9 +476,9 @@ async def test_poller_names_the_transport_error(
     client = BluOSClient(settings)
     poller, _discovery = _poller(settings, client)
     try:
-        await poller._poll_once()
+        await poll_once(poller)
         with caplog.at_level("INFO", logger="app.services.poller"):
-            await poller._poll_once()
+            await poll_once(poller)
         stale = next(record for record in caplog.records if record.message == "player_stale")
         assert stale.failure_kind == "ConnectError"
     finally:
@@ -511,7 +512,7 @@ async def test_lead_track_is_copied_to_a_grouped_follower(settings: Settings) ->
         track="Old",
     )
     discovery._snapshot.devices.append(follower)
-    discovery._snapshot.ips_by_id["f1"] = "192.168.1.30:11010"
+    discovery._snapshot.endpoints_by_id["f1"] = "192.168.1.30:11010"
     try:
         await poller._cycle_device(discovery.snapshot.devices[0])
         copied = discovery.get_device("f1")
@@ -574,16 +575,18 @@ async def test_poller_clears_etag_when_player_goes_offline(settings: Settings) -
     client = BluOSClient(settings)
     poller, discovery = _poller(settings, client)
     try:
-        await poller._poll_once()
+        await poll_once(poller)
         assert "p1" in poller._status_etags
-        await poller._poll_once()
+        await poll_once(poller)
         missed = discovery.snapshot.devices[0]
         assert missed.status == "online"
         assert missed.stale is True
         assert missed.track == "Song Title"
         assert "p1" not in poller._status_etags
         for _ in range(settings.circuit_failure_threshold - 1):
-            await poller._poll_once()
+            # Skip the poll_interval wait between misses; the count is what matters.
+            poller._next_due.clear()
+            await poll_once(poller)
         assert discovery.snapshot.devices[0].status == "offline"
         assert "p1" not in poller._status_etags
         drops = poller.health.snapshot().drops

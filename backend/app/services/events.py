@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -26,14 +27,6 @@ class EventBus:
         self._max_queue_size = max_queue_size
         self._closed = False
         self.dropped_events = 0
-
-    async def subscribe(self) -> EventQueue:
-        queue: EventQueue = asyncio.Queue(maxsize=self._max_queue_size)
-        async with self._lock:
-            self._subscribers.add(queue)
-            if self._closed:
-                queue.put_nowait(None)
-        return queue
 
     async def subscribe_with_snapshot(
         self, event_type: str, snapshot: Callable[[], Any]
@@ -56,10 +49,6 @@ class EventBus:
     @property
     def subscriber_count(self) -> int:
         return len(self._subscribers)
-
-    @property
-    def closed(self) -> bool:
-        return self._closed
 
     async def unsubscribe(self, queue: EventQueue) -> None:
         async with self._lock:
@@ -94,7 +83,9 @@ class EventBus:
 
 
 def _encode(event_type: str, data: Any) -> str:
-    return json.dumps({"type": event_type, "data": data}, default=str)
+    # ``sent_at`` is this server's clock, so a browser with a wrong clock can
+    # still place ``secs_at`` readings correctly.
+    return json.dumps({"type": event_type, "data": data, "sent_at": time.time()}, default=str)
 
 
 def _put_dropping_oldest(queue: EventQueue, item: str | None) -> bool:

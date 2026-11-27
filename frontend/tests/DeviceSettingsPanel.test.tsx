@@ -13,14 +13,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DeviceSettingsPanel } from '@/components/DeviceSettingsPanel';
 import type { DeviceSettingsResponse } from '@/api/types';
 import { ApiError } from '@/api/types';
+import { must } from './must';
 
 const getSettings = vi.fn();
 const setSetting = vi.fn();
 
 vi.mock('@/api/client', () => ({
   api: {
-    getSettings: (...args: unknown[]) => getSettings(...args),
-    setSetting: (...args: unknown[]) => setSetting(...args),
+    getSettings: (...args: unknown[]): unknown => getSettings(...args),
+    setSetting: (...args: unknown[]): unknown => setSetting(...args),
   },
 }));
 
@@ -159,11 +160,10 @@ describe('DeviceSettingsPanel', () => {
     render(<DeviceSettingsPanel deviceId="player-zone-m" />);
     await screen.findByText('Subwoofer');
 
-    const subwooferRow = screen.getByText('Subwoofer').closest('li');
-    expect(subwooferRow).toBeTruthy();
-    const buttons = Array.from(subwooferRow!.querySelectorAll('button')).map((b) => b.textContent);
+    const subwooferRow = must(screen.getByText('Subwoofer').closest('li'), 'Subwoofer row');
+    const buttons = Array.from(subwooferRow.querySelectorAll('button')).map((b) => b.textContent);
     expect(buttons).toEqual(['On', 'Off']);
-    expect(subwooferRow!.querySelector('.btn-primary')).toHaveTextContent('Off');
+    expect(subwooferRow.querySelector('.btn-primary')).toHaveTextContent('Off');
   });
 
   it('hides Treble until Tone Controls is On', async () => {
@@ -171,7 +171,7 @@ describe('DeviceSettingsPanel', () => {
     await screen.findByText('Tone Controls');
     expect(screen.queryByText('Treble')).not.toBeInTheDocument();
 
-    const toneRow = screen.getByText('Tone Controls').closest('li')!;
+    const toneRow = must(screen.getByText('Tone Controls').closest('li'), 'Tone Controls row');
     fireEvent.click(within(toneRow).getByRole('button', { name: 'On' }));
     await waitFor(() => {
       expect(setSetting).toHaveBeenCalledWith('player-zone-m', 'eq-switch', 'ON');
@@ -193,7 +193,7 @@ describe('DeviceSettingsPanel', () => {
     render(<DeviceSettingsPanel deviceId="player-zone-m" />);
     await screen.findByText('Tone Controls');
 
-    const toneRow = screen.getByText('Tone Controls').closest('li')!;
+    const toneRow = must(screen.getByText('Tone Controls').closest('li'), 'Tone Controls row');
     fireEvent.click(within(toneRow).getByRole('button', { name: 'On' }));
     await waitFor(() => {
       expect(setSetting).toHaveBeenCalledWith('player-zone-m', 'eq-switch', 'ON');
@@ -235,6 +235,61 @@ describe('DeviceSettingsPanel', () => {
     });
   });
 
+  it('sends one write when pointerup and blur both commit a range', async () => {
+    getSettings.mockResolvedValue({
+      page_id: 'audio',
+      settings: [
+        setting({
+          id: 'eq-treble',
+          display_name: 'Treble',
+          kind: 'range',
+          value: '0',
+          min_value: -6,
+          max_value: 6,
+        }),
+      ],
+    });
+    let finish: () => void = () => undefined;
+    setSetting.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render(<DeviceSettingsPanel deviceId="player-zone-m" />);
+    const slider = await screen.findByLabelText('Treble');
+    fireEvent.change(slider, { target: { value: '2' } });
+    fireEvent.pointerUp(slider, { target: slider });
+    fireEvent.blur(slider);
+    finish();
+    await waitFor(() => {
+      expect(setSetting).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('commits a range moved with the keyboard', async () => {
+    getSettings.mockResolvedValue({
+      page_id: 'audio',
+      settings: [
+        setting({
+          id: 'eq-bass',
+          display_name: 'Bass',
+          kind: 'range',
+          value: '0',
+          min_value: -6,
+          max_value: 6,
+        }),
+      ],
+    });
+    render(<DeviceSettingsPanel deviceId="player-zone-m" />);
+    const slider = await screen.findByLabelText('Bass');
+    fireEvent.change(slider, { target: { value: '1' } });
+    fireEvent.keyUp(slider, { key: 'ArrowRight' });
+    await waitFor(() => {
+      expect(setSetting).toHaveBeenCalledWith('player-zone-m', 'eq-bass', '1');
+    });
+  });
+
   it('writes dual-range via empty control_path (web UI)', async () => {
     render(<DeviceSettingsPanel deviceId="player-zone-m" />);
     await screen.findByText('Volume limits (dB)');
@@ -252,8 +307,8 @@ describe('DeviceSettingsPanel', () => {
   });
 
   it('writes text Room name with /Name after Update', async () => {
-    getSettings.mockImplementation(async (_id: string, page: string) =>
-      page === 'player' ? playerPage : audioPage,
+    getSettings.mockImplementation((_id: string, page: string) =>
+      Promise.resolve(page === 'player' ? playerPage : audioPage),
     );
     render(<DeviceSettingsPanel deviceId="player-zone-m" />);
     fireEvent.click(screen.getByRole('button', { name: 'Player' }));
@@ -307,23 +362,25 @@ describe('DeviceSettingsPanel', () => {
   });
 
   it('shows Locked for a HomeKit-locked room name', async () => {
-    getSettings.mockImplementation(async (_id: string, page: string) =>
-      page === 'player'
-        ? {
-            page_id: 'player',
-            settings: [
-              setting({
-                id: 'nodename',
-                display_name: 'Room name',
-                kind: 'text',
-                value: 'Zone C',
-                disabled: true,
-                control_path: '/Name',
-                explanation: 'Locked by Apple Home',
-              }),
-            ],
-          }
-        : audioPage,
+    getSettings.mockImplementation((_id: string, page: string) =>
+      Promise.resolve(
+        page === 'player'
+          ? {
+              page_id: 'player',
+              settings: [
+                setting({
+                  id: 'nodename',
+                  display_name: 'Room name',
+                  kind: 'text',
+                  value: 'Zone C',
+                  disabled: true,
+                  control_path: '/Name',
+                  explanation: 'Locked by Apple Home',
+                }),
+              ],
+            }
+          : audioPage,
+      ),
     );
     render(<DeviceSettingsPanel deviceId="player-zone-m" />);
     fireEvent.click(screen.getByRole('button', { name: 'Player' }));

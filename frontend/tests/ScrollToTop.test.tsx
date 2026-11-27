@@ -13,8 +13,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScrollToTop } from '@/components/ScrollToTop';
 
 describe('ScrollToTop', () => {
+  let scrollTo = vi.fn<() => void>();
+
   beforeEach(() => {
-    vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    scrollTo = vi.fn<() => void>();
+    vi.spyOn(window, 'scrollTo').mockImplementation(scrollTo);
   });
 
   it('scrolls to the top on initial route and when navigating', () => {
@@ -36,11 +39,11 @@ describe('ScrollToTop', () => {
       </MemoryRouter>,
     );
 
-    expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
-    vi.mocked(window.scrollTo).mockClear();
+    expect(scrollTo).toHaveBeenCalledWith(0, 0);
+    scrollTo.mockClear();
 
     fireEvent.click(screen.getByRole('link', { name: 'Open player' }));
     expect(screen.getByText('player')).toBeInTheDocument();
-    expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
+    expect(scrollTo).toHaveBeenCalledWith(0, 0);
   });
 });

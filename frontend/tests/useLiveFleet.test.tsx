@@ -10,15 +10,17 @@
 
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
+import { onSessionLost } from '@/api/auth';
 import { useLiveFleet } from '@/hooks/useLiveFleet';
 import { type ConnectionState, useFleetStore } from '@/store/fleetStore';
 
 const load = vi.fn();
+const PLAYER_A = '{"id":"a","ip":"192.168.1.20","name":"Zone A","volume":7,"state":"play"}';
 const getSync = vi.fn();
 
 vi.mock('@/api/client', () => ({
   api: {
-    getSync: (...args: unknown[]) => getSync(...args),
+    getSync: (...args: unknown[]): unknown => getSync(...args),
   },
 }));
 
@@ -74,16 +76,20 @@ describe('useLiveFleet', () => {
     });
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
+      status: 200,
+      headers: new Headers(),
       body: streamOf(
         [
-          'data: {"type":"fleet","data":{"devices":[{"id":"a"}],"discovered_at":123,"sync":{"groups":[],"standalone_ids":["a"]}}}\n\n',
+          `data: {"type":"fleet","data":{"devices":[${PLAYER_A}],"discovered_at":123,"sync":{"groups":[],"standalone_ids":["a"]}}}\n\n`,
         ],
         hold,
       ),
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const { unmount } = renderHook(() => useLiveFleet());
+    const { unmount } = renderHook(() => {
+      useLiveFleet();
+    });
     await act(async () => {
       await Promise.resolve();
     });
@@ -92,7 +98,7 @@ describe('useLiveFleet', () => {
     const url = String(fetchMock.mock.calls[0]?.[0]);
     expect(url).toBe('/api/v1/events');
     expect(url).not.toContain('token=');
-    expect(setFleet).toHaveBeenCalledWith([{ id: 'a' }], 123);
+    expect(setFleet).toHaveBeenCalledWith([JSON.parse(PLAYER_A)], 123);
     expect(setSync).toHaveBeenCalledWith({ groups: [], standalone_ids: ['a'] });
     expect(setConnection).toHaveBeenCalledWith('live');
 
@@ -112,7 +118,12 @@ function endedStream(chunks: string[]) {
 }
 
 function openStream(chunks: string[] = []) {
-  return { ok: true, body: streamOf(chunks, new Promise<void>(() => undefined)) };
+  return {
+    ok: true,
+    status: 200,
+    headers: new Headers(),
+    body: streamOf(chunks, new Promise<void>(() => undefined)),
+  };
 }
 
 async function advance(ms: number) {
@@ -151,11 +162,18 @@ describe('useLiveFleet reconnects', () => {
   it('polls over REST while the stream is down and stops once it is back', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({ ok: true, body: endedStream([]) })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        body: endedStream([]),
+      })
       .mockResolvedValueOnce(openStream());
     vi.stubGlobal('fetch', fetchMock);
 
-    const { unmount } = renderHook(() => useLiveFleet());
+    const { unmount } = renderHook(() => {
+      useLiveFleet();
+    });
     await advance(0);
     expect(states()).toEqual(['connecting', 'live', 'reconnecting']);
     expect(load).toHaveBeenCalledTimes(1);
@@ -173,12 +191,14 @@ describe('useLiveFleet reconnects', () => {
   it('treats an error status as a drop and backs off', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({ ok: false, status: 503 })
-      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({ ok: false, status: 503, headers: new Headers() })
+      .mockResolvedValueOnce({ ok: false, status: 503, headers: new Headers() })
       .mockResolvedValue(openStream());
     vi.stubGlobal('fetch', fetchMock);
 
-    const { unmount } = renderHook(() => useLiveFleet());
+    const { unmount } = renderHook(() => {
+      useLiveFleet();
+    });
     await advance(0);
     await advance(999);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -197,7 +217,9 @@ describe('useLiveFleet reconnects', () => {
     const fetchMock = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
     vi.stubGlobal('fetch', fetchMock);
 
-    const { unmount } = renderHook(() => useLiveFleet());
+    const { unmount } = renderHook(() => {
+      useLiveFleet();
+    });
     await advance(0);
     // 1 + 2 + 4 + 8 + 16 + 30 + 30 seconds between the first eight attempts.
     await advance(91_000);
@@ -212,11 +234,56 @@ describe('useLiveFleet reconnects', () => {
     unmount();
   });
 
+  it('drops a stream that goes silent and opens a new one', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ...openStream(),
+        headers: new Headers({ 'X-Resonance-Keepalive': '10' }),
+      })
+      .mockResolvedValue(openStream());
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { unmount } = renderHook(() => {
+      useLiveFleet();
+    });
+    await advance(0);
+    expect(states()).toEqual(['connecting', 'live']);
+    // Two and a half keepalive intervals of silence.
+    await advance(24_999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await advance(1);
+    expect(states().at(-1)).toBe('reconnecting');
+    await advance(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(states().at(-1)).toBe('live');
+    unmount();
+  });
+
+  it('asks for the token again on a 401 instead of retrying', async () => {
+    const lost = vi.fn();
+    const stop = onSessionLost(lost);
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 401, headers: new Headers() });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { unmount } = renderHook(() => {
+      useLiveFleet();
+    });
+    await advance(0);
+    expect(lost).toHaveBeenCalledTimes(1);
+    await advance(120_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    stop();
+    unmount();
+  });
+
   it('stops retrying and polling when the page unmounts', async () => {
     const fetchMock = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
     vi.stubGlobal('fetch', fetchMock);
 
-    const { unmount } = renderHook(() => useLiveFleet());
+    const { unmount } = renderHook(() => {
+      useLiveFleet();
+    });
     await advance(0);
     unmount();
     const calls = fetchMock.mock.calls.length;
@@ -253,22 +320,27 @@ describe('useLiveFleet events', () => {
         .mockResolvedValue(
           openStream([
             'data: {"type":"device","da',
-            'ta":{"id":"a","volume":7}}\n\n',
+            `ta":${PLAYER_A}}\n\n`,
             'data: not json\n\n',
+            'data: {"type":"device","data":{"id":"b"}}\n\n',
             ': keepalive\n\n',
-            'data: {"type":"fleet","data":{"devices":[],"health":{"drops":[]}}}\n\n',
+            'data: {"type":"fleet","data":{"devices":[],"health":{"drops":[],"first_online":{}}}}\n\n',
           ]),
         ),
     );
 
-    const { unmount } = renderHook(() => useLiveFleet());
+    const { unmount } = renderHook(() => {
+      useLiveFleet();
+    });
     await act(async () => {
       for (let i = 0; i < 10; i += 1) await Promise.resolve();
     });
 
-    expect(upsertDevice).toHaveBeenCalledWith({ id: 'a', volume: 7 });
+    // The device without the fields every view reads is refused at the edge.
+    expect(upsertDevice).toHaveBeenCalledTimes(1);
+    expect(upsertDevice).toHaveBeenCalledWith(JSON.parse(PLAYER_A));
     expect(setFleet).toHaveBeenCalledWith([], null);
-    expect(setHealth).toHaveBeenCalledWith({ drops: [] });
+    expect(setHealth).toHaveBeenCalledWith({ drops: [], first_online: {} });
     // A fleet event without a sync graph asks the API for one.
     expect(getSync).toHaveBeenCalled();
     expect(setSync).toHaveBeenCalledWith({ groups: [], standalone_ids: ['a'] });

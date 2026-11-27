@@ -11,14 +11,15 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SessionGate } from '@/components/SessionGate';
+import { must } from './must';
 
 const listDevices = vi.fn();
 const openSession = vi.fn();
 
 vi.mock('@/api/client', () => ({
   api: {
-    listDevices: (...args: unknown[]) => listDevices(...args),
-    openSession: (...args: unknown[]) => openSession(...args),
+    listDevices: (...args: unknown[]): unknown => listDevices(...args),
+    openSession: (...args: unknown[]): unknown => openSession(...args),
   },
 }));
 
@@ -68,7 +69,7 @@ describe('SessionGate token form', () => {
     renderGate();
 
     fireEvent.change(await screen.findByLabelText('API token'), { target: { value: 'token' } });
-    fireEvent.submit(screen.getByLabelText('API token').closest('form')!);
+    fireEvent.submit(must(screen.getByLabelText('API token').closest('form'), 'token form'));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not reach Resonance');
   });
@@ -118,5 +119,26 @@ describe('SessionGate when the API is down', () => {
     });
     expect(await screen.findByText('App content')).toBeInTheDocument();
     expect(listDevices).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('SessionGate refusals', () => {
+  it('names the fix when the server refuses this host name, instead of retrying', async () => {
+    const { ApiError } = await import('@/api/types');
+    listDevices.mockRejectedValue(
+      new ApiError(400, {
+        error: 'host_not_allowed',
+        message: 'Host name is not allowed. Add it to RESONANCE_ALLOWED_HOSTS.',
+        code: 'host_not_allowed',
+        request_id: 'req-1',
+      }),
+    );
+    renderGate();
+    expect(
+      await screen.findByRole('heading', { name: 'Resonance refused this page' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Host name is not allowed');
+    expect(screen.queryByText(/not answering/)).not.toBeInTheDocument();
+    expect(screen.getByText('RESONANCE_ALLOWED_HOSTS', { selector: 'code' })).toBeInTheDocument();
   });
 });

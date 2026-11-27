@@ -13,8 +13,10 @@ Resonance runs on your own LAN and is not published to PyPI or npm. A release is
    |---|---|---|
    | `fix:` | `fix: stabilize mute slider updates` | patch |
    | `feat:` | `feat: add multi-room group create` | minor |
+   | `perf:` | `perf: skip a second discovery at startup` | patch |
+   | `revert:` | `revert: restore the old volume curve` | patch |
    | `feat!:` / `fix!:` or a `BREAKING CHANGE:` footer | `feat!: require Node 22` | major |
-   | `chore:`, `docs:`, `refactor:`, `test:`, `ci:` | `docs: fix typo` | no release |
+   | `chore:`, `docs:`, `refactor:`, `test:`, `ci:`, `style:` | `docs: fix typo` | no release |
 
 3. The **Tests**, **Dependency review**, and **CodeQL** workflows run on the PR. The PR is squash-merged to `main`.
 4. **release-please** opens or updates a **Release PR** titled `chore(main): release X.Y.Z`. It bumps versions in `.release-please-manifest.json`, `backend`/`frontend` package metadata, and appends to `CHANGELOG.md`. Multiple code PRs merged before a release are batched into one Release PR.

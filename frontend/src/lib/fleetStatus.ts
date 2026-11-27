@@ -68,13 +68,15 @@ type Cluster = {
 };
 
 function pickLead(candidates: PlayerStatus[]): PlayerStatus {
+  const first = candidates[0];
+  if (first === undefined) throw new Error('pickLead needs at least one player');
   return (
     candidates.find((d) => d.sync_role === 'primary' && d.image) ??
     candidates.find((d) => d.sync_role === 'primary') ??
     candidates.find((d) => Boolean(d.image) && streamKey(d)) ??
     candidates.find((d) => Boolean(streamKey(d))) ??
     candidates.find((d) => Boolean(d.image)) ??
-    candidates[0]
+    first
   );
 }
 
@@ -359,7 +361,8 @@ function finalizeHouseStatus(
     });
   }
 
-  const focus = sources[0];
+  const [focus] = sources;
+  if (!focus) return emptyHouseStatus({ meta });
   return {
     primary: focus.primary,
     detail: focus.detail,

@@ -71,7 +71,9 @@ export function usePlayerQueue(id: string, reportError: ReportError) {
       .catch(() => {
         if (!ac.signal.aborted) reportError('Failed to load: queue');
       });
-    return () => ac.abort();
+    return () => {
+      ac.abort();
+    };
   }, [id, reportError]);
   return { queue, setQueue };
 }
@@ -91,22 +93,26 @@ export function usePlayerScrapes(id: string) {
     if (!id) return;
     const ac = new AbortController();
     scrapeAbort.current = ac;
+    // A function, so each check reads the signal now, after the awaits above it.
+    const aborted = () => ac.signal.aborted;
     void (async () => {
       try {
         const value = await api.diagnose(id, { signal: ac.signal });
-        if (!ac.signal.aborted) setDiag(value);
+        if (!aborted()) setDiag(value);
       } catch {
         /* aborted or failed — Device card keeps "—" */
       }
-      if (ac.signal.aborted) return;
+      if (aborted()) return;
       try {
         const value = await api.getUpgrade(id, { signal: ac.signal });
-        if (!ac.signal.aborted) setUpgrade(value);
+        if (!aborted()) setUpgrade(value);
       } catch {
-        if (!ac.signal.aborted) setUpgrade(failedUpgrade({ id }));
+        if (!aborted()) setUpgrade(failedUpgrade({ id }));
       }
     })();
-    return () => ac.abort();
+    return () => {
+      ac.abort();
+    };
   }, [id]);
 
   const interruptScrapes = useCallback(() => scrapeAbort.current?.abort(), []);
@@ -149,13 +155,14 @@ export function useAdvancedDetails(id: string, open: boolean, reportError: Repor
         reportError(`Failed to load: ${failures.join(', ')}`);
       }
     })();
-    return () => ac.abort();
+    return () => {
+      ac.abort();
+    };
   }, [id, open, reportError]);
 
-  const applyBluetooth = useCallback(
-    (value: BluetoothResponse) => setBluetooth(bluetoothView(value)),
-    [],
-  );
+  const applyBluetooth = useCallback((value: BluetoothResponse) => {
+    setBluetooth(bluetoothView(value));
+  }, []);
   return { inputs, setInputs, presets, loaded, bluetooth, applyBluetooth };
 }
 

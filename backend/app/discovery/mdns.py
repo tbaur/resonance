@@ -48,19 +48,7 @@ class MDNSDiscovery:
             if state_change not in (ServiceStateChange.Added, ServiceStateChange.Updated):
                 return
             info = zeroconf.get_service_info(service_type, name, timeout=1000)
-            if not info or not info.addresses:
-                return
-            port = int(info.port) if info.port else DEFAULT_BLUOS_PORT
-            if not validate_bluos_port(port):
-                port = DEFAULT_BLUOS_PORT
-            for raw in info.addresses:
-                try:
-                    ip = socket.inet_ntoa(raw)
-                except OSError:
-                    continue
-                sanitized = sanitize_ip(ip)
-                if sanitized:
-                    endpoints.add(format_endpoint(sanitized, port))
+            endpoints.update(endpoints_from_service_info(info))
 
         browsers = [
             ServiceBrowser(zc, service_type, handlers=[on_service_state_change])
@@ -75,13 +63,14 @@ class MDNSDiscovery:
         return sorted(endpoints)
 
 
-def endpoint_from_service_info(info: ServiceInfo | None) -> str | None:
-    """IPv4 SRV target. IPv6 addresses are ignored; BluOS on the LAN is IPv4."""
+def endpoints_from_service_info(info: ServiceInfo | None) -> list[str]:
+    """Every IPv4 ``ip:port`` in an SRV answer. IPv6 is ignored; BluOS on the LAN is IPv4."""
     if info is None or not info.addresses:
-        return None
+        return []
     port = int(info.port) if info.port else DEFAULT_BLUOS_PORT
     if not validate_bluos_port(port):
         port = DEFAULT_BLUOS_PORT
+    found: list[str] = []
     for raw in info.addresses:
         try:
             ip = socket.inet_ntoa(raw)
@@ -89,8 +78,14 @@ def endpoint_from_service_info(info: ServiceInfo | None) -> str | None:
             continue
         sanitized = sanitize_ip(ip)
         if sanitized:
-            return format_endpoint(sanitized, port)
-    return None
+            found.append(format_endpoint(sanitized, port))
+    return found
+
+
+def endpoint_from_service_info(info: ServiceInfo | None) -> str | None:
+    """The first IPv4 ``ip:port`` in an SRV answer."""
+    found = endpoints_from_service_info(info)
+    return found[0] if found else None
 
 
 class StandingMDNS:
@@ -123,6 +118,8 @@ class StandingMDNS:
             logger.exception("mdns_browser_failed")
             self._zc = None
             return
+        # stop() sets this. Clear it, or a restarted resolve thread exits at once.
+        self._stop.clear()
         self.running = True
         self._thread = threading.Thread(target=self._resolve_loop, name="mdns-resolve", daemon=True)
         self._thread.start()
@@ -149,10 +146,6 @@ class StandingMDNS:
     def endpoints(self) -> list[str]:
         with self._lock:
             return sorted(set(self._by_name.values()))
-
-    def remember(self, name: str, endpoint: str) -> None:
-        with self._lock:
-            self._by_name[name] = endpoint
 
     def forget(self, name: str) -> None:
         with self._lock:

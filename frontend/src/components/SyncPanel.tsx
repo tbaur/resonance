@@ -84,8 +84,9 @@ export function SyncPanel() {
   const ungroupAll = () => {
     const message =
       'Ungroup every multi-room group? Playback will stop so leftover AirPlay sessions clear.';
-    if (!window.confirm(message)) return;
-    void actions.ungroupAll(groups[0].primary_id).then(() => {
+    const first = groups[0];
+    if (!first || !window.confirm(message)) return;
+    void actions.ungroupAll(first.primary_id).then(() => {
       setAddingTo(null);
       closeBuilder();
     });
@@ -113,12 +114,16 @@ export function SyncPanel() {
             }
             adding={addingTo === group.primary_id}
             busy={actions.busy}
-            onToggleAdding={() =>
-              setAddingTo((cur) => (cur === group.primary_id ? null : group.primary_id))
-            }
-            onAdd={(slaveId) => addFollower(group.primary_id, slaveId, false)}
+            onToggleAdding={() => {
+              setAddingTo((cur) => (cur === group.primary_id ? null : group.primary_id));
+            }}
+            onAdd={(slaveId) => {
+              addFollower(group.primary_id, slaveId, false);
+            }}
             onRemove={(slaveId) => void actions.removeFollower(group.primary_id, slaveId)}
-            onUngroup={() => ungroup(group)}
+            onUngroup={() => {
+              ungroup(group);
+            }}
           />
         ))}
 
@@ -132,7 +137,9 @@ export function SyncPanel() {
             busy={actions.busy}
             onLead={setLeadId}
             onCancel={closeBuilder}
-            onAdd={(slaveId) => addFollower(activeLeadId, slaveId, true)}
+            onAdd={(slaveId) => {
+              addFollower(activeLeadId, slaveId, true);
+            }}
             onGroupAll={() => void actions.groupAllUnder(activeLeadId, closeBuilder)}
           />
         )}
@@ -230,7 +237,9 @@ function SyncGroupCard(props: SyncGroupCardProps) {
                   disabled={busy}
                   aria-label={`Remove ${name} from the group`}
                   title={`Remove ${name}`}
-                  onClick={() => props.onRemove(id)}
+                  onClick={() => {
+                    props.onRemove(id);
+                  }}
                 >
                   {name}
                   <span className="sync-chip-x" aria-hidden="true">
@@ -266,7 +275,9 @@ function ChoiceChips({
           type="button"
           className="sync-chip sync-chip-choice"
           disabled={busy}
-          onClick={() => onPick(d.id)}
+          onClick={() => {
+            onPick(d.id);
+          }}
         >
           {prefix}
           {d.name}
@@ -335,7 +346,9 @@ function LeadAndFollowers({ leadId, byId, followers, busy, ...props }: GroupBuil
         className="sync-chip sync-chip-primary sync-chip-selected"
         disabled={busy}
         title="Change lead room"
-        onClick={() => props.onLead('')}
+        onClick={() => {
+          props.onLead('');
+        }}
       >
         {byId[leadId]?.name ?? 'Lead'}
       </button>

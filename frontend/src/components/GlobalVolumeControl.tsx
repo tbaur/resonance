@@ -26,9 +26,9 @@ function medianVolume(volumes: number[]): number {
   const sorted = [...volumes].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   if (sorted.length % 2 === 0) {
-    return Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+    return Math.round(((sorted[mid - 1] ?? 0) + (sorted[mid] ?? 0)) / 2);
   }
-  return sorted[mid];
+  return sorted[mid] ?? 0;
 }
 
 /** "N muted" next to a group slider: those rooms keep their mute when the slider moves. */
@@ -81,7 +81,8 @@ function GroupVolumePanel({
   const allMuted = audible.length === 0;
   const fleetMedian = medianVolume(audible.map((d) => d.volume));
   const display = dragDraft ?? fleetMedian;
-  const volumesMatch = !allMuted && audible.every((d) => d.volume === audible[0].volume);
+  const firstVolume = audible[0]?.volume;
+  const volumesMatch = !allMuted && audible.every((d) => d.volume === firstVolume);
   const controlsDisabled = pending || allMuted;
   const headingId = `${inputId}-heading`;
 
@@ -185,7 +186,9 @@ function GroupVolumePanel({
         <VolumeNudgeButtons
           value={display}
           disabled={controlsDisabled}
-          onChange={(level) => scheduleFlush(level)}
+          onChange={(level) => {
+            scheduleFlush(level);
+          }}
         />
         <label htmlFor={inputId}>Vol</label>
         <input

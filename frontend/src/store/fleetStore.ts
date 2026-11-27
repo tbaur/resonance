@@ -29,6 +29,7 @@ import {
 } from '@/lib/houseSession';
 import { mutedPatch, unmutedPatch } from '@/lib/mute';
 import { currentSecs } from '@/lib/playbackClock';
+import { noteServerTime, serverNow } from '@/lib/serverClock';
 import { dropStaleFollowerClaims } from '@/lib/syncGraph';
 
 export type ConnectionState = 'connecting' | 'live' | 'reconnecting' | 'offline';
@@ -191,6 +192,8 @@ type RemoteHolds = {
   muteHoldUntil: Record<string, number>;
   globalVolumeHoldUntil: number;
   now: number;
+  /** `now` on the server's clock, which `secs_at` uses. */
+  serverNow: number;
 };
 
 function mergeRemoteDevice(
@@ -201,7 +204,8 @@ function mergeRemoteDevice(
   const current =
     incoming.secs_at == null
       ? incoming
-      : { ...incoming, secs: currentSecs(incoming, holds.now), secs_at: holds.now / 1000 };
+      : // Advance the reading on the server's clock, then restamp it on ours.
+        { ...incoming, secs: currentSecs(incoming, holds.serverNow), secs_at: holds.now / 1000 };
   if (!previous) return current;
   let next = current;
   const holdMute = (holds.muteHoldUntil[incoming.id] ?? 0) > holds.now;
@@ -239,6 +243,7 @@ function holdsOf(state: FleetState, now: number): RemoteHolds {
     muteHoldUntil: state.muteHoldUntil,
     globalVolumeHoldUntil: state.globalVolumeHoldUntil,
     now,
+    serverNow: serverNow() + (now - Date.now()),
   };
 }
 
@@ -292,29 +297,40 @@ function isStaleSync(state: FleetState, incoming: SyncState | null): boolean {
 }
 
 /** Restore named fields from a pre-action snapshot so a failed write is undone. */
-function revertFields<K extends keyof PlayerStatus>(
+function revertFields(
   devices: PlayerStatus[],
   snapshot: Map<string, PlayerStatus>,
-  fields: readonly K[],
+  fields: readonly (keyof PlayerStatus)[],
 ): PlayerStatus[] {
   return devices.map((device) => {
     const before = snapshot.get(device.id);
     if (!before) return device;
-    const patch = {} as Pick<PlayerStatus, K>;
-    for (const field of fields) {
-      patch[field] = before[field];
-    }
+    const patch: Partial<PlayerStatus> = Object.fromEntries(
+      fields.map((field) => [field, before[field]]),
+    );
     return { ...device, ...patch };
   });
+}
+
+/**
+ * The fields of `before` that `optimistic` painted. A failed write restores only
+ * those, so newer fields from the server (track, playhead) are kept.
+ */
+function pickFields(
+  before: PlayerStatus | undefined,
+  optimistic: Partial<PlayerStatus> | undefined,
+): Partial<PlayerStatus> | undefined {
+  if (!before || !optimistic) return undefined;
+  const keys = Object.keys(optimistic) as (keyof PlayerStatus)[];
+  return Object.fromEntries(keys.map((key) => [key, before[key]]));
 }
 
 function releaseHold(
   entries: Record<string, number>,
   ids: Iterable<string>,
 ): Record<string, number> {
-  const next = { ...entries };
-  for (const id of ids) delete next[id];
-  return next;
+  const drop = new Set(ids);
+  return Object.fromEntries(Object.entries(entries).filter(([id]) => !drop.has(id)));
 }
 
 function errorMessage(err: unknown, fallback: string): string {
@@ -349,6 +365,7 @@ async function fetchSnapshot(
     api.getSync(),
     api.getFleetHealth().catch(() => lastHealth),
   ]);
+  noteServerTime(fleet.server_time);
   return { fleet, sync, health };
 }
 
@@ -413,16 +430,17 @@ export const useFleetStore = create<FleetState>((set, get) => ({
   globalVolumeHoldUntil: 0,
   syncHoldUntil: 0,
 
-  setFleet: (devices, discoveredAt = null) =>
+  setFleet: (devices, discoveredAt = null) => {
     set((state) => ({
       devices: dropStaleFollowerClaims(mergedDeviceList(state, devices), state.sync),
       ...prunedHolds(state, devices),
       discoveredAt: discoveredAt ?? state.discoveredAt,
       loading: false,
       error: null,
-    })),
+    }));
+  },
 
-  upsertDevice: (device) =>
+  upsertDevice: (device) => {
     set((state) => {
       const previous = state.devices.find((d) => d.id === device.id);
       const merged = mergeRemoteDevice(device, previous, holdsOf(state, Date.now()));
@@ -431,20 +449,23 @@ export const useFleetStore = create<FleetState>((set, get) => ({
         ? state.devices.map((d) => (d.id === device.id ? merged : d))
         : [...state.devices, merged];
       return { devices: dropStaleFollowerClaims(nextDevices, state.sync) };
-    }),
+    });
+  },
 
-  patchDevice: (deviceId, patch) =>
+  patchDevice: (deviceId, patch) => {
     set((state) => ({
       devices: state.devices.map((d) => (d.id === deviceId ? { ...d, ...patch } : d)),
-    })),
+    }));
+  },
 
-  holdVolume: (deviceId, ms = VOLUME_HOLD_MS) =>
+  holdVolume: (deviceId, ms = VOLUME_HOLD_MS) => {
     set((state) => ({
       volumeHoldUntil: {
         ...state.volumeHoldUntil,
         [deviceId]: Date.now() + ms,
       },
-    })),
+    }));
+  },
 
   holdAllVolumes: (ms = VOLUME_HOLD_MS) => {
     const until = Date.now() + ms;
@@ -470,21 +491,23 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     });
   },
 
-  holdPlayback: (deviceId, ms = PLAYBACK_HOLD_MS) =>
+  holdPlayback: (deviceId, ms = PLAYBACK_HOLD_MS) => {
     set((state) => ({
       playbackHoldUntil: {
         ...state.playbackHoldUntil,
         [deviceId]: Date.now() + ms,
       },
-    })),
+    }));
+  },
 
-  holdMute: (deviceId, ms = MUTE_HOLD_MS) =>
+  holdMute: (deviceId, ms = MUTE_HOLD_MS) => {
     set((state) => ({
       muteHoldUntil: {
         ...state.muteHoldUntil,
         [deviceId]: Date.now() + ms,
       },
-    })),
+    }));
+  },
 
   beginHouseCatchup: (memberIds, ms = HOUSE_CATCHUP_MS) => {
     clearHouseCatchupTimer();
@@ -504,10 +527,14 @@ export const useFleetStore = create<FleetState>((set, get) => ({
     set({ houseSession: houseStoppedSession() });
   },
 
-  holdSync: (ms = SYNC_HOLD_MS) => set({ syncHoldUntil: Date.now() + ms }),
+  holdSync: (ms = SYNC_HOLD_MS) => {
+    set({ syncHoldUntil: Date.now() + ms });
+  },
 
-  setConnection: (connection) => set({ connection }),
-  setSync: (sync) =>
+  setConnection: (connection) => {
+    set({ connection });
+  },
+  setSync: (sync) => {
     set((state) => {
       // Drop stale sync while BluOS catches up after add/ungroup (SSE often races).
       if (isStaleSync(state, sync)) return {};
@@ -516,15 +543,21 @@ export const useFleetStore = create<FleetState>((set, get) => ({
         syncHoldUntil: 0,
         devices: dropStaleFollowerClaims(state.devices, sync),
       };
-    }),
-  setHealth: (health) => set({ health }),
-  setToast: (toast) => set({ toast }),
+    });
+  },
+  setHealth: (health) => {
+    set({ health });
+  },
+  setToast: (toast) => {
+    set({ toast });
+  },
 
   // Muted players are skipped here and by the server: a BluOS level write unmutes.
-  setAllVolumesLocal: (level) =>
+  setAllVolumesLocal: (level) => {
     set((state) => ({
       devices: state.devices.map((d) => (d.muted ? d : { ...d, volume: level })),
-    })),
+    }));
+  },
 
   setVolumesLocal: (level, deviceIds) => {
     const idSet = new Set(deviceIds);
@@ -559,15 +592,20 @@ export const useFleetStore = create<FleetState>((set, get) => ({
       paint();
       if (result.failed > 0) set({ toast: partialToast(`Volume ${clamped}`, result) });
     } catch (err) {
-      set({
-        globalVolumeHoldUntil: scoped ? get().globalVolumeHoldUntil : 0,
+      // Release every hold this write placed, or the refetch below would keep
+      // the failed level on screen. Nothing changed on the players, so no
+      // later event would correct it.
+      set((state) => ({
+        globalVolumeHoldUntil: scoped ? state.globalVolumeHoldUntil : 0,
+        volumeHoldUntil: releaseHold(state.volumeHoldUntil, ids),
         toast: errorToast(err, 'Failed to set volume'),
-      });
+      }));
       try {
         const fleet = await api.listDevices();
+        noteServerTime(fleet.server_time);
         set((state) => ({ devices: mergedDeviceList(state, fleet.devices) }));
       } catch {
-        // ignore secondary failure
+        // The toast already reports the failure; the next event repaints the fleet.
       }
     }
   },
@@ -603,12 +641,13 @@ export const useFleetStore = create<FleetState>((set, get) => ({
       set,
       `Fleet ${mute ? 'mute' : 'unmute'}`,
       () => api.fleetMute(mute),
-      () =>
+      () => {
         set((state) => ({
           devices: revertFields(state.devices, before, ['muted', 'volume', 'mute_volume']),
           muteHoldUntil: releaseHold(state.muteHoldUntil, before.keys()),
           volumeHoldUntil: releaseHold(state.volumeHoldUntil, before.keys()),
-        })),
+        }));
+      },
     );
   },
 
@@ -625,12 +664,12 @@ export const useFleetStore = create<FleetState>((set, get) => ({
         state: isEstablishedPlayback(d.state) ? 'pause' : d.state,
       })),
     }));
-    await runFleetAction(set, 'Pause all', api.fleetPause, () =>
+    await runFleetAction(set, 'Pause all', api.fleetPause, () => {
       set((state) => ({
         devices: revertFields(state.devices, before, ['state']),
         playbackHoldUntil: releaseHold(state.playbackHoldUntil, before.keys()),
-      })),
-    );
+      }));
+    });
   },
 
   fleetStopAll: async () => {
@@ -727,7 +766,7 @@ export const useFleetStore = create<FleetState>((set, get) => ({
   control: async (deviceId, action, optimistic, rollback) => {
     const epoch = (controlEpoch.get(deviceId) ?? 0) + 1;
     controlEpoch.set(deviceId, epoch);
-    const previous = rollback ?? get().devices.find((d) => d.id === deviceId);
+    const previous = get().devices.find((d) => d.id === deviceId);
     const volumeOnly = isVolumeOnlyPatch(optimistic);
     const mutePatch = isMutePatch(optimistic);
     if (optimistic?.state !== undefined && isEstablishedPlayback(optimistic.state)) {
@@ -756,8 +795,15 @@ export const useFleetStore = create<FleetState>((set, get) => ({
       }
     } catch (err) {
       // A newer nudge or skip owns the row. Reverting this attempt would undo it.
-      if (previous && controlEpoch.get(deviceId) === epoch) {
-        get().patchDevice(deviceId, previous);
+      if (controlEpoch.get(deviceId) === epoch) {
+        const revert = rollback ?? pickFields(previous, optimistic);
+        if (revert) get().patchDevice(deviceId, revert);
+        // Let the server's view through again, now that this write is gone.
+        set((state) => ({
+          volumeHoldUntil: releaseHold(state.volumeHoldUntil, [deviceId]),
+          playbackHoldUntil: releaseHold(state.playbackHoldUntil, [deviceId]),
+          muteHoldUntil: releaseHold(state.muteHoldUntil, [deviceId]),
+        }));
       }
       set({ toast: errorToast(err, 'Control command failed') });
     }

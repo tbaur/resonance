@@ -355,3 +355,28 @@ def test_ipv4_broadcast_addresses_without_libc(monkeypatch: pytest.MonkeyPatch) 
 def test_ipv4_broadcast_addresses_when_libc_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(lsdp.ctypes, "CDLL", MagicMock(side_effect=OSError("no libc")))
     assert lsdp.ipv4_broadcast_addresses() == []
+
+
+def test_parse_announce_keeps_two_secondary_zones_of_one_chassis() -> None:
+    """A CI chassis announces each secondary zone with the same node ID and class."""
+    discovery = LSDPDiscovery()
+    packet = _announce(
+        CHASSIS,
+        "192.168.1.70",
+        (CLASS_BLUOS_PLAYER_SECONDARY, {"port": "11010"}),
+        (CLASS_BLUOS_PLAYER_SECONDARY, {"port": "11020"}),
+    )
+    discovery._parse_packet(packet, "192.168.1.70")
+    ports = sorted(d.port or 0 for d in discovery.discovered_devices.values())
+    assert ports == [11010, 11020]
+
+
+@pytest.mark.parametrize("platform", ["darwin", "freebsd14", "openbsd7", "netbsd10"])
+def test_bsd_sockaddr_layout_is_used_on_every_bsd(
+    monkeypatch: pytest.MonkeyPatch, platform: str
+) -> None:
+    # sa_len, sa_family (AF_INET), port, then the address.
+    raw = bytes([16, socket.AF_INET, 0, 0]) + socket.inet_aton("192.168.1.9") + bytes(8)
+    buffer = ctypes.create_string_buffer(raw, len(raw))
+    monkeypatch.setattr(lsdp.sys, "platform", platform)
+    assert lsdp._ipv4_at(ctypes.addressof(buffer)) == "192.168.1.9"

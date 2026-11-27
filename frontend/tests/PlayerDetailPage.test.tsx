@@ -16,6 +16,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlayerDetailPage } from '@/components/PlayerDetailPage';
 import type { PlayerStatus } from '@/api/types';
 import { useFleetStore } from '@/store/fleetStore';
+import { must } from './must';
 
 const getQueue = vi.fn();
 const getInputs = vi.fn();
@@ -28,14 +29,14 @@ const moveQueueItem = vi.fn();
 
 vi.mock('@/api/client', () => ({
   api: {
-    getQueue: (...args: unknown[]) => getQueue(...args),
-    getInputs: (...args: unknown[]) => getInputs(...args),
-    getPresets: (...args: unknown[]) => getPresets(...args),
-    getBluetooth: (...args: unknown[]) => getBluetooth(...args),
-    diagnose: (...args: unknown[]) => diagnose(...args),
-    getUpgrade: (...args: unknown[]) => getUpgrade(...args),
-    reboot: (...args: unknown[]) => reboot(...args),
-    moveQueueItem: (...args: unknown[]) => moveQueueItem(...args),
+    getQueue: (...args: unknown[]): unknown => getQueue(...args),
+    getInputs: (...args: unknown[]): unknown => getInputs(...args),
+    getPresets: (...args: unknown[]): unknown => getPresets(...args),
+    getBluetooth: (...args: unknown[]): unknown => getBluetooth(...args),
+    diagnose: (...args: unknown[]): unknown => diagnose(...args),
+    getUpgrade: (...args: unknown[]): unknown => getUpgrade(...args),
+    reboot: (...args: unknown[]): unknown => reboot(...args),
+    moveQueueItem: (...args: unknown[]): unknown => moveQueueItem(...args),
   },
 }));
 
@@ -146,7 +147,7 @@ describe('PlayerDetailPage maintenance', () => {
       playbackHoldUntil: {},
       globalVolumeHoldUntil: 0,
       syncHoldUntil: 0,
-      control: vi.fn(async (_id, action) => {
+      control: vi.fn(async (_id: string, action: () => Promise<unknown>) => {
         await action();
       }),
       toggleMute: vi.fn(),
@@ -161,7 +162,9 @@ describe('PlayerDetailPage maintenance', () => {
 
     const before = getUpgrade.mock.calls.length;
     fireEvent.click(screen.getByRole('button', { name: 'Check for upgrade' }));
-    await waitFor(() => expect(getUpgrade.mock.calls.length).toBeGreaterThan(before));
+    await waitFor(() => {
+      expect(getUpgrade.mock.calls.length).toBeGreaterThan(before);
+    });
   });
 
   it('reboots only after confirm', async () => {
@@ -171,7 +174,9 @@ describe('PlayerDetailPage maintenance', () => {
     await screen.findByRole('button', { name: 'Reboot' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Reboot' }));
-    await waitFor(() => expect(reboot).toHaveBeenCalledWith('player-zone-m'));
+    await waitFor(() => {
+      expect(reboot).toHaveBeenCalledWith('player-zone-m');
+    });
     expect(control).toHaveBeenCalled();
     confirm.mockRestore();
   });
@@ -230,7 +235,9 @@ describe('PlayerDetailPage maintenance', () => {
       });
     });
     const { unmount } = renderPlayer();
-    await waitFor(() => expect(signal).toBeDefined());
+    await waitFor(() => {
+      expect(signal).toBeDefined();
+    });
     unmount();
     expect(signal?.aborted).toBe(true);
   });
@@ -254,7 +261,9 @@ describe('PlayerDetailPage maintenance', () => {
     diagnose.mockImplementation(() => new Promise(() => {}));
     renderPlayer();
     fireEvent.click(await screen.findByRole('button', { name: 'Move First down' }));
-    await waitFor(() => expect(moveQueueItem).toHaveBeenCalledWith('player-zone-m', 0, 1));
+    await waitFor(() => {
+      expect(moveQueueItem).toHaveBeenCalledWith('player-zone-m', 0, 1);
+    });
     expect(screen.getByRole('button', { name: 'Move First up' })).toBeEnabled();
   });
 
@@ -264,13 +273,17 @@ describe('PlayerDetailPage maintenance', () => {
     ]);
     const { container } = renderPlayer();
     const summary = () => container.querySelector('summary .card-meta')?.textContent;
-    await waitFor(() => expect(getQueue).toHaveBeenCalled());
+    await waitFor(() => {
+      expect(getQueue).toHaveBeenCalled();
+    });
     expect(summary()).toBe('queue 0');
 
-    const details = container.querySelector('details')!;
+    const details = must(container.querySelector('details'), 'Advanced panel');
     details.open = true;
     fireEvent(details, new Event('toggle'));
-    await waitFor(() => expect(summary()).toBe('queue 0 | inputs 1 | presets 0'));
+    await waitFor(() => {
+      expect(summary()).toBe('queue 0 | inputs 1 | presets 0');
+    });
   });
 
   it('starts fresh when moving to another player', async () => {
@@ -289,12 +302,14 @@ describe('PlayerDetailPage maintenance', () => {
       </MemoryRouter>,
     );
     const summary = () => container.querySelector('summary .card-meta')?.textContent;
-    const details = () => container.querySelector('details')!;
+    const details = () => must(container.querySelector('details'), 'Advanced panel');
 
     await screen.findByRole('heading', { name: 'Zone M' });
     details().open = true;
     fireEvent(details(), new Event('toggle'));
-    await waitFor(() => expect(summary()).toBe('queue 0 | inputs 1 | presets 0'));
+    await waitFor(() => {
+      expect(summary()).toBe('queue 0 | inputs 1 | presets 0');
+    });
 
     fireEvent.click(screen.getByRole('link', { name: 'Zone G' }));
     await screen.findByRole('heading', { name: 'Zone G' });
@@ -331,5 +346,21 @@ describe('PlayerDetailPage maintenance', () => {
     expect(screen.getByText('Last drop').nextElementSibling).toHaveTextContent(/2m/);
     expect(screen.getByText('Failures').nextElementSibling).toHaveTextContent('2');
     expect(screen.getByText('Last seen').nextElementSibling).toHaveTextContent(/ago|just now/);
+  });
+
+  it('shows loading, not "not found", while the fleet is still loading', () => {
+    useFleetStore.setState({ devices: [], loading: true });
+    renderPlayer();
+    expect(screen.getByText('Loading player…')).toBeInTheDocument();
+    expect(screen.queryByText(/Player not found/)).not.toBeInTheDocument();
+  });
+
+  it('reads nothing from the server for a player the fleet does not have', async () => {
+    useFleetStore.setState({ devices: [], loading: false });
+    renderPlayer();
+    expect(await screen.findByText(/Player not found/)).toBeInTheDocument();
+    expect(getQueue).not.toHaveBeenCalled();
+    expect(diagnose).not.toHaveBeenCalled();
+    expect(getUpgrade).not.toHaveBeenCalled();
   });
 });

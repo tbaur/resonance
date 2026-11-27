@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 from urllib.parse import quote
 
 import httpx
@@ -17,6 +18,8 @@ from app.bluos.status import BluOSStatusMixin
 from app.bluos.xml import safe_parse_xml, text
 from app.models import AudioInput, BluetoothResponse, Preset, QueueItem, QueueResponse
 from app.validators import format_endpoint
+
+logger = logging.getLogger(__name__)
 
 
 class BluOSMediaMixin(BluOSStatusMixin):
@@ -196,13 +199,6 @@ class BluOSMediaMixin(BluOSStatusMixin):
                 )
         return BluetoothResponse(supported=False, mode=None)
 
-    async def get_bluetooth_mode(self, ip: str) -> str | None:
-        """Read Bluetooth mode label, or ``None`` when unsupported / unreachable."""
-        info = await self.get_bluetooth_info(ip)
-        if info is None or not info.supported:
-            return None
-        return info.mode
-
     async def set_bluetooth_mode(self, ip: str, mode: int) -> bool:
         if mode not in (0, 1, 2, 3):
             return self._ok(CallResult.failure("rejected", "invalid bluetooth mode"))
@@ -247,6 +243,15 @@ class BluOSMediaMixin(BluOSStatusMixin):
             return None
         return url
 
+    def artwork_is_on_player(self, endpoint: str, image_url: str) -> bool:
+        """True when the first request for this cover goes to the player itself."""
+        resolved = self._resolve_target(endpoint)
+        if not resolved:
+            return False
+        ip, port = resolved
+        url = artwork_target(ip, f"http://{ip}:{port}/", (image_url or "").strip())
+        return url is not None and is_player_url(ip, url)
+
     async def fetch_artwork(
         self, endpoint: str, image_url: str, *, named_by_player: bool = False
     ) -> tuple[bytes, str] | None:
@@ -265,18 +270,36 @@ class BluOSMediaMixin(BluOSStatusMixin):
             ip, port, (image_url or "").strip(), named_by_player=named_by_player
         )
         if url is None:
+            logger.info("artwork_refused", extra={"device_ip": endpoint})
             return None
+        # Only a cover served by the player takes one of its HTTP slots. A cover
+        # from an internet host must not make Skip wait behind a slow CDN.
+        on_player = is_player_url(ip, url)
         try:
             async with self._sem:
-                async with self._endpoint_slot(format_endpoint(ip, port)):
+                if on_player:
+                    async with self._endpoint_slot(format_endpoint(ip, port)):
+                        body = await self._follow_artwork_get(
+                            ip, url, timeout=self.settings.device_http_timeout
+                        )
+                else:
                     body = await self._follow_artwork_get(
-                        ip,
-                        url,
-                        timeout=self.settings.device_http_timeout,
+                        ip, url, timeout=self.settings.device_http_timeout
                     )
-        except (httpx.TimeoutException, httpx.TransportError, OSError):
+        except (httpx.TimeoutException, httpx.TransportError, OSError) as exc:
+            logger.info(
+                "artwork_fetch_failed",
+                extra={"device_ip": endpoint, "failure_kind": type(exc).__name__},
+            )
             return None
         media = image_media_type(body) if body else None
         if body is None or media is None:
+            logger.info(
+                "artwork_fetch_failed",
+                extra={
+                    "device_ip": endpoint,
+                    "failure_kind": "no_body" if body is None else "not_an_image",
+                },
+            )
             return None
         return body, media

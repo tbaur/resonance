@@ -22,11 +22,16 @@ from app.validators import (
     DEFAULT_BLUOS_PORT,
     format_endpoint,
     make_device_id,
+    normalize_bluos_mac,
     parse_endpoint,
     sanitize_endpoint,
 )
 
 logger = logging.getLogger(__name__)
+
+# A player that the poller still reaches is kept through this many browses that
+# miss it. One lost LSDP reply or mDNS announce must not drop a working room.
+_MISSED_BROWSES_BEFORE_REMOVAL = 3
 
 
 @dataclass
@@ -51,22 +56,11 @@ class DiscoverySnapshot:
     # canonical ip:port -> device_id
     ids_by_endpoint: dict[str, str] = field(default_factory=dict)
 
-    # Backward-compatible aliases used by older tests/helpers.
-    @property
-    def ips_by_id(self) -> dict[str, str]:
-        return self.endpoints_by_id
 
-    @ips_by_id.setter
-    def ips_by_id(self, value: dict[str, str]) -> None:
-        self.endpoints_by_id = value
-
-    @property
-    def ids_by_ip(self) -> dict[str, str]:
-        return self.ids_by_endpoint
-
-    @ids_by_ip.setter
-    def ids_by_ip(self, value: dict[str, str]) -> None:
-        self.ids_by_endpoint = value
+def _hardware_key(player: PlayerStatus) -> tuple[str, int] | None:
+    """Chassis MAC and API port: the same player wherever DHCP puts it."""
+    mac = normalize_bluos_mac(player.mac)
+    return (mac, player.port) if mac else None
 
 
 class DiscoveryService:
@@ -81,16 +75,8 @@ class DiscoveryService:
         self._grace_macs: dict[str, str] = {}
         self._grace_confirmed_until: dict[str, float] = {}
         self._state_rev: dict[str, int] = {}
+        self._missed_browses: dict[str, int] = {}
         self.mdns = StandingMDNS()
-
-    @property
-    def _grace_ips(self) -> dict[str, str]:
-        """Alias for older tests; stores canonical endpoints."""
-        return self._grace_endpoints
-
-    @_grace_ips.setter
-    def _grace_ips(self, value: dict[str, str]) -> None:
-        self._grace_endpoints = value
 
     @property
     def snapshot(self) -> DiscoverySnapshot:
@@ -166,10 +152,6 @@ class DiscoveryService:
             return self._grace_endpoints.get(device_id)
         return None
 
-    def resolve_ip(self, device_id: str) -> str | None:
-        """Return canonical endpoint (``ip:port``). Name kept for call-site churn."""
-        return self.resolve_endpoint(device_id)
-
     def get_device(self, device_id: str) -> PlayerStatus | None:
         for device in self._snapshot.devices:
             if device.id == device_id:
@@ -201,22 +183,14 @@ class DiscoveryService:
             return age < self.settings.empty_fleet_rediscovery_seconds
         return age < self.settings.discovery_cache_ttl
 
-    async def get_devices(self, *, force: bool = False) -> DiscoverySnapshot:
-        async with self._data_lock:
-            if not force and self.cache_fresh():
-                return self._snapshot
-        return await self._refresh(force=force)
-
     async def refresh(self) -> DiscoverySnapshot:
-        """Always run discovery+enrich (used by poller / explicit rescan)."""
-        return await self._refresh(force=True)
+        """Run discovery and enrich (poller clock and explicit rescan).
 
-    async def _refresh(self, *, force: bool) -> DiscoverySnapshot:
-        """Discover + enrich outside the data lock; swap snapshot atomically."""
+        Discover and enrich run outside the data lock, and the snapshot is
+        swapped in one step.
+        """
         async with self._refresh_lock:
             async with self._data_lock:
-                if not force and self.cache_fresh():
-                    return self._snapshot
                 previous_ids = set(self._snapshot.endpoints_by_id)
                 previous_endpoints = dict(self._snapshot.endpoints_by_id)
                 previous_macs = {device.id: device.mac for device in self._snapshot.devices}
@@ -247,6 +221,7 @@ class DiscoveryService:
                     if created is not None:
                         players.append(created)
 
+                players.extend(self._retained_players(players, live_by_endpoint))
                 players = drop_stale_follower_claims(players)
                 new_ids = {player.id for player in players}
                 for missing in previous_ids - new_ids:
@@ -280,6 +255,44 @@ class DiscoveryService:
                     method_used,
                 )
                 return self._snapshot
+
+    def _retained_players(
+        self,
+        found: list[PlayerStatus],
+        live_by_endpoint: dict[str, PlayerStatus],
+    ) -> list[PlayerStatus]:
+        """Players this browse missed that the poller still reaches.
+
+        Each one is kept until it has been missed ``_MISSED_BROWSES_BEFORE_REMOVAL``
+        times in a row. A player the poller cannot reach is dropped at once, and
+        so is one that this browse found at a new address (same MAC and port):
+        its old row would otherwise stay up next to the new one while the held
+        read on the old address waits out its timeout.
+        Call with the data lock held.
+        """
+        found_ids = {player.id for player in found}
+        found_endpoints = {player.endpoint for player in found}
+        found_hardware = {_hardware_key(player) for player in found} - {None}
+        kept: list[PlayerStatus] = []
+        for endpoint, device in live_by_endpoint.items():
+            if device.id in found_ids or endpoint in found_endpoints:
+                self._missed_browses.pop(device.id, None)
+                continue
+            if _hardware_key(device) in found_hardware:
+                self._missed_browses.pop(device.id, None)
+                continue
+            misses = self._missed_browses.get(device.id, 0) + 1
+            reachable = device.status == "online" and not device.stale
+            if reachable and misses < _MISSED_BROWSES_BEFORE_REMOVAL:
+                self._missed_browses[device.id] = misses
+                kept.append(device)
+                logger.info(
+                    "discovery_kept_unannounced",
+                    extra={"device_id": device.id, "device_ip": endpoint},
+                )
+            else:
+                self._missed_browses.pop(device.id, None)
+        return kept
 
     async def _discover_endpoints(self) -> tuple[list[DiscoveredEndpoint], str]:
         method = self.settings.discovery_method
@@ -363,17 +376,17 @@ class DiscoveryService:
                     node_id=endpoint.node_id,
                 )
             except Exception as exc:  # noqa: BLE001 — isolate per device
-                logger.debug(
-                    "enrich_failed endpoint=%s err=%s",
-                    endpoint.endpoint,
-                    exc,
+                # A discovered address that is not added to the fleet is the first
+                # thing to look for when a room is missing, so log at INFO.
+                logger.info(
+                    "enrich_failed",
+                    extra={"device_ip": endpoint.endpoint, "failure_kind": type(exc).__name__},
                 )
                 return None
             if player.status != "online":
-                logger.debug(
-                    "enrich_unverified endpoint=%s status=%s",
-                    endpoint.endpoint,
-                    player.status,
+                logger.info(
+                    "enrich_unverified",
+                    extra={"device_ip": endpoint.endpoint, "failure_kind": player.status},
                 )
                 return None
             return player
@@ -387,14 +400,21 @@ class DiscoveryService:
         *,
         expect_revision: int | None = None,
     ) -> bool:
+        """Store a newer status for a player that is in the fleet.
+
+        Returns False, and stores nothing, when ``expect_revision`` is stale or
+        the player is no longer in the fleet. A read that finishes after a
+        rescan removed its player must not add the player back: membership
+        comes from discovery.
+        """
         async with self._data_lock:
             current_rev = self._state_rev.get(player.id, 0)
             if expect_revision is not None and current_rev != expect_revision:
                 return False
+            if player.id not in self._snapshot.endpoints_by_id:
+                return False
             self._state_rev[player.id] = current_rev + 1
             devices = [player if d.id == player.id else d for d in self._snapshot.devices]
-            if not any(d.id == player.id for d in self._snapshot.devices):
-                devices.append(player)
             self._snapshot.devices = drop_stale_follower_claims(devices)
             self._snapshot.endpoints_by_id[player.id] = player.endpoint
             self._snapshot.ids_by_endpoint[player.endpoint] = player.id

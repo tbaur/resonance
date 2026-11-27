@@ -27,7 +27,9 @@ export function SpeakerChip({ place, rows }: { place: string; rows: SpeakerRoste
         className="house-where-chip"
         aria-haspopup="dialog"
         aria-expanded={open}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true);
+        }}
       >
         {place}
       </button>
