@@ -1,5 +1,16 @@
 # Changelog
 
+## [5.0.0](https://github.com/tbaur/resonance/compare/v4.2.3...v5.0.0) (2026-11-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* harden the API against cross-site use and fix review findings
+
+### Bug Fixes
+
+* harden the API against cross-site use and fix review findings ([731f4ab](https://github.com/tbaur/resonance/commit/731f4ab34661e4afc25d47bd44ebc0cc5699956c))
+
 ## [4.2.3](https://github.com/tbaur/resonance/compare/v4.2.2...v4.2.3) (2026-11-19)
 
 
