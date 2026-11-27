@@ -116,14 +116,6 @@ def make_device_id(
     return f"player-{digest}"
 
 
-def parse_bluos_host(value: str) -> str:
-    """Extract host/IP from a BluOS value (strips port)."""
-    if not value:
-        return ""
-    ip, _port = parse_endpoint(value.strip())
-    return ip or ""
-
-
 _MAC_OCTET_RE = re.compile(r"^[0-9A-Fa-f]{2}$")
 
 

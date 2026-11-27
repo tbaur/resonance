@@ -22,7 +22,7 @@ Please read and follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ### Pull requests
 
-1. Fork (if needed) and create a branch: `git checkout -b feature/short-description`
+1. Fork (if needed) and create a branch named after the PR title's type: `git checkout -b <type>/short-description`, for example `fix/mobile-header-background` or `docs/cli-release-approval`.
 2. Make focused changes with tests for new behavior.
 3. Run the checks below.
 4. Open a PR with a **Conventional Commit** title (see below).
@@ -36,7 +36,10 @@ PR titles drive automated releases via [release-please](RELEASING.md):
 |--------|---------|
 | `feat:` | New feature (minor) |
 | `fix:` | Bug fix (patch) |
-| `docs:`, `test:`, `refactor:`, `chore:`, `ci:` | No release |
+| `perf:` | Performance improvement (patch) |
+| `revert:` | Reverts an earlier change (patch) |
+| `feat!:` / `fix!:` or a `BREAKING CHANGE:` footer | Breaking change (major) |
+| `docs:`, `test:`, `refactor:`, `chore:`, `ci:`, `style:` | No release |
 
 Example: `feat: add multi-room group create`
 
@@ -79,7 +82,7 @@ cd resonance
 make install
 ```
 
-That creates `backend/.venv`, installs the backend with dev extras, and runs `npm ci` in `frontend/`. It reinstalls a side only when its manifest (`backend/pyproject.toml`, `frontend/package-lock.json`) changes, and every target below runs it first, so you rarely need to call it yourself. Copy [.env.example](.env.example) to `.env` in the repo root when you need non-default settings. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) and [docs/RUNBOOK.md](docs/RUNBOOK.md).
+That creates `backend/.venv`, installs the backend with dev extras at the exact versions in `backend/constraints.txt`, and runs `npm ci` in `frontend/`. It reinstalls a side only when its manifest (`backend/pyproject.toml` or `backend/constraints.txt`, `frontend/package-lock.json`) changes, and every target below runs it first, so you rarely need to call it yourself. Copy [.env.example](.env.example) to `.env` in the repo root when you need non-default settings. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) and [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
 ### Make targets
 
@@ -88,10 +91,11 @@ Run `make` with no target to list them.
 | Target | What it does |
 |--------|--------------|
 | `make install` | Backend venv and frontend packages |
+| `make lock` | Re-pin `backend/constraints.txt` to the newest versions that `backend/pyproject.toml` allows. Run it after you change a backend dependency |
 | `make run` | Development: API with reload, then the Vite UI at http://127.0.0.1:8765/ once the API is healthy |
 | `make build` | Production UI bundle in `frontend/dist` (the backend has no build step) |
 | `make serve` | `build`, then one process serves the UI and API at http://127.0.0.1:8780/ (`SERVE_PORT`), so it can stay up while you use `make run` |
-| `make lint` | `lint-backend` (Ruff lint and format check, mypy) and `lint-frontend` (ESLint, Prettier check, `tsc`) |
+| `make lint` | `lint-backend` (Ruff lint and format check, `mypy --strict`) and `lint-frontend` (type-aware strict ESLint, Prettier check, `tsc` with `strict` and `noUncheckedIndexedAccess`) |
 | `make format` | Rewrite the backend with `ruff format` and the frontend with Prettier. Run it before you commit, because `make lint` and CI fail on unformatted code |
 | `make test` | `test-backend` (pytest) and `test-frontend` (Vitest), each with its CI coverage gate |
 | `make check` | `lint`, `test`, and `build`: everything CI runs except the dependency audits |
@@ -139,7 +143,7 @@ Coverage thresholds are defined next to the code they guard, so they stay correc
 resonance/
 ├── Makefile              # developer tasks; `make` lists them
 ├── backend/app/          # FastAPI app (discovery, BluOS client, API, poller)
-├── backend/tests/        # Backend tests (≥90% coverage required in CI)
+├── backend/tests/        # Backend tests (≥93% coverage required in CI)
 ├── frontend/src/         # React UI (Vite on :8765)
 │   ├── components/       # Pages and panels; player/ and house/ hold their sub-panels
 │   ├── hooks/            # Data loading and commands that pages share (usePlayerDetails, useSyncActions, …)

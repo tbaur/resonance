@@ -23,7 +23,8 @@ Resonance controls every BluOS player on your network: Nodes, Pulse, NAD CI zone
 - **House page** — the same remote, then Health (poller drop history for this server process, 24h, not persisted), device firmware and an upgrade check, break all groups, rescan, and reboot all.
 - **Discovery** — at process start, on **Rescan**, and on the poller clock when the fleet is empty or the discovery cache expires. Page load and house mute/volume read the live snapshot (no mDNS). mDNS browses `_musc` and `_musp`, and LSDP listens on UDP 11430. Either one finds a CI secondary zone as its own `ip:port`.
 - **Phones and tablets** — below 900px, which covers phones and most iPads in portrait, the fleet list becomes room cards: name, now playing, volume, mute, and play/pause. Prev, Next, Stop, and the IP stay on the player page. Phones also get a top-right menu with page links and Rescan. On touch screens, buttons grow to 44pt and chips to 36pt, including in the desktop table on an iPad in landscape. Add Resonance to the home screen of an iPhone or iPad to run it full screen without Safari's bars. The home-screen app has its own cookies, separate from Safari's, so a tokened server asks for the API token there too.
-- **Live updates** — one etag long-poll per player, plus SSE. A room holds `/Status`. A grouped follower holds `/SyncStatus` instead, so its own mute and volume show up at once, and it takes the track from the group lead. Holding both at once fills the player's HTTP slots, and the room then looks down while the music keeps playing. Seek interpolates between snaps. REST fallback if the stream drops.
+- **Live updates** — one etag long-poll per player, plus SSE. A room holds `/Status`. A grouped follower holds `/SyncStatus` instead, so its own mute and volume show up at once, and it takes the track from the group lead. Holding both at once fills the player's HTTP slots, and the room then looks down while the music keeps playing. Seek interpolates between snaps on the server's clock, so a phone with a wrong clock still shows the right position. REST fallback if the stream drops, and a stream that goes silent (a sleeping laptop, a Wi-Fi roam) is dropped and opened again.
+- **Keyboard** — on the fleet and house pages: Space or K plays or pauses the focused stream, Right arrow or L skips, Left arrow or J goes back, and M mutes or unmutes every player. Keys do nothing while you type in a field.
 
 Ops (health, logs, LAN bind): [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
@@ -40,9 +41,11 @@ make serve     # everyday use: builds the UI, then serves UI and API at http://1
 make run       # development: API with reload at :8000, then the Vite UI at http://127.0.0.1:8765/
 ```
 
-Both install dependencies on first use and can run at the same time. Run `make` with no target to list the rest: `build`, `lint`, `test`, `check`, `clean`, `distclean`.
+Both install dependencies on first use and can run at the same time. Run `make` with no target to list the rest: `build`, `lint`, `test`, `check`, `lock`, `clean`, `distclean`.
 
-For a LAN bind, set `RESONANCE_HOST=0.0.0.0` and `RESONANCE_API_TOKEN` in the repo-root `.env`, and the same token as `VITE_API_TOKEN` in `frontend/.env` (Vite does not read the repo-root file). `make serve` and `make run` pick up both. Without a token, a non-loopback bind logs an `insecure_bind` warning and leaves every control open to the LAN. Copy [.env.example](.env.example) when you need non-default settings.
+For a LAN bind, set `RESONANCE_HOST=0.0.0.0` and `RESONANCE_API_TOKEN` in the repo-root `.env`. The browser asks for the token once and keeps an HttpOnly session cookie; the token is never built into the page. Without a token, a non-loopback bind logs an `insecure_bind` warning and leaves every control open to the LAN. Copy [.env.example](.env.example) when you need non-default settings.
+
+Scripts and other API clients must send `X-Resonance-Request: 1` on every `POST`, and `Authorization: Bearer <token>` when a token is set. See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) **Network exposure**.
 
 Full setup and checks: [CONTRIBUTING.md](CONTRIBUTING.md). Two-terminal start: [docs/RUNBOOK.md](docs/RUNBOOK.md). Variables: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 

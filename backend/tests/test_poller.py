@@ -21,6 +21,7 @@ from app.discovery.service import DiscoveryService
 from app.models import PlayerStatus, SyncRole
 from app.services.events import EventBus
 from app.services.poller import StatusPoller
+from tests.helpers import poll_once, wait_until
 
 
 @pytest.fixture
@@ -60,7 +61,7 @@ async def test_poll_once_updates_online_devices(
     discovery = DiscoveryService(settings, client)
     player = PlayerStatus(id="p1", ip="192.168.1.20", name="K", status="online")
     discovery._snapshot.devices = [player]
-    discovery._snapshot.ips_by_id = {"p1": "192.168.1.20"}
+    discovery._snapshot.endpoints_by_id = {"p1": "192.168.1.20"}
     discovery._snapshot.discovered_at = time.time()
     events = EventBus()
     poller = StatusPoller(settings, discovery, client, events)
@@ -80,7 +81,7 @@ async def test_poll_once_updates_online_devices(
         )
 
     monkeypatch.setattr(client, "load_player", fake_load)
-    await poller._poll_once()
+    await poll_once(poller)
     assert discovery.snapshot.devices[0].volume == 9
     assert poller._failures.get("p1") == 0
     # Volume-only change leaves the sync graph and health untouched, so the
@@ -98,7 +99,7 @@ async def test_poll_once_publishes_fleet_when_sync_graph_changes(
     discovery = DiscoveryService(settings, client)
     player = PlayerStatus(id="p1", ip="192.168.1.20", name="K", status="online")
     discovery._snapshot.devices = [player]
-    discovery._snapshot.ips_by_id = {"p1": "192.168.1.20"}
+    discovery._snapshot.endpoints_by_id = {"p1": "192.168.1.20"}
     discovery._snapshot.discovered_at = time.time()
     events = EventBus()
     poller = StatusPoller(settings, discovery, client, events)
@@ -124,7 +125,7 @@ async def test_poll_once_publishes_fleet_when_sync_graph_changes(
         )
 
     monkeypatch.setattr(client, "load_player", fake_load)
-    await poller._poll_once()
+    await poll_once(poller)
     assert [event for event, _ in published] == ["fleet"]
     await client.aclose()
 
@@ -138,7 +139,7 @@ async def test_poll_once_publishes_fleet_when_device_drops(
     discovery = DiscoveryService(settings, client)
     player = PlayerStatus(id="p1", ip="192.168.1.20", name="K", status="online")
     discovery._snapshot.devices = [player]
-    discovery._snapshot.ips_by_id = {"p1": "192.168.1.20"}
+    discovery._snapshot.endpoints_by_id = {"p1": "192.168.1.20"}
     discovery._snapshot.discovered_at = time.time()
     events = EventBus()
     poller = StatusPoller(settings, discovery, client, events)
@@ -153,7 +154,7 @@ async def test_poll_once_publishes_fleet_when_device_drops(
         raise RuntimeError("unreachable")
 
     monkeypatch.setattr(client, "load_player", boom)
-    await poller._poll_once()
+    await poll_once(poller)
     # online -> offline changes both status and the health log.
     assert [event for event, _ in published] == ["fleet"]
     await client.aclose()
@@ -168,7 +169,7 @@ async def test_poll_once_marks_exception_offline(
     discovery = DiscoveryService(settings, client)
     player = PlayerStatus(id="p1", ip="192.168.1.20", name="K", status="online")
     discovery._snapshot.devices = [player]
-    discovery._snapshot.ips_by_id = {"p1": "192.168.1.20"}
+    discovery._snapshot.endpoints_by_id = {"p1": "192.168.1.20"}
     discovery._snapshot.discovered_at = time.time()
     events = EventBus()
     poller = StatusPoller(settings, discovery, client, events)
@@ -177,7 +178,7 @@ async def test_poll_once_marks_exception_offline(
         raise RuntimeError("device down")
 
     monkeypatch.setattr(client, "load_player", boom)
-    await poller._poll_once()
+    await poll_once(poller)
     updated = discovery.snapshot.devices[0]
     # One miss keeps the room up. The circuit threshold (2 in this fixture) flips it offline.
     assert updated.status == "online"
@@ -188,7 +189,7 @@ async def test_poll_once_marks_exception_offline(
     assert len(drops) == 1
     assert drops[0].device_id == "p1"
     assert drops[0].ended_at is None
-    await poller._poll_once()
+    await poll_once(poller)
     offline = discovery.snapshot.devices[0]
     assert offline.status == "offline"
     assert offline.stale is False
@@ -257,7 +258,7 @@ async def test_refresh_one_demotes_stale_follower_and_publishes_fleet(
         sync_role=SyncRole.SYNCED,
     )
     discovery._snapshot.devices = [primary, follower]
-    discovery._snapshot.ips_by_id = {
+    discovery._snapshot.endpoints_by_id = {
         "p1": "192.168.1.10:11000",
         "p2": "192.168.1.11:11000",
     }
@@ -347,7 +348,7 @@ async def test_stop_cancels_watchers_stuck_in_a_long_poll(
     discovery = DiscoveryService(settings, client)
     player = PlayerStatus(id="p1", ip="192.168.1.20", name="K", status="online")
     discovery._snapshot.devices = [player]
-    discovery._snapshot.ips_by_id = {"p1": "192.168.1.20"}
+    discovery._snapshot.endpoints_by_id = {"p1": "192.168.1.20"}
     discovery._snapshot.discovered_at = time.time()
     events = EventBus()
     poller = StatusPoller(settings, discovery, client, events)
@@ -365,7 +366,6 @@ async def test_stop_cancels_watchers_stuck_in_a_long_poll(
         return discovery._snapshot
 
     monkeypatch.setattr(discovery, "refresh", seeded)
-    monkeypatch.setattr(discovery, "get_devices", seeded)
 
     poller.start()
     try:
@@ -388,7 +388,7 @@ async def test_interrupt_cancels_long_poll_without_marking_offline(
     discovery = DiscoveryService(settings, client)
     player = PlayerStatus(id="p1", ip="192.168.1.20", name="K", status="online")
     discovery._snapshot.devices = [player]
-    discovery._snapshot.ips_by_id = {"p1": "192.168.1.20"}
+    discovery._snapshot.endpoints_by_id = {"p1": "192.168.1.20"}
     discovery._snapshot.discovered_at = time.time()
     events = EventBus()
     poller = StatusPoller(settings, discovery, client, events)
@@ -423,15 +423,19 @@ async def test_interrupt_holds_off_the_next_long_poll(
     discovery = DiscoveryService(settings, client)
     player = PlayerStatus(id="p1", ip="192.168.1.20", name="K", status="online")
     discovery._snapshot.devices = [player]
-    discovery._snapshot.ips_by_id = {"p1": "192.168.1.20"}
+    discovery._snapshot.endpoints_by_id = {"p1": "192.168.1.20"}
     discovery._snapshot.discovered_at = time.time()
     events = EventBus()
     poller = StatusPoller(settings, discovery, client, events)
     calls = {"n": 0}
     entered = asyncio.Event()
 
+    second_call_at: list[float] = []
+
     async def held(_target: str, **_kwargs: object) -> PlayerSnapshot:
         calls["n"] += 1
+        if calls["n"] == 2:
+            second_call_at.append(time.monotonic())
         entered.set()
         await asyncio.sleep(3600)
         raise AssertionError("long-poll should have been cancelled")
@@ -441,11 +445,11 @@ async def test_interrupt_holds_off_the_next_long_poll(
     try:
         await asyncio.wait_for(entered.wait(), timeout=5)
         assert calls["n"] == 1
+        interrupted_at = time.monotonic()
         await poller.interrupt(["p1"])
-        await asyncio.sleep(0.12)
-        assert calls["n"] == 1
-        await asyncio.sleep(0.35)
-        assert calls["n"] == 2
+        await wait_until(lambda: calls["n"] == 2)
+        # The next long-poll waits out the gap that the interrupt started.
+        assert second_call_at[0] - interrupted_at >= settings.long_poll_gap_seconds - 0.02
     finally:
         await poller.stop()
         await client.aclose()
@@ -735,9 +739,8 @@ async def test_a_change_seen_by_the_confirm_read_schedules_one_more(
     monkeypatch.setattr(poller, "refresh_one", refresh_one)
     poller._remember_tags("p1", PlayerSnapshot(player, sync_stat="own-7", sync_read=True))
     poller._remember_tags("p1", PlayerSnapshot(player, sync_stat="lead-56", sync_read=True))
-    await asyncio.sleep(0.4)
+    await wait_until(lambda: len(reads) == 2 and not poller._confirms)
     assert reads == ["p1", "p1"]
-    assert poller._confirms == {}
     await poller.stop()
     await client.aclose()
 
@@ -855,3 +858,58 @@ def test_follower_copies_when_its_lead_read_secs() -> None:
     patch = _lead_playback(lead, follower)
     assert patch["secs"] == 90
     assert patch["secs_at"] == 1000.0
+
+
+def test_wedge_limit_covers_a_rediscovery(settings: Settings) -> None:
+    """A slow rediscovery is a healthy pass, so /readyz must not report it stuck."""
+    slow = settings.model_copy(update={"discovery_timeout": 20.0, "device_http_timeout": 5.0})
+    client = BluOSClient(slow)
+    poller = StatusPoller(slow, DiscoveryService(slow, client), client, EventBus())
+    assert poller.wedge_seconds() > slow.discovery_timeout + 3 * slow.device_http_timeout
+    poller.last_poll_at = time.time() - (slow.discovery_timeout + 10)
+    assert poller.is_wedged() is False
+    poller.last_poll_at = time.time() - (poller.wedge_seconds() + 1)
+    assert poller.is_wedged() is True
+
+
+@pytest.mark.asyncio
+async def test_cancelling_a_watcher_is_not_swallowed(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """interrupt() cancels the inner read; cancelling the watcher itself must end it."""
+    client = BluOSClient(settings)
+    discovery = DiscoveryService(settings, client)
+    player = PlayerStatus(id="p1", ip="192.168.1.20", name="K", status="online")
+    discovery._snapshot.devices = [player]
+    discovery._snapshot.endpoints_by_id = {"p1": player.endpoint}
+    poller = StatusPoller(settings, discovery, client, EventBus())
+    entered = asyncio.Event()
+
+    async def held(_target: str, **_kwargs: object) -> PlayerSnapshot:
+        entered.set()
+        await asyncio.sleep(3600)
+        raise AssertionError("unreachable")
+
+    monkeypatch.setattr(client, "load_player", held)
+    watcher = asyncio.create_task(poller._watch_device("p1"))
+    await asyncio.wait_for(entered.wait(), timeout=5)
+    watcher.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(watcher, timeout=2)
+    await client.aclose()
+
+
+def test_a_removed_room_keeps_its_drop_history(settings: Settings) -> None:
+    client = BluOSClient(settings)
+    poller = StatusPoller(settings, DiscoveryService(settings, client), client, EventBus())
+    room = PlayerStatus(id="p1", ip="192.168.1.20", name="K", status="online")
+    poller.health.observe(room, previous_failures=0, now=time.time())
+    poller.health.observe(
+        room.model_copy(update={"status": "offline"}), previous_failures=0, now=time.time()
+    )
+    poller._forget_device("p1")
+    snapshot = poller.health.snapshot()
+    assert "p1" not in snapshot.first_online
+    assert [drop.device_id for drop in snapshot.drops] == ["p1"]
+    # The drop is closed, so it ages out of the window like any other.
+    assert snapshot.drops[0].ended_at is not None

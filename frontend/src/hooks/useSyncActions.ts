@@ -29,7 +29,7 @@ function paintLink(primaryId: string, slaveId: string): void {
   state.holdSync(GROUP_CHANGE_SYNC_HOLD_MS);
   state.patchDevice(primaryId, {
     sync_role: 'primary',
-    slaves: Array.from(new Set([...(lead.slaves ?? []), deviceEndpoint(follower)])),
+    slaves: Array.from(new Set([...lead.slaves, deviceEndpoint(follower)])),
   });
   state.patchDevice(slaveId, { sync_role: 'synced', master: deviceEndpoint(lead) });
 }
@@ -43,6 +43,19 @@ function paintUnlink(primaryId: string, slaveIds: readonly string[]): void {
 
 function toastFailures(failed: number, message: string): void {
   if (failed > 0) useFleetStore.getState().setToast(message);
+}
+
+/**
+ * Break every group (Break all), paint the empty graph, and reload. Shared by
+ * the Sync panel and the House page.
+ */
+export async function breakAllGroups(): Promise<void> {
+  const result = await api.syncBreak();
+  const state = useFleetStore.getState();
+  state.setSync(syncStateFor([], state.devices));
+  state.holdSync(GROUP_CHANGE_SYNC_HOLD_MS);
+  await state.reloadStatus();
+  toastFailures(result.failed, `Ungrouped ${result.succeeded}; ${result.failed} failed`);
 }
 
 /**
@@ -83,22 +96,21 @@ export function useSyncActions() {
 
   const ungroup = (group: SyncGroup) =>
     run(group.primary_id, async () => {
-      for (const slaveId of group.slave_ids) {
-        await api.syncRemove(group.primary_id, slaveId);
+      const removed: string[] = [];
+      try {
+        for (const slaveId of group.slave_ids) {
+          await api.syncRemove(group.primary_id, slaveId);
+          removed.push(slaveId);
+        }
+      } finally {
+        // One follower failing must not leave the ones that did leave painted
+        // as grouped: paint what changed, then read the real graph.
+        if (removed.length > 0) paintUnlink(group.primary_id, removed);
+        await reloadStatus();
       }
-      paintUnlink(group.primary_id, group.slave_ids);
-      await reloadStatus();
     });
 
-  const ungroupAll = (anyPrimaryId: string) =>
-    run(anyPrimaryId, async () => {
-      const result = await api.syncBreak();
-      const state = useFleetStore.getState();
-      state.setSync(syncStateFor([], state.devices));
-      state.holdSync(GROUP_CHANGE_SYNC_HOLD_MS);
-      await reloadStatus();
-      toastFailures(result.failed, `Ungrouped ${result.succeeded}; ${result.failed} failed`);
-    });
+  const ungroupAll = (anyPrimaryId: string) => run(anyPrimaryId, breakAllGroups);
 
   /** `onGrouped` runs after the reload, before any partial-failure toast. */
   const groupAllUnder = (primaryId: string, onGrouped: () => void) =>

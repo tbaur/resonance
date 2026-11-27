@@ -31,7 +31,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-          cache-dependency-path: backend/pyproject.toml
+          cache-dependency-path: |
+            backend/pyproject.toml
+            backend/constraints.txt
       # Same targets as local `make check`; the venv uses the matrix python3.
       - name: Install
         run: make backend/.venv/.installed

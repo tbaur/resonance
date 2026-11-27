@@ -26,6 +26,22 @@ STOP_TIMEOUT_S = 5.0
 pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="POSIX signals")
 
 
+# Runs the real app under uvicorn's own signal handling, with discovery kept off
+# the host network: no LSDP broadcast on UDP 11430 and no mDNS browse.
+_HERMETIC_SERVER = """
+import sys
+
+import uvicorn
+
+from app.discovery.lsdp import LSDPDiscovery
+from app.discovery.mdns import StandingMDNS
+
+LSDPDiscovery.discover = lambda self: []
+StandingMDNS.start = lambda self: None
+uvicorn.run("app.main:app", host="127.0.0.1", port=int(sys.argv[1]), log_level="warning")
+"""
+
+
 def _free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
@@ -44,9 +60,8 @@ def server() -> Iterator[tuple[subprocess.Popen[bytes], str]]:
         "RESONANCE_LOG_LEVEL": "WARNING",
         "RESONANCE_API_TOKEN": "",
     }
-    command = [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1"]
     proc = subprocess.Popen(
-        [*command, "--port", str(port)],
+        [sys.executable, "-c", _HERMETIC_SERVER, str(port)],
         cwd=BACKEND,
         env=env,
         stdout=subprocess.DEVNULL,

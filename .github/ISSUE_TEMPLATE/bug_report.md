@@ -12,7 +12,7 @@ A clear description of what the bug is.
 
 ## Environment
 
-- **Resonance version**: (from footer or `backend/app/__init__.py`)
+- **Resonance version**: (from the page footer, which also shows `(server v…)` when the server runs a different version, or from `GET /api/v1/version`)
 - **OS**:
 - **Python version**:
 - **Node.js version**:

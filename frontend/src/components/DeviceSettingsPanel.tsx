@@ -8,7 +8,7 @@
  * through the path that setting uses.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/api/client';
 import type { DeviceSetting, DeviceSettingsResponse } from '@/api/types';
 import { ApiError } from '@/api/types';
@@ -23,6 +23,23 @@ import {
 
 type SettingsPage = 'audio' | 'player';
 
+/** Keys that move a range slider. Each release sends the value it landed on. */
+const RANGE_KEYS = new Set([
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'ArrowDown',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown',
+]);
+
+/** `drafts` without the entry for `id`. */
+function withoutKey(drafts: Record<string, string>, id: string): Record<string, string> {
+  return Object.fromEntries(Object.entries(drafts).filter(([key]) => key !== id));
+}
+
 interface DeviceSettingsPanelProps {
   deviceId: string;
 }
@@ -35,6 +52,14 @@ export function DeviceSettingsPanel({ deviceId }: DeviceSettingsPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [loadedFor, setLoadedFor] = useState('');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // The page on screen now. A write that finishes after a page switch must not
+  // replace the new page with the old one.
+  const shownRef = useRef(`${deviceId}:${page}`);
+  useEffect(() => {
+    shownRef.current = `${deviceId}:${page}`;
+  }, [deviceId, page]);
+  // Values on their way to the player, by setting id, so one gesture sends one write.
+  const sendingRef = useRef(new Map<string, string>());
 
   useEffect(() => {
     const ac = new AbortController();
@@ -63,7 +88,9 @@ export function DeviceSettingsPanel({ deviceId }: DeviceSettingsPanelProps) {
         );
       }
     })();
-    return () => ac.abort();
+    return () => {
+      ac.abort();
+    };
   }, [deviceId, page]);
 
   const loading = loadedFor !== `${deviceId}:${page}`;
@@ -78,18 +105,20 @@ export function DeviceSettingsPanel({ deviceId }: DeviceSettingsPanelProps) {
   const write = async (setting: DeviceSetting, value: string) => {
     const current = values[setting.id] ?? setting.value;
     if (setting.kind !== 'button' && value === current) return;
+    // A range commits on pointerup and again on blur. Send the value once.
+    if (sendingRef.current.get(setting.id) === value) return;
+    sendingRef.current.set(setting.id, value);
+    const startedOn = shownRef.current;
     setBusyId(setting.id);
     setError(null);
     try {
       await api.setSetting(deviceId, setting.id, value);
+      if (shownRef.current !== startedOn) return;
       setValues((prev) => ({ ...prev, [setting.id]: value }));
-      setDrafts((prev) => {
-        const next = { ...prev };
-        delete next[setting.id];
-        return next;
-      });
+      setDrafts((prev) => withoutKey(prev, setting.id));
       if (setting.kind === 'button' || setting.refresh_after_write) {
         const response = await api.getSettings(deviceId, page);
+        if (shownRef.current !== startedOn) return;
         const next: Record<string, string> = {};
         for (const item of response.settings) {
           next[item.id] = item.value;
@@ -98,10 +127,12 @@ export function DeviceSettingsPanel({ deviceId }: DeviceSettingsPanelProps) {
         setValues(next);
       }
     } catch (err) {
+      if (shownRef.current !== startedOn) return;
       setError(
         err instanceof ApiError ? `${err.message} (${err.requestId})` : 'Failed to update setting',
       );
     } finally {
+      sendingRef.current.delete(setting.id);
       setBusyId(null);
     }
   };
@@ -117,14 +148,18 @@ export function DeviceSettingsPanel({ deviceId }: DeviceSettingsPanelProps) {
         <button
           type="button"
           className={page === 'audio' ? 'btn btn-primary' : 'btn'}
-          onClick={() => setPage('audio')}
+          onClick={() => {
+            setPage('audio');
+          }}
         >
           Audio
         </button>
         <button
           type="button"
           className={page === 'player' ? 'btn btn-primary' : 'btn'}
-          onClick={() => setPage('player')}
+          onClick={() => {
+            setPage('player');
+          }}
         >
           Player
         </button>
@@ -195,13 +230,20 @@ export function DeviceSettingsPanel({ deviceId }: DeviceSettingsPanelProps) {
                       value={Number(draft) || 0}
                       disabled={disabled}
                       aria-label={setting.display_name}
-                      onChange={(e) =>
-                        setDrafts((prev) => ({ ...prev, [setting.id]: e.target.value }))
-                      }
-                      onPointerUp={(e) =>
-                        commitRange(setting, (e.target as HTMLInputElement).value)
-                      }
-                      onBlur={(e) => commitRange(setting, e.target.value)}
+                      onChange={(e) => {
+                        setDrafts((prev) => ({ ...prev, [setting.id]: e.target.value }));
+                      }}
+                      onPointerUp={(e) => {
+                        commitRange(setting, (e.target as HTMLInputElement).value);
+                      }}
+                      onKeyUp={(e) => {
+                        if (RANGE_KEYS.has(e.key)) {
+                          commitRange(setting, e.currentTarget.value);
+                        }
+                      }}
+                      onBlur={(e) => {
+                        commitRange(setting, e.target.value);
+                      }}
                     />
                   </div>
                 </li>
@@ -226,12 +268,12 @@ export function DeviceSettingsPanel({ deviceId }: DeviceSettingsPanelProps) {
                       max={setting.max_value ?? undefined}
                       disabled={disabled}
                       aria-label={`${setting.display_name} low`}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setDrafts((prev) => ({
                           ...prev,
                           [setting.id]: `${e.target.value},${high}`,
-                        }))
-                      }
+                        }));
+                      }}
                     />
                     <input
                       type="number"
@@ -241,12 +283,12 @@ export function DeviceSettingsPanel({ deviceId }: DeviceSettingsPanelProps) {
                       max={setting.max_value ?? undefined}
                       disabled={disabled}
                       aria-label={`${setting.display_name} high`}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setDrafts((prev) => ({
                           ...prev,
                           [setting.id]: `${low},${e.target.value}`,
-                        }))
-                      }
+                        }));
+                      }}
                     />
                     <button
                       type="button"
@@ -277,9 +319,9 @@ export function DeviceSettingsPanel({ deviceId }: DeviceSettingsPanelProps) {
                         value={draft}
                         disabled={disabled}
                         aria-label={setting.display_name}
-                        onChange={(e) =>
-                          setDrafts((prev) => ({ ...prev, [setting.id]: e.target.value }))
-                        }
+                        onChange={(e) => {
+                          setDrafts((prev) => ({ ...prev, [setting.id]: e.target.value }));
+                        }}
                       />
                     )}
                   </span>

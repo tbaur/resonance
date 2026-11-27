@@ -26,6 +26,7 @@ export function reorderQueue(
   }
   const items = [...queue.items];
   const [item] = items.splice(fromIndex, 1);
+  if (item === undefined) return queue;
   items.splice(toIndex, 0, item);
   return { items, count: queue.count };
 }

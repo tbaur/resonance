@@ -4,19 +4,15 @@
  * Licensed under the Apache License, Version 2.0
  * See LICENSE file for full license text
  *
- * The built-in token sets the session cookie, and a
- * rejected token asks for another.
+ * No token is built into the page. A 401 asks for one in the browser, and a
+ * later 401 (the server's token changed) asks again.
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '@/App';
-
-vi.mock('@/api/auth', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/api/auth')>()),
-  apiToken: 'dev-token',
-}));
+import { reportSessionLost } from '@/api/auth';
 
 vi.mock('@/hooks/useLiveFleet', () => ({
   useLiveFleet: () => undefined,
@@ -40,10 +36,12 @@ function respond(status: number) {
     status,
     statusText: '',
     headers: new Headers(),
-    json: async () =>
-      status === 401
-        ? { error: 'unauthorized', message: 'Valid API token required', code: 'unauthorized' }
-        : { devices: [], discovered_at: null, discovery_method: '' },
+    json: () =>
+      Promise.resolve(
+        status === 401
+          ? { error: 'unauthorized', message: 'Valid API token required', code: 'unauthorized' }
+          : { devices: [], discovered_at: null, discovery_method: '' },
+      ),
   };
 }
 
@@ -64,50 +62,25 @@ function renderApp() {
   );
 }
 
-describe('built-in API token', () => {
+describe('API session', () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('sets the session cookie before the fleet renders', async () => {
-    let resolveFetch: (value: unknown) => void = () => undefined;
-    const fetchMock = vi.fn().mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveFetch = resolve;
-        }),
-    );
-    vi.stubGlobal('fetch', fetchMock);
-
-    renderApp();
-
-    expect(screen.queryByText('Fleet')).not.toBeInTheDocument();
-    expect(call(fetchMock, 0)).toEqual({
-      url: '/api/v1/session',
-      method: 'POST',
-      auth: 'Bearer dev-token',
-    });
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({ credentials: 'include' });
-
-    resolveFetch(respond(204));
-    expect(await screen.findByText('Fleet')).toBeInTheDocument();
-  });
-
-  it('opens the app when the server has no token set', async () => {
-    // /session refuses when no token is configured; /devices is open.
-    const fetchMock = vi.fn().mockResolvedValueOnce(respond(401)).mockResolvedValue(respond(200));
+  it('opens the app when the server has no token set, sending no token', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(respond(200));
     vi.stubGlobal('fetch', fetchMock);
 
     renderApp();
 
     expect(await screen.findByText('Fleet')).toBeInTheDocument();
-    expect(call(fetchMock, 1).url).toBe('/api/v1/devices');
+    expect(call(fetchMock, 0)).toEqual({ url: '/api/v1/devices', method: 'GET', auth: null });
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ credentials: 'include' });
   });
 
-  it('asks for a token when the built-in one is rejected, and sends the typed one', async () => {
+  it('asks for a token on a 401, and sends the typed one', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(respond(401))
       .mockResolvedValueOnce(respond(401))
       .mockResolvedValueOnce(respond(204));
     vi.stubGlobal('fetch', fetchMock);
@@ -120,10 +93,24 @@ describe('built-in API token', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     expect(await screen.findByText('Fleet')).toBeInTheDocument();
-    expect(call(fetchMock, 2)).toEqual({
+    expect(call(fetchMock, 1)).toEqual({
       url: '/api/v1/session',
       method: 'POST',
       auth: 'Bearer typed-token',
     });
+  });
+
+  it('asks for the token again when the session stops working', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respond(200)));
+
+    renderApp();
+    expect(await screen.findByText('Fleet')).toBeInTheDocument();
+
+    act(() => {
+      reportSessionLost();
+    });
+
+    expect(await screen.findByLabelText('API token')).toBeInTheDocument();
+    expect(screen.queryByText('Fleet')).not.toBeInTheDocument();
   });
 });

@@ -25,12 +25,12 @@ const setRepeat = vi.fn();
 
 vi.mock('@/api/client', () => ({
   api: {
-    toggle: (...args: unknown[]) => toggle(...args),
-    skip: (...args: unknown[]) => skip(...args),
-    back: (...args: unknown[]) => back(...args),
-    seek: (...args: unknown[]) => seek(...args),
-    setShuffle: (...args: unknown[]) => setShuffle(...args),
-    setRepeat: (...args: unknown[]) => setRepeat(...args),
+    toggle: (...args: unknown[]): unknown => toggle(...args),
+    skip: (...args: unknown[]): unknown => skip(...args),
+    back: (...args: unknown[]): unknown => back(...args),
+    seek: (...args: unknown[]): unknown => seek(...args),
+    setShuffle: (...args: unknown[]): unknown => setShuffle(...args),
+    setRepeat: (...args: unknown[]): unknown => setRepeat(...args),
   },
 }));
 
@@ -176,14 +176,20 @@ describe('HouseRemote', () => {
     expect(speakers).toHaveFocus();
 
     fireEvent.click(screen.getByRole('button', { name: 'Pause house stream' }));
-    await waitFor(() => expect(toggle).toHaveBeenCalledWith('1'));
+    await waitFor(() => {
+      expect(toggle).toHaveBeenCalledWith('1');
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Next track' }));
-    await waitFor(() => expect(skip).toHaveBeenCalledWith('1'));
+    await waitFor(() => {
+      expect(skip).toHaveBeenCalledWith('1');
+    });
     expect(skip).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole('button', { name: 'Shuffle off' }));
-    await waitFor(() => expect(setShuffle).toHaveBeenCalledWith('1', 1));
+    await waitFor(() => {
+      expect(setShuffle).toHaveBeenCalledWith('1', 1);
+    });
   });
 
   it('pauses synced followers and leaves a direct player playing', async () => {
@@ -231,7 +237,9 @@ describe('HouseRemote', () => {
     });
     renderRemote();
     fireEvent.click(screen.getByRole('button', { name: 'Pause house stream' }));
-    await waitFor(() => expect(toggle).toHaveBeenCalledWith('1'));
+    await waitFor(() => {
+      expect(toggle).toHaveBeenCalledWith('1');
+    });
     expect(toggle).toHaveBeenCalledTimes(1);
     const states = Object.fromEntries(
       useFleetStore.getState().devices.map((device) => [device.id, device.state]),
@@ -253,7 +261,9 @@ describe('HouseRemote', () => {
     expect(screen.getByRole('button', { name: 'Next track' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Mute' })).toBeEnabled();
     release();
-    await waitFor(() => expect(skip).toHaveBeenCalledWith('1'));
+    await waitFor(() => {
+      expect(skip).toHaveBeenCalledWith('1');
+    });
   });
 
   it('dims skip, back, shuffle, and repeat on a live station that offers none', () => {
@@ -287,20 +297,26 @@ describe('HouseRemote', () => {
     renderRemote();
     expect(screen.getByRole('button', { name: 'Previous track' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Next track' }));
-    await waitFor(() => expect(skip).toHaveBeenCalledWith('1'));
+    await waitFor(() => {
+      expect(skip).toHaveBeenCalledWith('1');
+    });
   });
 
   it('seeks the house stream', async () => {
     renderRemote();
     const slider = screen.getByRole('slider', { name: 'Seek' });
     fireEvent.change(slider, { target: { value: '90' } });
-    await waitFor(() => expect(seek).toHaveBeenCalledWith('1', 90));
+    await waitFor(() => {
+      expect(seek).toHaveBeenCalledWith('1', 90);
+    });
   });
 
   it('skips from the keyboard without stealing input', async () => {
     renderRemote();
     fireEvent.keyDown(window, { key: 'ArrowRight' });
-    await waitFor(() => expect(skip).toHaveBeenCalledWith('1'));
+    await waitFor(() => {
+      expect(skip).toHaveBeenCalledWith('1');
+    });
 
     const field = document.createElement('input');
     document.body.appendChild(field);
@@ -312,12 +328,18 @@ describe('HouseRemote', () => {
   it('handles the other shortcuts and ignores modified keys', async () => {
     renderRemote();
     fireEvent.keyDown(window, { key: 'k' });
-    await waitFor(() => expect(toggle).toHaveBeenCalledWith('1'));
+    await waitFor(() => {
+      expect(toggle).toHaveBeenCalledWith('1');
+    });
     // The follower is painted to match the lead.
-    await waitFor(() => expect(useFleetStore.getState().devices[1].state).toBe('pause'));
+    await waitFor(() => {
+      expect(useFleetStore.getState().devices[1]?.state).toBe('pause');
+    });
 
     fireEvent.keyDown(window, { key: 'j' });
-    await waitFor(() => expect(back).toHaveBeenCalledWith('1'));
+    await waitFor(() => {
+      expect(back).toHaveBeenCalledWith('1');
+    });
     expect(useFleetStore.getState().houseSession.phase).toBe('catchup');
 
     fireEvent.keyDown(window, { key: 'm' });
@@ -355,7 +377,9 @@ describe('HouseRemote', () => {
     });
     renderRemote();
     fireEvent.click(screen.getByRole('button', { name: 'Next track' }));
-    await waitFor(() => expect(skip).toHaveBeenCalledWith('1'));
+    await waitFor(() => {
+      expect(skip).toHaveBeenCalledWith('1');
+    });
     expect(skip).toHaveBeenCalledTimes(1);
     act(() => {
       useFleetStore.setState({
@@ -583,7 +607,9 @@ describe('HouseRemote', () => {
     expect(document.querySelector('.house-remote-primary')).toHaveTextContent('Other');
 
     fireEvent.click(screen.getByRole('button', { name: 'Next track' }));
-    await waitFor(() => expect(skip).toHaveBeenCalledWith('2'));
+    await waitFor(() => {
+      expect(skip).toHaveBeenCalledWith('2');
+    });
     act(() => {
       useFleetStore.setState({
         devices: [
@@ -655,7 +681,9 @@ describe('HouseRemote', () => {
     });
     renderRemote();
     fireEvent.click(screen.getByRole('button', { name: 'Next track' }));
-    await waitFor(() => expect(skip).toHaveBeenCalledWith('1'));
+    await waitFor(() => {
+      expect(skip).toHaveBeenCalledWith('1');
+    });
     expect(skip).not.toHaveBeenCalledWith('3');
     act(() => {
       useFleetStore.setState({
@@ -697,8 +725,12 @@ describe('HouseRemote', () => {
   it('cycles repeat off → all → one', async () => {
     renderRemote();
     fireEvent.click(screen.getByRole('button', { name: 'Repeat off' }));
-    await waitFor(() => expect(setRepeat).toHaveBeenCalledWith('1', 1));
+    await waitFor(() => {
+      expect(setRepeat).toHaveBeenCalledWith('1', 1);
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Repeat all' }));
-    await waitFor(() => expect(setRepeat).toHaveBeenCalledWith('1', 2));
+    await waitFor(() => {
+      expect(setRepeat).toHaveBeenCalledWith('1', 2);
+    });
   });
 });

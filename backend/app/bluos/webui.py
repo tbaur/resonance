@@ -161,11 +161,10 @@ class BluOSWebUIMixin(BluOSTransport):
                     response = await self._follow_get(sanitized, url, timeout=timeout)
                 if response is None or response.status_code >= 400:
                     return None
-                text_body = response.text
-                if len(text_body.encode("utf-8", errors="ignore")) > self.settings.max_xml_size:
+                if response.too_large:
                     logger.warning("payload_too_large ip=%s path=%s", sanitized, path)
                     return None
-                return text_body
+                return response.text
             except httpx.TimeoutException as exc:
                 last_error = exc
                 break
@@ -196,6 +195,8 @@ class BluOSWebUIMixin(BluOSTransport):
                 return self._ok(CallResult.failure("rejected", "redirect blocked"))
             if response.status_code >= 400:
                 return self._ok(CallResult.failure("http_status", str(response.status_code)))
+            if response.too_large:
+                return self._ok(CallResult.failure("rejected", "payload too large"))
             return self._ok(
                 classify_control_body(
                     response.content,
@@ -262,13 +263,6 @@ class BluOSWebUIMixin(BluOSTransport):
         if not parsed.get("uptime"):
             logger.warning("diagnostics_uptime_missing endpoint=%s html_len=%s", ip, len(html))
         return parsed or {}
-
-    async def get_uptime(self, ip: str) -> str | None:
-        """Read uptime from the device web UI diagnostics page."""
-        parsed = await self.get_diagnostics(ip)
-        if parsed is None:
-            return None
-        return parsed.get("uptime")
 
     @staticmethod
     def _parse_upgrade_html(html: str) -> tuple[bool, str]:
@@ -361,17 +355,18 @@ class BluOSWebUIMixin(BluOSTransport):
         for page in ("audio", "player"):
             self._settings_page_cache.pop((endpoint, page), None)
 
-    async def set_device_setting(
-        self, ip: str, setting_id: str, value: str, *, control_path: str = ""
-    ) -> bool:
-        """Write a setting via its BluOS control path when known, else web UI POST."""
+    async def set_device_setting(self, ip: str, setting_id: str, value: str) -> bool:
+        """Write a setting through its BluOS control path when the player names one.
+
+        The device web UI POST is the fallback only when there is no control
+        path, or the player says it has no such path (404 or 405). After a
+        timeout the player may already have applied the write, so a second
+        write through the web UI could apply it twice.
+        """
         sid = (setting_id or "").strip()
         if not sid:
             return False
-        path = (control_path or "").strip()
-        if not path:
-            path = await self._resolve_setting_control_path(ip, sid)
-        ok = False
+        path = await self._resolve_setting_control_path(ip, sid)
         if path.startswith("/") and "://" not in path:
             path_only = path.split("?", 1)[0]
             if path_only.lower() == "/name":
@@ -382,16 +377,17 @@ class BluOSWebUIMixin(BluOSTransport):
                     path_only,
                     query=f"{quote(sid, safe='-_.')}={quote(value, safe=',.-')}",
                 )
-            # A BluOS <error> is the player's answer. Do not also POST the web UI.
-            if result.kind == "bluos_error":
-                return self._ok(result)
             ok = self._ok(result)
-        if not ok:
-            ok = await self._post_web_ui(
-                ip,
-                "/settings",
-                {"playnum": "1", "id": sid, "value": value},
-            )
+            path_missing = result.kind == "http_status" and result.detail in {"404", "405"}
+            if ok or not path_missing:
+                if ok:
+                    self._invalidate_settings_cache(ip)
+                return ok
+        ok = await self._post_web_ui(
+            ip,
+            "/settings",
+            {"playnum": "1", "id": sid, "value": value},
+        )
         if ok:
             self._invalidate_settings_cache(ip)
         return ok

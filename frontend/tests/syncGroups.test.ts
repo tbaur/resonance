@@ -75,10 +75,10 @@ describe('syncGroups', () => {
 
   it('adds a follower to an existing group without mutating it', () => {
     const next = withFollower([group], alpha, charlie);
-    expect(next[0].slave_ids).toEqual(['b', 'c']);
-    expect(next[0].slave_names).toEqual(['Bravo', 'Charlie']);
+    expect(next[0]?.slave_ids).toEqual(['b', 'c']);
+    expect(next[0]?.slave_names).toEqual(['Bravo', 'Charlie']);
     expect(group.slave_ids).toEqual(['b']);
-    expect(withFollower(next, alpha, charlie)[0].slave_ids).toEqual(['b', 'c']);
+    expect(withFollower(next, alpha, charlie)[0]?.slave_ids).toEqual(['b', 'c']);
   });
 
   it('creates a group for a new lead', () => {
@@ -93,7 +93,7 @@ describe('syncGroups', () => {
 
   it('removes followers and drops a group that is left empty', () => {
     const two = withFollower([group], alpha, charlie);
-    expect(withoutFollowers(two, 'a', ['b'])[0].slave_names).toEqual(['Charlie']);
+    expect(withoutFollowers(two, 'a', ['b'])[0]?.slave_names).toEqual(['Charlie']);
     expect(withoutFollowers(two, 'a', ['b', 'c'])).toEqual([]);
     expect(withoutFollowers(two, 'other', ['b'])).toEqual(two);
   });

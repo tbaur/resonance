@@ -23,7 +23,7 @@ from app.models import (
     QueueResponse,
     SyncRole,
 )
-from tests.helpers import app_with_players
+from tests.helpers import API_BASE, API_HEADERS, app_with_players
 
 
 @pytest.fixture
@@ -51,7 +51,7 @@ async def test_device_transport_controls(
     client.set_repeat = AsyncMock(return_value=True)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         for path in ("play", "pause", "stop", "skip", "back", "toggle"):
             response = await http.post(f"/api/v1/devices/player-zone-m/{path}")
             assert response.status_code == 204, path
@@ -88,7 +88,7 @@ async def test_device_volume_mute_adjust(
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         vol = await http.post("/api/v1/devices/player-zone-m/volume", json={"level": 40})
         assert vol.status_code == 204
         mute = await http.post("/api/v1/devices/player-zone-m/mute", json={"mute": True})
@@ -119,7 +119,7 @@ async def test_volume_adjust_on_muted_room_starts_from_its_unmute_level(
     client.get_player_status = AsyncMock(return_value=muted)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/devices/zone-one/volume/adjust", json={"delta": 2})
     assert response.status_code == 204
     client.adjust_volume.assert_awaited_with("192.168.1.30:11000", 2, 45)
@@ -151,7 +151,7 @@ async def test_volume_adjust_interrupts_before_live_status(
     monkeypatch.setattr(poller, "interrupt", interrupt)
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post(
             "/api/v1/devices/player-zone-m/volume/adjust",
             json={"delta": 1},
@@ -169,7 +169,7 @@ async def test_control_failure_returns_502(
     client.play = AsyncMock(return_value=False)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/devices/player-zone-m/play")
         assert response.status_code == 502
         assert response.json()["code"] == "bluos_control_failed"
@@ -192,7 +192,7 @@ async def test_get_device_and_diagnose(settings: Settings, monkeypatch: pytest.M
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         device = await http.get("/api/v1/devices/player-zone-m")
         assert device.status_code == 200
         assert device.json()["name"] == "Zone M"
@@ -212,7 +212,7 @@ async def test_readyz_and_refresh(settings: Settings, monkeypatch: pytest.Monkey
     poller.last_poll_at = time.time()
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         ready = await http.get("/api/v1/readyz")
         assert ready.status_code == 200
         assert ready.json()["status"] == "ok"
@@ -255,7 +255,7 @@ async def test_queue_inputs_bluetooth_presets(
     client.reboot = AsyncMock(return_value=True)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         queue = await http.get("/api/v1/devices/player-zone-m/queue")
         assert queue.status_code == 200
         assert queue.json()["count"] == 1
@@ -302,7 +302,7 @@ async def test_read_endpoints_fail_when_client_returns_none(
     client.get_presets = AsyncMock(return_value=None)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         assert (await http.get("/api/v1/devices/player-zone-m/queue")).status_code == 502
         assert (await http.get("/api/v1/devices/player-zone-m/inputs")).status_code == 502
         bt = await http.get("/api/v1/devices/player-zone-m/bluetooth")
@@ -321,7 +321,7 @@ async def test_bluetooth_unsupported_from_probe(
         return_value=BluetoothResponse(supported=False, mode=None)
     )
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         bt = await http.get("/api/v1/devices/player-zone-m/bluetooth")
         assert bt.status_code == 200
         assert bt.json() == {"supported": False, "mode": None}
@@ -351,7 +351,7 @@ async def test_bluetooth_unsupported_ci_s2_skips_probe(
         side_effect=AssertionError("CI S2 should not probe capture settings")
     )
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         bt = await http.get("/api/v1/devices/player-zone-m/bluetooth")
         assert bt.status_code == 200
         assert bt.json() == {"supported": False, "mode": None}
@@ -374,7 +374,7 @@ async def test_fleet_mute_pause_stop(settings: Settings, monkeypatch: pytest.Mon
     client.reboot = AsyncMock(return_value=True)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         mute = await http.post("/api/v1/fleet/mute", json={"mute": True})
         assert mute.status_code == 200
         assert mute.json()["succeeded"] == 2
@@ -433,7 +433,7 @@ async def test_fleet_mute_targets_ci_secondary_zone(
     client.reboot = AsyncMock(return_value=True)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         mute = await http.post("/api/v1/fleet/mute", json={"mute": True})
         assert mute.status_code == 200
         assert mute.json()["succeeded"] == 2
@@ -488,7 +488,7 @@ async def test_sync_add_enable_and_get(settings: Settings, monkeypatch: pytest.M
     poller.refresh_one = AsyncMock(return_value=None)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         sync = await http.get("/api/v1/sync")
         assert sync.status_code == 200
         assert len(sync.json()["standalone_ids"]) == 2
@@ -540,7 +540,7 @@ async def test_sync_enable_skips_offline_standalones(
     poller.refresh_one = AsyncMock(return_value=None)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         enable = await http.post("/api/v1/sync/enable", json={"primary_id": "primary"})
         assert enable.status_code == 200
         assert enable.json()["succeeded"] == 1
@@ -591,7 +591,7 @@ async def test_sync_enable_only_links_free_rooms(
     poller.refresh_one = AsyncMock(return_value=None)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         enable = await http.post("/api/v1/sync/enable", json={"primary_id": "primary"})
         assert enable.status_code == 200
         body = enable.json()
@@ -630,7 +630,7 @@ async def test_volume_adjust_falls_back_to_cached_when_live_offline(
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post(
             "/api/v1/devices/player-zone-m/volume/adjust",
             json={"delta": 3},
@@ -646,7 +646,7 @@ async def test_sync_add_rejects_same_device(
 ) -> None:
     app, client, _, _ = await app_with_players(settings, monkeypatch)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post(
             "/api/v1/sync/add",
             json={"master_id": "player-zone-m", "slave_id": "player-zone-m"},
@@ -690,7 +690,7 @@ async def test_settings_upgrade_and_fleet_firmware(
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         settings_resp = await http.get("/api/v1/devices/player-zone-m/settings/audio")
         assert settings_resp.status_code == 200
         assert settings_resp.json()["settings"][0]["id"] == "eq-switch"
@@ -700,8 +700,11 @@ async def test_settings_upgrade_and_fleet_firmware(
             json={"id": "channelMode", "value": "left", "control_path": "/audiomodes"},
         )
         assert write.status_code == 204
-        client.set_device_setting.assert_awaited_once()
-        assert client.set_device_setting.await_args.kwargs.get("control_path") == ""
+        # A control_path from an older client is ignored: the server reads it
+        # from the player's own Settings XML.
+        client.set_device_setting.assert_awaited_once_with(
+            "192.168.1.20:11000", "channelMode", "left"
+        )
 
         upgrade = await http.get("/api/v1/devices/player-zone-m/upgrade")
         assert upgrade.status_code == 200
@@ -725,26 +728,27 @@ async def test_settings_upgrade_and_fleet_firmware(
             json={"id": "channelMode", "value": "left"},
         )
         assert failed.status_code == 502
-        assert client.set_device_setting.await_args.kwargs.get("control_path") == ""
 
-        bad_path = await http.post(
+        invalid = await http.post(
             "/api/v1/devices/player-zone-m/settings",
-            json={"id": "channelMode", "value": "left", "control_path": "audiomodes"},
+            json={"id": "channel/Mode", "value": "left"},
         )
-        assert bad_path.status_code == 422
+        assert invalid.status_code == 422
+        assert invalid.json()["code"] == "validation_error"
+        assert invalid.json()["request_id"] != "-"
     await client.aclose()
 
 
 @pytest.mark.asyncio
-async def test_settings_write_forwards_empty_control_path(
+async def test_settings_write_resolves_the_path_on_the_server(
     settings: Settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """SPA may omit control_path; backend resolves via Settings XML."""
+    """The route passes only the id and value; the client resolves the path."""
     app, client, _, _ = await app_with_players(settings, monkeypatch)
     client.set_device_setting = AsyncMock(return_value=True)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         write = await http.post(
             "/api/v1/devices/player-zone-m/settings",
             json={"id": "fixedVolume", "value": "ON"},
@@ -754,6 +758,5 @@ async def test_settings_write_forwards_empty_control_path(
             "192.168.1.20:11000",
             "fixedVolume",
             "ON",
-            control_path="",
         )
     await client.aclose()

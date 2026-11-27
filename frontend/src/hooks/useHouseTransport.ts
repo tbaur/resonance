@@ -98,7 +98,9 @@ export function useHouseTransport(options: HouseTransportOptions) {
 
   const run = (key: string, action: () => Promise<unknown>) => {
     setBusy(key);
-    void action().finally(() => setBusy(null));
+    void action().finally(() => {
+      setBusy(null);
+    });
   };
 
   const command = (
@@ -157,7 +159,9 @@ export function useHouseTransport(options: HouseTransportOptions) {
       }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
   }, []);
 
   return { busy, run, command, toggleStream };

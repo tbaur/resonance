@@ -8,8 +8,15 @@
  * shows the token form or a notice.
  */
 
-import { type FormEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { apiToken } from '@/api/auth';
+import {
+  type ReactNode,
+  type SyntheticEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import { onSessionLost } from '@/api/auth';
 import { api } from '@/api/client';
 import { ApiError } from '@/api/types';
 
@@ -32,21 +39,6 @@ async function probe(): Promise<GateState> {
   }
 }
 
-/**
- * Trade a token built into the bundle for the session cookie first, because
- * cover art requests from <img> cannot send Authorization. A rejected bundle
- * token can just mean the server has no token set, so probe before asking.
- */
-async function connect(): Promise<GateState> {
-  if (!apiToken) return probe();
-  try {
-    await api.openSession(apiToken);
-    return 'ready';
-  } catch (err) {
-    return isUnauthorized(err) ? probe() : 'unreachable';
-  }
-}
-
 /** Renders `children` once the API accepts this browser; until then, the token form or a notice. */
 export function SessionGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GateState>('checking');
@@ -57,7 +49,7 @@ export function SessionGate({ children }: { children: ReactNode }) {
     if (inFlight.current) return;
     inFlight.current = true;
     setRetrying(true);
-    void connect()
+    void probe()
       .then(setState)
       .finally(() => {
         inFlight.current = false;
@@ -67,16 +59,34 @@ export function SessionGate({ children }: { children: ReactNode }) {
 
   useEffect(check, [check]);
 
+  // A 401 anywhere (the server's token changed, or it restarted with a new
+  // one) means the cookie stopped working: ask for the token again.
+  useEffect(
+    () =>
+      onSessionLost(() => {
+        setState('token');
+      }),
+    [],
+  );
+
   useEffect(() => {
     if (state !== 'unreachable') return undefined;
     const timer = window.setInterval(check, RETRY_MS);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+    };
   }, [state, check]);
 
   if (state === 'ready') return <>{children}</>;
   if (state === 'checking') return null;
   if (state === 'unreachable') return <UnreachableNotice busy={retrying} onRetry={check} />;
-  return <TokenForm onAccepted={() => setState('ready')} />;
+  return (
+    <TokenForm
+      onAccepted={() => {
+        setState('ready');
+      }}
+    />
+  );
 }
 
 function GateCard({ title, children }: { title: string; children: ReactNode }) {
@@ -117,7 +127,7 @@ function TokenForm({ onAccepted }: { onAccepted: () => void }) {
 
   useEffect(() => inputRef.current?.focus(), []);
 
-  const submit = async (event: FormEvent) => {
+  const submit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
     const value = token.trim();
     if (!value || busy) return;
@@ -156,13 +166,17 @@ function TokenForm({ onAccepted }: { onAccepted: () => void }) {
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? 'api-token-error' : undefined}
             value={token}
-            onChange={(event) => setToken(event.target.value)}
+            onChange={(event) => {
+              setToken(event.target.value);
+            }}
           />
           <button
             type="button"
             className="btn btn-quiet session-reveal"
             aria-controls="api-token"
-            onClick={() => setVisible((shown) => !shown)}
+            onClick={() => {
+              setVisible((shown) => !shown);
+            }}
           >
             {visible ? 'Hide' : 'Show'}
           </button>

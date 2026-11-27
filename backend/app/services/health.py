@@ -56,13 +56,17 @@ class HealthLog:
             self._first_online[device_id] = now
             self.revision += 1
 
-    def forget(self, device_id: str) -> None:
-        """Drop all history for a device that left the network for good."""
+    def forget_presence(self, device_id: str) -> None:
+        """Forget that a device was online, for a device that left the fleet.
+
+        Its drops stay until they age out of the window, so the log still shows
+        the outage that took it away. A drop still open is closed now.
+        """
         if self._first_online.pop(device_id, None) is not None:
             self.revision += 1
-        remaining = [d for d in self._drops if d.device_id != device_id]
-        if len(remaining) != len(self._drops):
-            self._drops = remaining
+        open_drop = self._open_for(device_id)
+        if open_drop is not None:
+            open_drop.ended_at = time.time()
             self.revision += 1
 
     def observe(self, player: PlayerStatus, *, previous_failures: int, now: float) -> None:

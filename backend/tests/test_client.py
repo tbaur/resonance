@@ -39,6 +39,7 @@ from tests.fixtures.xml_samples import (
     SYNC_STATUS_MUTED_DOCUMENTED,
     SYNC_STATUS_SLAVE,
 )
+from tests.helpers import bluetooth_mode, uptime
 
 
 @pytest.fixture
@@ -327,7 +328,7 @@ async def test_get_inputs_and_bluetooth_from_capture_settings(settings: Settings
         assert info is not None
         assert info.supported is True
         assert info.mode == "Disabled"
-        assert await client.get_bluetooth_mode("192.168.1.20") == "Disabled"
+        assert await bluetooth_mode(client, "192.168.1.20") == "Disabled"
     finally:
         await client.aclose()
 
@@ -344,7 +345,7 @@ async def test_bluetooth_absent_from_capture_settings(settings: Settings) -> Non
         assert info is not None
         assert info.supported is False
         assert info.mode is None
-        assert await client.get_bluetooth_mode("192.168.1.20") is None
+        assert await bluetooth_mode(client, "192.168.1.20") is None
     finally:
         await client.aclose()
 
@@ -432,7 +433,7 @@ async def test_settings_follows_port_redirect(settings: Settings) -> None:
         inputs = await client.get_inputs("192.168.1.20")
         assert inputs is not None
         assert len(inputs) == 3
-        assert await client.get_bluetooth_mode("192.168.1.20") == "Disabled"
+        assert await bluetooth_mode(client, "192.168.1.20") == "Disabled"
     finally:
         await client.aclose()
 
@@ -610,7 +611,7 @@ async def test_get_uptime_uses_port_80_diagnostics(settings: Settings) -> None:
     )
     client = BluOSClient(settings)
     try:
-        assert await client.get_uptime("192.168.1.20") == "12h3m"
+        assert await uptime(client, "192.168.1.20") == "12h3m"
     finally:
         await client.aclose()
 
@@ -660,7 +661,7 @@ async def test_diagnostics_retries_connect_error(settings: Settings) -> None:
     )
     client = BluOSClient(settings)
     try:
-        assert await client.get_uptime("192.168.1.20") == "12h3m"
+        assert await uptime(client, "192.168.1.20") == "12h3m"
     finally:
         await client.aclose()
 
@@ -673,8 +674,8 @@ async def test_uptime_fallbacks_and_errors(settings: Settings) -> None:
     )
     client = BluOSClient(settings)
     try:
-        assert await client.get_uptime("192.168.1.20") == "9d4h"
-        assert await client.get_uptime("not-an-ip") is None
+        assert await uptime(client, "192.168.1.20") == "9d4h"
+        assert await uptime(client, "not-an-ip") is None
     finally:
         await client.aclose()
 
@@ -737,16 +738,8 @@ async def test_settings_and_upgrade_web_ui(settings: Settings) -> None:
         )
 
         assert await client.set_device_setting("192.168.1.20", "eq-treble", "3") is True
-        assert (
-            await client.set_device_setting(
-                "192.168.1.20",
-                "channelMode",
-                "left",
-                control_path="/audiomodes",
-            )
-            is True
-        )
-        # Omitting control_path still resolves /alsa_setting from Settings XML.
+        assert await client.set_device_setting("192.168.1.20", "channelMode", "left") is True
+        # The control path comes from the Settings XML.
         alsa_calls = [
             call
             for call in respx.calls
@@ -880,12 +873,8 @@ async def test_settings_cache_invalidated_after_write(settings: Settings) -> Non
         DeviceSettingsResponse(page_id="audio", settings=[]),
     )
     client._control_get = AsyncMock(return_value=CallResult.success(b"<ok/>"))  # type: ignore[method-assign]
-    ok = await client.set_device_setting(
-        "192.168.1.20",
-        "eq-treble",
-        "3",
-        control_path="/Volume",
-    )
+    client._resolve_setting_control_path = AsyncMock(return_value="/alsa_setting")  # type: ignore[method-assign]
+    ok = await client.set_device_setting("192.168.1.20", "eq-treble", "3")
     assert ok is True
     assert ("192.168.1.20:11000", "audio") not in client._settings_page_cache
     await client.aclose()

@@ -29,15 +29,27 @@ export function VolumeNudgeButtons({ value, onChange, disabled = false }: Volume
     onChange(next);
   };
 
-  const down = usePressRepeat(() => nudge(-1));
-  const up = usePressRepeat(() => nudge(1));
+  const downDisabled = disabled || value <= 0;
+  const upDisabled = disabled || value >= 100;
+  const down = usePressRepeat(
+    () => {
+      nudge(-1);
+    },
+    { disabled: downDisabled },
+  );
+  const up = usePressRepeat(
+    () => {
+      nudge(1);
+    },
+    { disabled: upDisabled },
+  );
 
   return (
     <div className="volume-nudge" role="group" aria-label="Adjust volume">
       <button
         type="button"
         className="btn btn-compact volume-nudge-btn"
-        disabled={disabled || value <= 0}
+        disabled={downDisabled}
         aria-label="Volume down"
         {...down}
       >
@@ -46,7 +58,7 @@ export function VolumeNudgeButtons({ value, onChange, disabled = false }: Volume
       <button
         type="button"
         className="btn btn-compact volume-nudge-btn"
-        disabled={disabled || value >= 100}
+        disabled={upDisabled}
         aria-label="Volume up"
         {...up}
       >

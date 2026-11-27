@@ -130,20 +130,21 @@ export function HouseRemote({ variant = 'fleet' }: HouseRemoteProps) {
           {focused && place ? <SpeakerChip place={place} rows={roster} /> : null}
           {focused && lead && showsPlaybackBar(lead) ? (
             <SeekBar
-              key={lead?.id ?? 'house-seek'}
-              initialSecs={lead?.secs ?? 0}
+              key={lead.id}
+              initialSecs={lead.secs}
               totlen={totlen}
-              playing={streamPlaying && (lead?.state === 'play' || lead?.state === 'stream')}
+              playing={streamPlaying && (lead.state === 'play' || lead.state === 'stream')}
               canSeek={canSeek}
               onSeek={
                 canSeek
-                  ? (seconds) =>
+                  ? (seconds) => {
                       transport.command(
                         'seek',
                         (id) => api.seek(id, seconds),
                         { secs: seconds },
                         targets.filter((id) => devices.find((d) => d.id === id)?.can_seek),
-                      )
+                      );
+                    }
                   : undefined
               }
             />
@@ -288,7 +289,9 @@ function HouseTransport({
         disabled={disabled || !canBack(lead)}
         title={canBack(lead) ? undefined : NO_BACK}
         aria-label="Previous track"
-        onClick={() => command('back', (id) => api.back(id))}
+        onClick={() => {
+          command('back', (id) => api.back(id));
+        }}
       >
         <IconPrev />
       </button>
@@ -308,7 +311,9 @@ function HouseTransport({
         disabled={disabled || !canSkip(lead)}
         title={canSkip(lead) ? undefined : NO_SKIP}
         aria-label="Next track"
-        onClick={() => command('skip', (id) => api.skip(id))}
+        onClick={() => {
+          command('skip', (id) => api.skip(id));
+        }}
       >
         <IconNext />
       </button>
@@ -319,11 +324,11 @@ function HouseTransport({
         title={hasQueue(lead) ? undefined : NO_QUEUE}
         aria-label={shuffleOn ? 'Shuffle on' : 'Shuffle off'}
         aria-pressed={shuffleOn}
-        onClick={() =>
+        onClick={() => {
           command('shuffle', (id) => api.setShuffle(id, shuffleOn ? 0 : 1), {
             shuffle: shuffleOn ? 0 : 1,
-          })
-        }
+          });
+        }}
       >
         <IconShuffle />
       </button>
@@ -368,7 +373,9 @@ function HouseActions({
         type="button"
         className="btn"
         disabled={busy === 'mute'}
-        onClick={() => run('mute', () => fleetMuteAll(!allMuted))}
+        onClick={() => {
+          run('mute', () => fleetMuteAll(!allMuted));
+        }}
       >
         {busy === 'mute' ? '…' : allMuted ? 'Unmute' : 'Mute'}
       </button>
@@ -378,7 +385,9 @@ function HouseActions({
           className="btn"
           disabled={busy === 'pause' || !anyPlaying}
           title={anyPlaying ? 'Pause every playing room' : 'Nothing playing'}
-          onClick={() => run('pause', () => fleetPauseAll())}
+          onClick={() => {
+            run('pause', () => fleetPauseAll());
+          }}
         >
           {busy === 'pause' ? '…' : 'Pause all'}
         </button>
@@ -388,7 +397,9 @@ function HouseActions({
         className="btn btn-danger"
         disabled={busy === 'stop'}
         title="Stop playback on every player"
-        onClick={() => run('stop', () => fleetStopAll())}
+        onClick={() => {
+          run('stop', () => fleetStopAll());
+        }}
       >
         {busy === 'stop' ? '…' : 'Stop all'}
       </button>

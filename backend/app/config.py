@@ -44,8 +44,12 @@ class Settings(BaseSettings):
     cors_origins: str = "http://127.0.0.1:8765,http://localhost:8765"
     # When non-empty, require Bearer / X-API-Token or the session cookie.
     api_token: str = ""
-    # Comma-separated client IPs allowed to supply X-Forwarded-For for API rate limits.
+    # Comma-separated client IPs allowed to supply X-Forwarded-For (rate limits)
+    # and X-Forwarded-Proto (the session cookie's Secure flag).
     trusted_proxies: str = ""
+    # Comma-separated host names the API answers to when no API token is set.
+    # Addresses, localhost, and *.local names are always allowed.
+    allowed_hosts: str = ""
 
     discovery_method: DiscoveryMethod = "both"
     discovery_timeout: float = Field(default=5.0, ge=1.0, le=60.0)
@@ -80,7 +84,8 @@ class Settings(BaseSettings):
     max_xml_depth: int = Field(default=20, ge=2, le=100)
     max_xml_elements: int = Field(default=10_000, ge=100, le=100_000)
 
-    bluos_port: int = Field(default=11000, ge=1, le=65535)
+    # Same range validate_bluos_port() accepts for every player endpoint.
+    bluos_port: int = Field(default=11000, ge=1024, le=65535)
     web_ui_port: int = Field(default=80, ge=1, le=65535)
     static_dir: str = ""
     # When set, the header links to Valence at this address.
@@ -130,6 +135,9 @@ class Settings(BaseSettings):
 
     def trusted_proxy_set(self) -> set[str]:
         return {o.strip() for o in self.trusted_proxies.split(",") if o.strip()}
+
+    def allowed_host_set(self) -> set[str]:
+        return {o.strip().lower() for o in self.allowed_hosts.split(",") if o.strip()}
 
     def openapi_enabled(self) -> bool:
         if self.enable_openapi is not None:

@@ -20,7 +20,7 @@ from app.models import PlayerStatus
 from app.services.events import EventBus
 from app.services.poller import StatusPoller
 from app.state import AppState
-from tests.helpers import app_with_players
+from tests.helpers import API_BASE, API_HEADERS, app_with_players
 
 
 @pytest.fixture
@@ -40,7 +40,6 @@ async def test_fleet_volume_sets_all(settings: Settings, monkeypatch: pytest.Mon
         return self._snapshot
 
     monkeypatch.setattr(DiscoveryService, "refresh", seeded)
-    monkeypatch.setattr(DiscoveryService, "get_devices", seeded)
 
     app = create_app()
     client = BluOSClient(settings)
@@ -68,7 +67,7 @@ async def test_fleet_volume_sets_all(settings: Settings, monkeypatch: pytest.Mon
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/fleet/volume", json={"level": 33})
         assert response.status_code == 200
         body = response.json()
@@ -91,7 +90,6 @@ async def test_fleet_volume_filters_device_ids(
         return self._snapshot
 
     monkeypatch.setattr(DiscoveryService, "refresh", seeded)
-    monkeypatch.setattr(DiscoveryService, "get_devices", seeded)
 
     app = create_app()
     client = BluOSClient(settings)
@@ -136,7 +134,7 @@ async def test_fleet_volume_filters_device_ids(
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post(
             "/api/v1/fleet/volume",
             json={"level": 22, "device_ids": ["zone-1", "zone-2"]},
@@ -167,12 +165,12 @@ async def test_fleet_control_does_not_rebrowse_stale_cache(
     client.stop = AsyncMock(return_value=True)  # type: ignore[method-assign]
 
     async def forbidden(*_args: object, **_kwargs: object):
-        raise AssertionError("fleet control must not call get_devices()")
+        raise AssertionError("fleet control must not rediscover")
 
-    monkeypatch.setattr(DiscoveryService, "get_devices", forbidden)
+    monkeypatch.setattr(DiscoveryService, "refresh", forbidden)
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         volume = await http.post("/api/v1/fleet/volume", json={"level": 18})
         assert volume.status_code == 200
         mute = await http.post("/api/v1/fleet/mute", json={"mute": True})
@@ -197,7 +195,7 @@ async def test_fleet_mute_skips_offline_rooms(
     client.set_mute = AsyncMock(return_value=True)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         mute = await http.post("/api/v1/fleet/mute", json={"mute": True})
         assert mute.status_code == 200
         assert mute.json()["succeeded"] == 1
@@ -226,7 +224,7 @@ async def test_fleet_volume_leaves_muted_rooms_muted(
     client.set_volume = AsyncMock(return_value=True)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/fleet/volume", json={"level": 50})
     assert response.status_code == 200
     body = response.json()
@@ -252,7 +250,7 @@ async def test_fleet_volume_with_every_room_muted_sends_nothing(
     client.set_volume = AsyncMock(return_value=True)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post(
             "/api/v1/fleet/volume", json={"level": 50, "device_ids": ["zone-one"]}
         )
@@ -279,7 +277,7 @@ async def test_fleet_volume_skips_a_room_whose_cached_mute_is_stale(
     monkeypatch.setattr(poller, "schedule_refresh", refreshed.append)
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/fleet/volume", json={"level": 50})
     assert response.status_code == 200
     body = response.json()
@@ -298,7 +296,7 @@ async def test_fleet_volume_with_every_room_muted_live_is_not_a_failure(
     client.player_is_muted = AsyncMock(return_value=True)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/fleet/volume", json={"level": 50})
     assert response.status_code == 200
     assert (response.json()["succeeded"], response.json()["skipped_muted"]) == (0, 1)
@@ -316,10 +314,10 @@ async def test_list_and_sync_reads_do_not_browse(
     async def forbidden(*_args: object, **_kwargs: object):
         raise AssertionError("reads must use the live snapshot")
 
-    monkeypatch.setattr(DiscoveryService, "get_devices", forbidden)
+    monkeypatch.setattr(DiscoveryService, "refresh", forbidden)
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         devices = await http.get("/api/v1/devices")
         assert devices.status_code == 200
         assert devices.json()["devices"][0]["id"] == "player-zone-m"
@@ -344,7 +342,7 @@ async def test_volume_interrupts_held_status_polls(
     monkeypatch.setattr(poller, "interrupt", capture)
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/fleet/volume", json={"level": 12})
         assert response.status_code == 200
     assert interrupted == [["player-zone-m"]]
@@ -365,7 +363,7 @@ async def test_device_play_interrupts_held_status_polls(
     monkeypatch.setattr(poller, "interrupt", capture)
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/devices/player-zone-m/play")
         assert response.status_code == 204
     assert interrupted == [["player-zone-m"]]

@@ -21,6 +21,9 @@ def main() -> None:
         host=settings.host,
         port=settings.port,
         log_level=settings.log_level.lower(),
+        # Keep the JSON logging set up above. uvicorn's default config would
+        # replace it with plain-text handlers on its own loggers.
+        log_config=None,
     )
 
 

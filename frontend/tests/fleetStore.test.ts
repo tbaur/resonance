@@ -7,8 +7,9 @@
  * Volume and mute holds survive a poll. A transport hold does not freeze mute.
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LIVE_HOUSE_SESSION } from '@/lib/houseSession';
+import { noteServerTime, resetServerClock } from '@/lib/serverClock';
 import { useFleetStore } from '@/store/fleetStore';
 import type { PlayerStatus } from '@/api/types';
 
@@ -90,7 +91,7 @@ describe('fleetStore', () => {
     useFleetStore.getState().holdVolume('player-1', 10_000);
     useFleetStore.getState().patchDevice('player-1', { volume: 55 });
     useFleetStore.getState().setFleet([{ ...sample, volume: 9, state: 'stop' }]);
-    expect(useFleetStore.getState().devices[0].volume).toBe(55);
+    expect(useFleetStore.getState().devices[0]?.volume).toBe(55);
   });
 
   it('preserves optimistic mute while mute hold is active', () => {
@@ -98,16 +99,16 @@ describe('fleetStore', () => {
     useFleetStore.getState().holdMute('player-1');
     useFleetStore.getState().patchDevice('player-1', { muted: true, volume: 0 });
     useFleetStore.getState().setFleet([{ ...sample, muted: false, volume: 20 }]);
-    expect(useFleetStore.getState().devices[0].muted).toBe(true);
-    expect(useFleetStore.getState().devices[0].volume).toBe(0);
+    expect(useFleetStore.getState().devices[0]?.muted).toBe(true);
+    expect(useFleetStore.getState().devices[0]?.volume).toBe(0);
   });
 
   it('does not freeze mute during transport hold', () => {
     useFleetStore.getState().setFleet([sample]);
     useFleetStore.getState().holdPlayback('player-1', 10_000);
     useFleetStore.getState().setFleet([{ ...sample, muted: true, volume: 0 }]);
-    expect(useFleetStore.getState().devices[0].muted).toBe(true);
-    expect(useFleetStore.getState().devices[0].volume).toBe(0);
+    expect(useFleetStore.getState().devices[0]?.muted).toBe(true);
+    expect(useFleetStore.getState().devices[0]?.volume).toBe(0);
   });
 
   it('brings an old secs reading up to now, as after a page reload', () => {
@@ -117,7 +118,7 @@ describe('fleetStore', () => {
       useFleetStore
         .getState()
         .setFleet([{ ...sample, state: 'play', totlen: 240, secs: 40, secs_at: 1_000_000 }]);
-      expect(useFleetStore.getState().devices[0].secs).toBe(100);
+      expect(useFleetStore.getState().devices[0]?.secs).toBe(100);
     } finally {
       vi.useRealTimers();
     }
@@ -131,9 +132,9 @@ describe('fleetStore', () => {
       .getState()
       .setFleet([{ ...playing, track: 'Live Song', totlen: 0, secs: 3737, state: 'stream' }]);
     const device = useFleetStore.getState().devices[0];
-    expect(device.track).toBe('Live Song');
-    expect(device.totlen).toBe(0);
-    expect(device.secs).toBe(3737);
+    expect(device?.track).toBe('Live Song');
+    expect(device?.totlen).toBe(0);
+    expect(device?.secs).toBe(3737);
   });
 
   it('keeps now-playing through an empty poll while playback is held', () => {
@@ -159,18 +160,18 @@ describe('fleetStore', () => {
       },
     ]);
     const device = useFleetStore.getState().devices[0];
-    expect(device.track).toBe('Track');
-    expect(device.artist).toBe('Artist');
-    expect(device.image).toBe('http://art/a.jpg');
-    expect(device.totlen).toBe(200);
-    expect(device.secs).toBe(40);
-    expect(device.state).toBe('play');
+    expect(device?.track).toBe('Track');
+    expect(device?.artist).toBe('Artist');
+    expect(device?.image).toBe('http://art/a.jpg');
+    expect(device?.totlen).toBe(200);
+    expect(device?.secs).toBe(40);
+    expect(device?.state).toBe('play');
   });
 
   it('clears now-playing when a stopped player reports no track during the hold', async () => {
     const playing = { ...sample, image: 'http://art/a.jpg', totlen: 200, secs: 40, state: 'play' };
     useFleetStore.getState().setFleet([playing]);
-    await useFleetStore.getState().control('player-1', async () => undefined, { state: 'stop' });
+    await useFleetStore.getState().control('player-1', () => Promise.resolve(), { state: 'stop' });
     useFleetStore.getState().setFleet([
       {
         ...playing,
@@ -196,9 +197,9 @@ describe('fleetStore', () => {
         { ...sample, track: 'Next', artist: 'Other', totlen: 180, secs: 1, state: 'play' },
       ]);
     const device = useFleetStore.getState().devices[0];
-    expect(device.track).toBe('Next');
-    expect(device.secs).toBe(1);
-    expect(device.totlen).toBe(180);
+    expect(device?.track).toBe('Next');
+    expect(device?.secs).toBe(1);
+    expect(device?.totlen).toBe(180);
   });
 
   it('shows the new cover when a held skip already has the next image', () => {
@@ -218,8 +219,8 @@ describe('fleetStore', () => {
       },
     ]);
     const device = useFleetStore.getState().devices[0];
-    expect(device.track).toBe('Next');
-    expect(device.image).toBe('http://art/b.jpg');
+    expect(device?.track).toBe('Next');
+    expect(device?.image).toBe('http://art/b.jpg');
   });
 
   it('drops the last track length when a live stream starts at zero seconds', () => {
@@ -229,7 +230,7 @@ describe('fleetStore', () => {
     useFleetStore
       .getState()
       .setFleet([{ ...playing, track: 'Live Song', totlen: 0, secs: 0, state: 'stream' }]);
-    expect(useFleetStore.getState().devices[0].totlen).toBe(0);
+    expect(useFleetStore.getState().devices[0]?.totlen).toBe(0);
   });
 
   it('does not give a new track the last length while its own is pending', () => {
@@ -249,10 +250,10 @@ describe('fleetStore', () => {
       },
     ]);
     const device = useFleetStore.getState().devices[0];
-    expect(device.track).toBe('Next');
-    expect(device.totlen).toBe(0);
-    expect(device.can_seek).toBe(false);
-    expect(device.secs).toBe(0);
+    expect(device?.track).toBe('Next');
+    expect(device?.totlen).toBe(0);
+    expect(device?.can_seek).toBe(false);
+    expect(device?.secs).toBe(0);
   });
 
   it('pins house catchup membership across skip', () => {
@@ -275,7 +276,7 @@ describe('fleetStore', () => {
   it('starts house catchup when playback starts', async () => {
     useFleetStore.getState().setFleet([sample]);
     useFleetStore.getState().beginHouseStopped();
-    await useFleetStore.getState().control('player-1', async () => undefined, { state: 'play' });
+    await useFleetStore.getState().control('player-1', () => Promise.resolve(), { state: 'play' });
     expect(useFleetStore.getState().houseSession.phase).toBe('catchup');
     expect(useFleetStore.getState().houseSession.memberIds).toContain('player-1');
     expect(useFleetStore.getState().houseSession.memberIds).toEqual(['player-1']);
@@ -296,9 +297,9 @@ describe('fleetStore', () => {
 
   it('does not hold playback for a volume-only patch', async () => {
     useFleetStore.getState().setFleet([sample]);
-    await useFleetStore.getState().control('player-1', async () => undefined, { volume: 40 });
+    await useFleetStore.getState().control('player-1', () => Promise.resolve(), { volume: 40 });
     expect(useFleetStore.getState().playbackHoldUntil['player-1'] ?? 0).toBe(0);
-    expect(useFleetStore.getState().devices[0].volume).toBe(40);
+    expect(useFleetStore.getState().devices[0]?.volume).toBe(40);
   });
 
   it('clears leftover SYNCED when the runtime group snapshot is empty', () => {
@@ -391,5 +392,29 @@ describe('fleetStore', () => {
       standalone_ids: [],
     });
     expect(useFleetStore.getState().sync?.groups).toEqual([]);
+  });
+});
+
+describe('server clock', () => {
+  afterEach(() => {
+    resetServerClock();
+  });
+
+  it('advances a playhead by server time when the browser clock is off', () => {
+    // This browser runs an hour behind the server.
+    const serverSeconds = Date.now() / 1000 + 3600;
+    noteServerTime(serverSeconds);
+    useFleetStore.getState().setFleet([
+      {
+        ...sample,
+        state: 'play',
+        secs: 20,
+        totlen: 300,
+        secs_at: serverSeconds - 10,
+      },
+    ]);
+    const secs = useFleetStore.getState().devices[0]?.secs ?? 0;
+    expect(secs).toBeGreaterThanOrEqual(30);
+    expect(secs).toBeLessThanOrEqual(31);
   });
 });

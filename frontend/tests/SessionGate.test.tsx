@@ -11,14 +11,15 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SessionGate } from '@/components/SessionGate';
+import { must } from './must';
 
 const listDevices = vi.fn();
 const openSession = vi.fn();
 
 vi.mock('@/api/client', () => ({
   api: {
-    listDevices: (...args: unknown[]) => listDevices(...args),
-    openSession: (...args: unknown[]) => openSession(...args),
+    listDevices: (...args: unknown[]): unknown => listDevices(...args),
+    openSession: (...args: unknown[]): unknown => openSession(...args),
   },
 }));
 
@@ -68,7 +69,7 @@ describe('SessionGate token form', () => {
     renderGate();
 
     fireEvent.change(await screen.findByLabelText('API token'), { target: { value: 'token' } });
-    fireEvent.submit(screen.getByLabelText('API token').closest('form')!);
+    fireEvent.submit(must(screen.getByLabelText('API token').closest('form'), 'token form'));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not reach Resonance');
   });

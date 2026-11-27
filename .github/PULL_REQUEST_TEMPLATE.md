@@ -13,9 +13,7 @@ Brief description of the changes.
 
 ## Testing
 
-- [ ] Backend tests pass (`cd backend && pytest`)
-- [ ] Frontend tests pass (`cd frontend && npm test`)
-- [ ] Lint / typecheck pass (`ruff` / `mypy` / `npm run lint` / `npm run typecheck`)
+- [ ] `make check` passes (lint, type checks, both test suites with their coverage gates, and the UI build)
 - [ ] Tests added/updated when behavior changes
 
 ## Checklist

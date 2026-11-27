@@ -60,7 +60,7 @@ async def test_poller_refresh_one(settings: Settings, monkeypatch: pytest.Monkey
     discovery = DiscoveryService(settings, client)
     player = PlayerStatus(id="p1", ip="192.168.1.20", name="K", status="online")
     discovery._snapshot.devices = [player]
-    discovery._snapshot.ips_by_id = {"p1": "192.168.1.20"}
+    discovery._snapshot.endpoints_by_id = {"p1": "192.168.1.20"}
     events = EventBus()
     poller = StatusPoller(settings, discovery, client, events)
 

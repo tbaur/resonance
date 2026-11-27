@@ -79,8 +79,12 @@ export function DeviceMetricsPanel(props: DeviceMetricsPanelProps) {
             max={100}
             value={device.volume}
             aria-label="Device volume"
-            onPointerDown={() => useFleetStore.getState().holdVolume(device.id)}
-            onChange={(e) => onVolume(Number(e.target.value))}
+            onPointerDown={() => {
+              useFleetStore.getState().holdVolume(device.id);
+            }}
+            onChange={(e) => {
+              onVolume(Number(e.target.value));
+            }}
           />
           <span className="volume-value">{device.volume}</span>
           <button type="button" className="btn" title={unmuteTitle(device)} onClick={onToggleMute}>

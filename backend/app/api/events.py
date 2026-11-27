@@ -54,5 +54,7 @@ async def events(request: Request, state: StateDep) -> StreamingResponse:
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
+            # The UI drops a stream that is silent for a few of these intervals.
+            "X-Resonance-Keepalive": f"{keepalive:g}",
         },
     )

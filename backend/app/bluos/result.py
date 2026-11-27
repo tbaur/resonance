@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import xml.etree.ElementTree as ET
 from contextvars import ContextVar
 from dataclasses import dataclass
 
@@ -59,18 +60,14 @@ def take_control_result() -> CallResult | None:
     return result
 
 
-def _error_text(root: object) -> str:
-    # ElementTree nodes. Imported lazily in the type sense: root is ET.Element.
-    text = (getattr(root, "text", None) or "").strip()
+def _error_text(root: ET.Element) -> str:
+    text = (root.text or "").strip()
     if text:
         return text
-    find = getattr(root, "find", None)
-    if find is None:
+    nested = root.find("error")
+    if nested is None:
         return ""
-    nested = find("error")
-    if nested is None or not (nested.text or "").strip():
-        return ""
-    return nested.text.strip()
+    return (nested.text or "").strip()
 
 
 def classify_control_body(

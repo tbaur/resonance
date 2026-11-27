@@ -16,6 +16,7 @@ from app import __version__
 from app.api.common import StateDep
 from app.api.errors import AppError
 from app.auth import SESSION_COOKIE, session_cookie_value
+from app.config import Settings
 from app.models import AppLinks, HealthResponse, VersionInfo
 
 router = APIRouter()
@@ -73,15 +74,19 @@ async def open_session(request: Request) -> Response:
     The cookie is for a Resonance server reached from a network that cannot
     reach the players. On the player LAN the players are already open.
     """
-    header = request.headers.get("authorization", "")
-    token = header[7:].strip() if header.lower().startswith("bearer ") else ""
+    # Raw header bytes, the same way the middleware compares them. Decoding as
+    # latin-1 and re-encoding as UTF-8 would reject a correct non-ASCII token.
+    header = next(
+        (value for key, value in request.scope.get("headers") or [] if key == b"authorization"),
+        b"",
+    )
+    token = header[7:].strip() if header[:7].lower() == b"bearer " else b""
     configured = ""
     app_state = getattr(request.app.state, "app_state", None)
     if app_state is not None:
         configured = app_state.settings.api_token.strip()
-    token_bytes = token.encode("utf-8")
     expected = configured.encode("utf-8")
-    if not expected or not hmac.compare_digest(token_bytes, expected):
+    if not expected or not hmac.compare_digest(token, expected):
         raise AppError(401, "unauthorized", "Valid API token required")
     response = Response(status_code=204)
     response.set_cookie(
@@ -89,7 +94,22 @@ async def open_session(request: Request) -> Response:
         session_cookie_value(expected).decode("ascii"),
         httponly=True,
         samesite="strict",
-        secure=request.url.scheme == "https",
+        secure=_is_https(request, app_state.settings if app_state is not None else None),
         path="/",
     )
     return response
+
+
+def _is_https(request: Request, settings: Settings | None) -> bool:
+    """True when the browser reached us over HTTPS, directly or through a trusted proxy."""
+    if request.url.scheme == "https":
+        return True
+    if settings is None:
+        return False
+    peer = request.client.host if request.client else ""
+    if peer not in settings.trusted_proxy_set():
+        return False
+    proto = request.headers.get("x-forwarded-proto", "")
+    # A chain of proxies appends; the right-most value came from the nearest one.
+    nearest = proto.split(",")[-1].strip().lower()
+    return nearest == "https"

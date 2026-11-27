@@ -16,7 +16,7 @@ from httpx import ASGITransport, AsyncClient
 from app.config import Settings, get_settings
 from app.models import BluetoothResponse, PlayerStatus, SyncRole
 from app.services.sync import orphan_primary_id
-from tests.helpers import app_with_players
+from tests.helpers import API_BASE, API_HEADERS, app_with_players
 
 
 @pytest.fixture
@@ -38,7 +38,7 @@ async def test_fleet_volume_rejects_empty_device_ids(
 ) -> None:
     app, client, _, _ = await app_with_players(settings, monkeypatch)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post(
             "/api/v1/fleet/volume",
             json={"level": 10, "device_ids": []},
@@ -80,7 +80,7 @@ async def test_refresh_devices_includes_sync(
     discovery.refresh = AsyncMock(return_value=discovery.snapshot)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/devices/refresh")
         assert response.status_code == 200
     assert published
@@ -120,7 +120,7 @@ async def test_sync_enable_rejects_grouped_slave_as_primary(
     ]
     app, client, _, _ = await app_with_players(settings, monkeypatch, players=players)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/sync/enable", json={"primary_id": "slave"})
         assert response.status_code == 400
         assert response.json()["code"] == "primary_not_free"
@@ -156,7 +156,7 @@ async def test_volume_adjust_fails_when_live_offline_and_no_cache(
     client.adjust_volume = AsyncMock(return_value=True)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post(
             "/api/v1/devices/player-zone-m/volume/adjust",
             json={"delta": 1},
@@ -173,7 +173,7 @@ async def test_bluetooth_post_probe_fail_is_unsupported(
     app, client, _, _ = await app_with_players(settings, monkeypatch)
     client.get_bluetooth_info = AsyncMock(return_value=None)  # type: ignore[method-assign]
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post(
             "/api/v1/devices/player-zone-m/bluetooth",
             json={"mode": 1},
@@ -202,7 +202,7 @@ async def test_bluetooth_post_interrupts_before_probe(
     monkeypatch.setattr(poller, "interrupt", interrupt)
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post(
             "/api/v1/devices/player-zone-m/bluetooth",
             json={"mode": 1},
@@ -243,7 +243,7 @@ async def test_sync_remove_resolves_orphan_primary_id(
     poller.refresh_one = AsyncMock(return_value=None)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post(
             "/api/v1/sync/remove",
             json={"master_id": orphan_id, "slave_id": "orphan"},
@@ -294,7 +294,7 @@ async def test_fleet_upgrades_marks_disallowed_ip(
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.get("/api/v1/fleet/upgrades")
         assert response.status_code == 200
         body = response.json()
@@ -313,7 +313,7 @@ async def test_bluetooth_supported_false_post(
         return_value=BluetoothResponse(supported=False, mode=None)
     )
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post(
             "/api/v1/devices/player-zone-m/bluetooth",
             json={"mode": 0},
@@ -329,11 +329,11 @@ async def test_invalid_device_id_and_empty_fleet(
 ) -> None:
     app, client, discovery, _ = await app_with_players(settings, monkeypatch)
     discovery._snapshot.devices = []
-    discovery._snapshot.ips_by_id = {}
-    discovery._snapshot.ids_by_ip = {}
+    discovery._snapshot.endpoints_by_id = {}
+    discovery._snapshot.ids_by_endpoint = {}
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         bad_id = await http.post("/api/v1/devices/bad@id/play")
         assert bad_id.status_code == 400
 
@@ -360,7 +360,7 @@ async def test_fleet_all_failures_and_partial(
     client.pause = AsyncMock(side_effect=[True, False])  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         all_fail = await http.post("/api/v1/fleet/volume", json={"level": 10})
         assert all_fail.status_code == 502
 
@@ -385,7 +385,7 @@ async def test_sync_failures_and_enable_edges(
     poller.refresh_one = AsyncMock(return_value=None)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         add_fail = await http.post(
             "/api/v1/sync/add",
             json={"master_id": "primary", "slave_id": "slave"},
@@ -399,7 +399,7 @@ async def test_sync_failures_and_enable_edges(
     # Single device → no slaves
     solo_app, solo_client, _, _ = await app_with_players(settings, monkeypatch)
     transport = ASGITransport(app=solo_app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         no_slaves = await http.post(
             "/api/v1/sync/enable",
             json={"primary_id": "player-zone-m"},
@@ -425,7 +425,7 @@ async def test_sync_enable_partial_failure(
     poller.refresh_one = AsyncMock(return_value=None)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/sync/enable", json={"primary_id": "primary"})
         assert response.status_code == 200
         body = response.json()
@@ -458,7 +458,7 @@ async def test_get_device_refresh_and_grace_control(
     client.get_diagnostics = AsyncMock(return_value={"uptime": "1m"})  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         # Grace-only id: control logs grace path
         play = await http.post(f"/api/v1/devices/{grace_id}/play")
         assert play.status_code == 204
@@ -504,7 +504,7 @@ async def test_sync_remove_and_break_failures(
     poller.refresh_one = AsyncMock(return_value=None)  # type: ignore[method-assign]
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         remove_fail = await http.post(
             "/api/v1/sync/remove",
             json={"master_id": "primary", "slave_id": "slave"},
@@ -537,7 +537,7 @@ async def test_fleet_upgrades_cache_and_empty(
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         first = await http.get("/api/v1/fleet/upgrades")
         second = await http.get("/api/v1/fleet/upgrades")
         assert first.status_code == 200
@@ -545,8 +545,8 @@ async def test_fleet_upgrades_cache_and_empty(
         assert client.get_upgrade_status.await_count == 1
 
         discovery._snapshot.devices = []
-        discovery._snapshot.ips_by_id = {}
-        discovery._snapshot.ids_by_ip = {}
+        discovery._snapshot.endpoints_by_id = {}
+        discovery._snapshot.ids_by_endpoint = {}
         app.state.app_state.fleet_upgrades_cache = None
         app.state.app_state.fleet_upgrades_cached_at = 0.0
         empty = await http.get("/api/v1/fleet/upgrades")

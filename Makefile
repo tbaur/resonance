@@ -9,6 +9,8 @@ VENV := backend/.venv
 PY := $(CURDIR)/$(VENV)/bin/python
 DIST := frontend/dist
 VENV_STAMP := $(VENV)/.installed
+# Exact versions for every backend package. pyproject.toml holds the ranges.
+CONSTRAINTS := backend/constraints.txt
 NODE_STAMP := frontend/node_modules/.installed
 # The API runs discovery before it answers healthz. The UI waits for
 # RESONANCE_DISCOVERY_TIMEOUT plus this margin before it gives up.
@@ -27,7 +29,7 @@ API_PROBE = settings=$$($(API_SETTINGS)); read -r bind_host port discovery <<< "
 	case "$$bind_host" in 0.0.0.0|::|localhost) host=127.0.0.1 ;; *) host=$$bind_host ;; esac; \
 	wait_s=$$(( discovery + $(HEALTH_WAIT_MARGIN_SECONDS) ))
 
-.PHONY: help install build run serve lint lint-backend lint-frontend format test test-backend \
+.PHONY: help install lock build run serve lint lint-backend lint-frontend format test test-backend \
 	test-frontend check clean distclean run-api run-ui
 
 help: ## List targets
@@ -35,11 +37,18 @@ help: ## List targets
 
 install: $(VENV_STAMP) $(NODE_STAMP) ## Install backend and frontend dependencies (skips what is current)
 
-$(VENV_STAMP): backend/pyproject.toml
+$(VENV_STAMP): backend/pyproject.toml $(CONSTRAINTS)
 	test -x $(PY) || $(PYTHON) -m venv $(VENV)
 	$(PY) -m pip install --quiet --upgrade pip
-	cd backend && $(PY) -m pip install --quiet -e '.[dev]'
+	cd backend && $(PY) -m pip install --quiet -e '.[dev]' -c constraints.txt
 	touch $@
+
+lock: $(VENV_STAMP) ## Re-pin backend dependencies to the newest versions pyproject.toml allows
+	cd backend && $(PY) -m pip install --quiet --upgrade -e '.[dev]'
+	{ printf '%s\n' "# Exact versions for every backend install, runtime and dev, used as pip constraints." \
+		"# Regenerate with \`make lock\` after changing backend/pyproject.toml. Do not edit by hand."; \
+		$(PY) -m pip freeze --exclude-editable; } > $(CONSTRAINTS)
+	touch $(VENV_STAMP)
 
 $(NODE_STAMP): frontend/package.json frontend/package-lock.json
 	cd frontend && npm ci
@@ -75,6 +84,11 @@ run-ui:
 	cd frontend && RESONANCE_PORT="$$port" exec npm run dev
 
 serve: build $(VENV_STAMP) ## Build the UI, then serve UI and API from one process on SERVE_PORT
+	@set -e; $(API_PROBE); \
+	if (exec 3<>"/dev/tcp/$$host/$(SERVE_PORT)") 2>/dev/null; then \
+		echo "Port $(SERVE_PORT) on $$host is already in use. Stop that process first." >&2; \
+		exit 1; \
+	fi
 	cd backend && RESONANCE_PORT=$(SERVE_PORT) RESONANCE_STATIC_DIR=$(CURDIR)/$(DIST) exec $(PY) -m app.cli
 
 lint: lint-backend lint-frontend ## Lint and type-check both sides

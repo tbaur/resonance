@@ -29,11 +29,31 @@ export class ErrorBoundary extends Component<Props, State> {
     console.error('ui_error', error, info);
   }
 
+  private retry = (): void => {
+    this.setState({ hasError: false });
+  };
+
   render() {
     if (this.state.hasError) {
       return (
         <div className="app-shell">
-          <div className="error-banner">Something went wrong rendering this page.</div>
+          <div className="error-banner" role="alert">
+            Something went wrong rendering this page.
+          </div>
+          <div className="fleet-actions" style={{ marginTop: 12 }}>
+            <button type="button" className="btn btn-primary" onClick={this.retry}>
+              Try again
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                window.location.reload();
+              }}
+            >
+              Reload page
+            </button>
+          </div>
         </div>
       );
     }

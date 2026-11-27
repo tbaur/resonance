@@ -17,6 +17,7 @@ from app.api.common import (
     allow_master_endpoint,
     begin_control,
     clear_playback_after_leave,
+    record_control_failure,
     require_device,
     resolve_sync_master,
     sync_donor_endpoints,
@@ -49,6 +50,13 @@ async def sync_add(body: SyncPairRequest, state: StateDep) -> Response:
     slave_ip = await require_device(state, body.slave_id)
     if master_ip == slave_ip:
         raise AppError(400, "invalid_sync_pair", "Master and slave must differ")
+    sync = build_sync_state(state.discovery.snapshot.devices)
+    leads = {group.primary_id for group in sync.groups}
+    free = set(sync.standalone_ids)
+    if body.master_id not in free and body.master_id not in leads:
+        raise AppError(409, "master_is_follower", "The lead is already following another room")
+    if body.slave_id not in free:
+        raise AppError(409, "slave_already_grouped", "That room is already in a group")
     await begin_control(state, [body.master_id, body.slave_id])
     logger.info(
         "control_op",
@@ -60,10 +68,7 @@ async def sync_add(body: SyncPairRequest, state: StateDep) -> Response:
     )
     ok = await state.client.add_sync_slave(master_ip, slave_ip)
     if not ok:
-        logger.warning(
-            "control_failed",
-            extra={"op": "sync_add", "device_id": body.master_id, "device_ip": master_ip},
-        )
+        record_control_failure(state, "sync_add", body.master_id, master_ip)
         raise AppError(502, "sync_add_failed", "Failed to add sync slave")
     await state.poller.refresh_one(body.master_id)
     await state.poller.refresh_one(body.slave_id)
@@ -97,16 +102,15 @@ async def sync_enable(body: SyncEnableRequest, state: StateDep) -> SyncEnableRes
     await begin_control(state, [body.primary_id, *(slave.id for slave in slaves)])
 
     async def link_slave(slave: PlayerStatus) -> FleetVolumeResult:
+        # Each link runs in its own task, so it records and logs its own failure.
         ok = await state.client.add_sync_slave(primary_ip, slave.endpoint)
+        if not ok:
+            record_control_failure(state, "sync_enable", slave.id, slave.endpoint)
         return FleetVolumeResult(device_id=slave.id, name=slave.name, ok=ok)
 
     link_results = list(await asyncio.gather(*(link_slave(d) for d in slaves)))
     failures = sum(1 for r in link_results if not r.ok)
     if failures == len(link_results):
-        logger.warning(
-            "control_failed",
-            extra={"op": "sync_enable", "device_id": body.primary_id, "device_ip": primary_ip},
-        )
         raise AppError(502, "sync_enable_failed", "Failed to enable sync group")
     affected = {body.primary_id, *(d.id for d in slaves)}
     await asyncio.gather(*(state.poller.refresh_one(device_id) for device_id in affected))
@@ -134,10 +138,7 @@ async def sync_remove(body: SyncPairRequest, state: StateDep) -> Response:
         donor_endpoints=donors,
     )
     if not ok:
-        logger.warning(
-            "control_failed",
-            extra={"op": "sync_remove", "device_id": body.master_id, "device_ip": master_ip},
-        )
+        record_control_failure(state, "sync_remove", body.slave_id, slave_ip)
         raise AppError(502, "sync_remove_failed", "Failed to remove sync slave")
     await clear_playback_after_leave(
         state,
@@ -170,35 +171,65 @@ async def sync_break(state: StateDep) -> FleetActionResponse:
     slave_stops: list[tuple[str, str]] = []
     primary_stops: list[tuple[str, str]] = []
     affected: set[str] = set()
+    by_id = {d.id: d for d in snapshot.devices}
+
+    def failed_links(slave_ids: list[str]) -> list[FleetVolumeResult]:
+        return [
+            FleetVolumeResult(
+                device_id=slave_id,
+                name=by_id[slave_id].name if slave_id in by_id else slave_id,
+                ok=False,
+            )
+            for slave_id in slave_ids
+        ]
 
     for group in sync.groups:
-        if is_orphan_primary_id(group.primary_id):
-            master_ip = allow_master_endpoint(
-                state,
-                group.primary_endpoint or group.primary_ip,
+        # Resolve every address in the group before changing anything. A room
+        # that left, or whose address is refused, fails this group only; the
+        # other groups still break, and their players are still stopped.
+        try:
+            if is_orphan_primary_id(group.primary_id):
+                master_ip = allow_master_endpoint(
+                    state,
+                    group.primary_endpoint or group.primary_ip,
+                )
+            else:
+                master_ip = await require_device(state, group.primary_id)
+            slave_endpoints = {
+                slave_id: await require_device(state, slave_id) for slave_id in group.slave_ids
+            }
+        except AppError as exc:
+            logger.warning(
+                "sync_break_group_skipped",
+                extra={
+                    "op": "sync_break",
+                    "device_id": group.primary_id,
+                    "failure_kind": exc.detail.get("code", "error")
+                    if isinstance(exc.detail, dict)
+                    else "error",
+                },
             )
-        else:
-            master_ip = await require_device(state, group.primary_id)
+            link_results.extend(failed_links(group.slave_ids))
+            continue
+        if not is_orphan_primary_id(group.primary_id):
             affected.add(group.primary_id)
-
-        slave_endpoints: list[str] = []
-        for slave_id in group.slave_ids:
-            slave_endpoints.append(await require_device(state, slave_id))
         # Do not use siblings in the same break as reparent donors.
-        donors = sync_donor_endpoints(state, master_ip, *slave_endpoints)
-        by_id = {d.id: d for d in snapshot.devices}
+        donors = sync_donor_endpoints(state, master_ip, *slave_endpoints.values())
 
         async def remove_slave(
             slave_id: str,
             _master_ip: str = master_ip,
             _donors: list[str] = donors,
+            _endpoints: dict[str, str] = slave_endpoints,
         ) -> bool:
-            slave_ip = await require_device(state, slave_id)
-            return await state.client.remove_sync_slave(
+            ok = await state.client.remove_sync_slave(
                 _master_ip,
-                slave_ip,
+                _endpoints[slave_id],
                 donor_endpoints=_donors,
             )
+            if not ok:
+                record_control_failure(state, "sync_break", slave_id, _endpoints[slave_id])
+            return ok
 
         # Orphans: serialize reparent so two slaves do not race onto one donor.
         if is_orphan_primary_id(group.primary_id):
@@ -220,8 +251,7 @@ async def sync_break(state: StateDep) -> FleetActionResponse:
             if not ok:
                 continue
             removed_any = True
-            slave_ip = await require_device(state, slave_id)
-            slave_stops.append((slave_id, slave_ip))
+            slave_stops.append((slave_id, slave_endpoints[slave_id]))
             affected.add(slave_id)
         # Only stop the primary when it no longer has followers (mirror sync/remove).
         if removed_any and not is_orphan_primary_id(group.primary_id):
@@ -247,10 +277,6 @@ async def sync_break(state: StateDep) -> FleetActionResponse:
     succeeded = sum(1 for r in link_results if r.ok)
     failures = sum(1 for r in link_results if not r.ok)
     if failures and succeeded == 0 and link_results:
-        logger.warning(
-            "control_failed",
-            extra={"op": "sync_break", "device_id": "-", "device_ip": "-"},
-        )
         raise AppError(502, "sync_break_failed", f"Failed to remove {failures} sync link(s)")
     return FleetActionResponse(
         action="sync_break",

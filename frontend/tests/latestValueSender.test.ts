@@ -55,7 +55,7 @@ describe('createLatestValueSender', () => {
     await vi.advanceTimersByTimeAsync(INTERVAL * 2);
     expect(calls.map((c) => c.value)).toEqual([40]);
 
-    calls[0].done.resolve();
+    calls[0]?.done.resolve();
     await settle();
     expect(calls.map((c) => c.value)).toEqual([40, 42]);
   });
@@ -64,8 +64,9 @@ describe('createLatestValueSender', () => {
     const started: number[] = [];
     const sender = createLatestValueSender<number>({
       minIntervalMs: INTERVAL,
-      send: async () => {
+      send: () => {
         started.push(Date.now());
+        return Promise.resolve();
       },
     });
 
@@ -74,11 +75,11 @@ describe('createLatestValueSender', () => {
     sender.push(45);
     await vi.advanceTimersByTimeAsync(INTERVAL);
     expect(started).toHaveLength(2);
-    expect(started[1] - started[0]).toBeGreaterThanOrEqual(INTERVAL);
+    expect((started[1] ?? 0) - (started[0] ?? 0)).toBeGreaterThanOrEqual(INTERVAL);
   });
 
   it('drops a repeat of the value just sent, such as a release right after the debounce', async () => {
-    const send = vi.fn().mockResolvedValue(undefined);
+    const send = vi.fn<(value: number) => Promise<void>>().mockResolvedValue(undefined);
     const onIdle = vi.fn();
     const sender = createLatestValueSender<number>({ minIntervalMs: INTERVAL, send, onIdle });
 
@@ -95,7 +96,10 @@ describe('createLatestValueSender', () => {
   });
 
   it('keeps going after a failed send', async () => {
-    const send = vi.fn().mockRejectedValueOnce(new Error('boom')).mockResolvedValue(undefined);
+    const send = vi
+      .fn<(value: number) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockResolvedValue(undefined);
     const sender = createLatestValueSender<number>({ minIntervalMs: INTERVAL, send });
 
     sender.push(40);
@@ -106,7 +110,7 @@ describe('createLatestValueSender', () => {
   });
 
   it('sends nothing more after cancel', async () => {
-    const send = vi.fn().mockResolvedValue(undefined);
+    const send = vi.fn<(value: number) => Promise<void>>().mockResolvedValue(undefined);
     const sender = createLatestValueSender<number>({ minIntervalMs: INTERVAL, send });
 
     sender.push(40);

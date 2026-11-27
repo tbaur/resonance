@@ -24,12 +24,12 @@ const setVolume = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/api/client', () => ({
   api: {
-    play: (...args: unknown[]) => play(...args),
-    pause: (...args: unknown[]) => pause(...args),
-    stop: (...args: unknown[]) => stop(...args),
-    skip: (...args: unknown[]) => skip(...args),
-    back: (...args: unknown[]) => back(...args),
-    setVolume: (...args: unknown[]) => setVolume(...args),
+    play: (...args: unknown[]): unknown => play(...args),
+    pause: (...args: unknown[]): unknown => pause(...args),
+    stop: (...args: unknown[]): unknown => stop(...args),
+    skip: (...args: unknown[]): unknown => skip(...args),
+    back: (...args: unknown[]): unknown => back(...args),
+    setVolume: (...args: unknown[]): unknown => setVolume(...args),
   },
 }));
 
@@ -90,7 +90,7 @@ describe('PlayerRow', () => {
     });
   });
 
-  it('renders now playing and pauses on click', async () => {
+  it('renders now playing and pauses on click', () => {
     render(
       <MemoryRouter>
         <PlayerRow deviceId={sample.id} />
@@ -213,7 +213,9 @@ describe('PlayerRow', () => {
     fireEvent.pointerDown(slider);
     fireEvent.change(slider, { target: { value: '40' } });
     fireEvent.pointerUp(slider);
-    await waitFor(() => expect(setVolume).toHaveBeenLastCalledWith('zone-one', 40));
+    await waitFor(() => {
+      expect(setVolume).toHaveBeenLastCalledWith('zone-one', 40);
+    });
     expect(useFleetStore.getState().devices[0]).toMatchObject({
       muted: false,
       volume: 40,

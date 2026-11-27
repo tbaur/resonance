@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlayerStatus, SyncState } from '@/api/types';
 import { FleetPage } from '@/components/FleetPage';
 import { useFleetStore } from '@/store/fleetStore';
+import { APP_VERSION } from '@/version';
 
 vi.mock('@/components/GlobalVolumeControl', () => ({
   FleetBar: () => <div data-testid="fleet-bar" />,
@@ -107,6 +108,22 @@ describe('FleetPage sort', () => {
       refresh: vi.fn().mockResolvedValue(undefined),
       setToast: vi.fn(),
     });
+  });
+
+  it('names the server version in the footer when it differs from the page', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: () => Promise.resolve({ version: '0.0.1-other', name: 'resonance' }),
+      }),
+    );
+    renderFleet();
+    expect(await screen.findByText('(server v0.0.1-other)')).toBeInTheDocument();
+    expect(screen.getByText(`Resonance v${APP_VERSION}`)).toBeInTheDocument();
+    vi.unstubAllGlobals();
   });
 
   it('does not show the Health panel on the live fleet page', () => {

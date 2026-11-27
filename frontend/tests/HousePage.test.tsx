@@ -28,14 +28,14 @@ const setRepeat = vi.fn();
 
 vi.mock('@/api/client', () => ({
   api: {
-    fleetUpgrades: (...args: unknown[]) => fleetUpgrades(...args),
-    syncBreak: (...args: unknown[]) => syncBreak(...args),
-    toggle: (...args: unknown[]) => toggle(...args),
-    skip: (...args: unknown[]) => skip(...args),
-    back: (...args: unknown[]) => back(...args),
-    seek: (...args: unknown[]) => seek(...args),
-    setShuffle: (...args: unknown[]) => setShuffle(...args),
-    setRepeat: (...args: unknown[]) => setRepeat(...args),
+    fleetUpgrades: (...args: unknown[]): unknown => fleetUpgrades(...args),
+    syncBreak: (...args: unknown[]): unknown => syncBreak(...args),
+    toggle: (...args: unknown[]): unknown => toggle(...args),
+    skip: (...args: unknown[]): unknown => skip(...args),
+    back: (...args: unknown[]): unknown => back(...args),
+    seek: (...args: unknown[]): unknown => seek(...args),
+    setShuffle: (...args: unknown[]): unknown => setShuffle(...args),
+    setRepeat: (...args: unknown[]): unknown => setRepeat(...args),
   },
 }));
 
@@ -215,13 +215,19 @@ describe('HousePage actions', () => {
     renderHouse();
 
     fireEvent.click(screen.getByRole('button', { name: 'Mute' }));
-    await waitFor(() => expect(state.fleetMuteAll).toHaveBeenCalledWith(true));
+    await waitFor(() => {
+      expect(state.fleetMuteAll).toHaveBeenCalledWith(true);
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Pause house stream' }));
-    await waitFor(() => expect(toggle).toHaveBeenCalled());
+    await waitFor(() => {
+      expect(toggle).toHaveBeenCalled();
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Stop all' }));
-    await waitFor(() => expect(state.fleetStopAll).toHaveBeenCalled());
+    await waitFor(() => {
+      expect(state.fleetStopAll).toHaveBeenCalled();
+    });
   });
 
   it('breaks all groups after confirm', async () => {
@@ -231,13 +237,15 @@ describe('HousePage actions', () => {
     renderHouse();
 
     fireEvent.click(screen.getByRole('button', { name: 'Break all groups' }));
-    await waitFor(() => expect(syncBreak).toHaveBeenCalled());
+    await waitFor(() => {
+      expect(syncBreak).toHaveBeenCalled();
+    });
     expect(holdSync).toHaveBeenCalled();
     expect(reloadStatus).toHaveBeenCalled();
     confirm.mockRestore();
   });
 
-  it('skips break when confirm is cancelled', async () => {
+  it('skips break when confirm is cancelled', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderHouse();
     fireEvent.click(screen.getByRole('button', { name: 'Break all groups' }));
@@ -252,10 +260,31 @@ describe('HousePage actions', () => {
     renderHouse();
 
     fireEvent.click(screen.getByRole('button', { name: 'Rescan network' }));
-    await waitFor(() => expect(refresh).toHaveBeenCalled());
+    await waitFor(() => {
+      expect(refresh).toHaveBeenCalled();
+    });
 
     fireEvent.click(screen.getByRole('button', { name: 'Reboot all' }));
-    await waitFor(() => expect(fleetRebootAll).toHaveBeenCalled());
+    await waitFor(() => {
+      expect(fleetRebootAll).toHaveBeenCalled();
+    });
+    confirm.mockRestore();
+  });
+
+  it('counts online chassis, not zones, in the reboot prompt', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const [first] = useFleetStore.getState().devices;
+    if (!first) throw new Error('the House page fixture has no players');
+    useFleetStore.setState({
+      devices: [
+        { ...first, id: 'zone-1', ip: '192.168.1.40', port: 11000, status: 'online' },
+        { ...first, id: 'zone-2', ip: '192.168.1.40', port: 11010, status: 'online' },
+        { ...first, id: 'other', ip: '192.168.1.41', status: 'offline' },
+      ],
+    });
+    renderHouse();
+    fireEvent.click(screen.getByRole('button', { name: 'Reboot all' }));
+    expect(confirm.mock.calls[0]?.[0]).toMatch(/^Reboot 1 online player\?/);
     confirm.mockRestore();
   });
 });

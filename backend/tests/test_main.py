@@ -18,6 +18,7 @@ from app.models import PlayerStatus
 from app.services.events import EventBus
 from app.services.poller import StatusPoller
 from app.state import AppState
+from tests.helpers import API_BASE, API_HEADERS
 
 
 @pytest.fixture
@@ -43,8 +44,8 @@ def _seed_state(app, settings: Settings) -> BluOSClient:
         status="online",
     )
     discovery._snapshot.devices = [player]
-    discovery._snapshot.ips_by_id = {player.id: player.ip}
-    discovery._snapshot.ids_by_ip = {player.ip: player.id}
+    discovery._snapshot.endpoints_by_id = {player.id: player.ip}
+    discovery._snapshot.ids_by_endpoint = {player.ip: player.id}
     discovery._snapshot.discovered_at = 1.0
     discovery._snapshot.method_used = "mdns"
     poller = StatusPoller(settings, discovery, client, events)
@@ -64,7 +65,6 @@ async def _seeded_app(settings: Settings, monkeypatch: pytest.MonkeyPatch):
         return self._snapshot
 
     monkeypatch.setattr(DiscoveryService, "refresh", seeded)
-    monkeypatch.setattr(DiscoveryService, "get_devices", seeded)
     app = create_app()
     client = _seed_state(app, settings)
     return app, client, app.state.app_state.poller
@@ -74,7 +74,7 @@ async def _seeded_app(settings: Settings, monkeypatch: pytest.MonkeyPatch):
 async def test_readyz_ok_and_not_ready(settings: Settings, monkeypatch: pytest.MonkeyPatch):
     app, client, poller = await _seeded_app(settings, monkeypatch)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         ok = await http.get("/api/v1/readyz")
         assert ok.status_code == 200
         assert ok.headers.get("X-Content-Type-Options") == "nosniff"
@@ -98,7 +98,7 @@ async def test_readyz_does_not_leak_exception_text(
     poller.last_error = "connect failed at 192.168.1.20:11000 (internal-detail)"
     poller.last_error_kind = "ConnectError"
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.get("/api/v1/readyz")
         assert response.status_code == 200
         details = response.json()["details"]
@@ -121,11 +121,11 @@ async def test_ip_not_allowed_when_non_private_disabled(
     )
     state: AppState = app.state.app_state
     state.discovery._snapshot.devices = [public]
-    state.discovery._snapshot.ips_by_id = {public.id: public.ip}
-    state.discovery._snapshot.ids_by_ip = {public.ip: public.id}
+    state.discovery._snapshot.endpoints_by_id = {public.id: public.ip}
+    state.discovery._snapshot.ids_by_endpoint = {public.ip: public.id}
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/devices/player-public/play")
         assert response.status_code == 403
         assert response.json()["code"] == "ip_not_allowed"
@@ -248,7 +248,7 @@ def _events_scope() -> dict:
         "root_path": "",
         "scheme": "http",
         "query_string": b"",
-        "headers": [(b"host", b"test")],
+        "headers": [(b"host", b"127.0.0.1")],
         "client": ("127.0.0.1", 50000),
         "server": ("test", 80),
         "state": {},

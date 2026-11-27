@@ -20,7 +20,8 @@ import { MetaText } from '@/components/MetaText';
 import { compareFirmware } from '@/lib/firmware';
 import { sortDevices } from '@/lib/fleetSort';
 import { META_SEP } from '@/lib/meta';
-import { GROUP_CHANGE_SYNC_HOLD_MS, useFleetStore } from '@/store/fleetStore';
+import { breakAllGroups } from '@/hooks/useSyncActions';
+import { useFleetStore } from '@/store/fleetStore';
 
 export function HousePage() {
   const devices = useFleetStore((s) => s.devices);
@@ -30,15 +31,14 @@ export function HousePage() {
   const toast = useFleetStore((s) => s.toast);
   const setToast = useFleetStore((s) => s.setToast);
   const refresh = useFleetStore((s) => s.refresh);
-  const reloadStatus = useFleetStore((s) => s.reloadStatus);
-  const holdSync = useFleetStore((s) => s.holdSync);
-  const setSync = useFleetStore((s) => s.setSync);
   const fleetRebootAll = useFleetStore((s) => s.fleetRebootAll);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [upgradeReport, setUpgradeReport] = useState<FleetUpgradeResponse | null>(null);
 
   const groupCount = sync?.groups.length ?? 0;
+  // The server reboots each online chassis once, whatever its number of zones.
+  const rebootTargets = new Set(devices.filter((d) => d.status === 'online').map((d) => d.ip)).size;
   const sorted = useMemo(() => sortDevices(devices, 'name'), [devices]);
 
   const firmware = useMemo(() => {
@@ -54,21 +54,14 @@ export function HousePage() {
 
   const run = (key: string, action: () => Promise<void>) => {
     setBusy(key);
-    void action().finally(() => setBusy(null));
+    void action().finally(() => {
+      setBusy(null);
+    });
   };
 
   const breakAll = async () => {
     try {
-      const result = await api.syncBreak();
-      setSync({
-        groups: [],
-        standalone_ids: useFleetStore.getState().devices.map((d) => d.id),
-      });
-      holdSync(GROUP_CHANGE_SYNC_HOLD_MS);
-      await reloadStatus();
-      if (result.failed > 0) {
-        setToast(`Ungrouped ${result.succeeded}; ${result.failed} failed`);
-      }
+      await breakAllGroups();
     } catch (err) {
       setToast(err instanceof ApiError ? `${err.message} (${err.requestId})` : 'Break all failed');
     }
@@ -131,7 +124,13 @@ export function HousePage() {
         <div className="toast" role="status">
           {toast}
           <div style={{ marginTop: 8 }}>
-            <button type="button" className="btn" onClick={() => setToast(null)}>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setToast(null);
+              }}
+            >
               Dismiss
             </button>
           </div>
@@ -181,7 +180,9 @@ export function HousePage() {
             type="button"
             className="btn"
             disabled={busy !== null || devices.length === 0}
-            onClick={() => run('upgrade', checkUpgrades)}
+            onClick={() => {
+              run('upgrade', checkUpgrades);
+            }}
           >
             {busy === 'upgrade' ? 'Checking…' : 'Check all for upgrades'}
           </button>
@@ -220,18 +221,20 @@ export function HousePage() {
             type="button"
             className="btn btn-primary"
             disabled={busy !== null || refreshing}
-            onClick={() => run('rescan', () => refresh())}
+            onClick={() => {
+              run('rescan', () => refresh());
+            }}
           >
             {busy === 'rescan' || refreshing ? 'Scanning…' : 'Rescan network'}
           </button>
           <button
             type="button"
             className="btn btn-danger"
-            disabled={busy !== null || devices.length === 0}
+            disabled={busy !== null || rebootTargets === 0}
             onClick={() => {
               if (
                 !window.confirm(
-                  `Reboot all ${devices.length} player${devices.length === 1 ? '' : 's'}? Playback will stop until they come back.`,
+                  `Reboot ${rebootTargets} online player${rebootTargets === 1 ? '' : 's'}? A player with several zones restarts once. Playback stops until they come back.`,
                 )
               ) {
                 return;

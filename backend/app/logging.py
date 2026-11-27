@@ -42,6 +42,7 @@ class JsonFormatter(logging.Formatter):
             "failed",
             "role",
             "target_count",
+            "skipped_muted",
             "scoped",
             "redirect_host",
             "url",
@@ -53,6 +54,11 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, default=str)
 
 
+# uvicorn installs plain-text handlers on these loggers and stops them propagating.
+# Removing those handlers sends uvicorn's lines through the JSON root handler too.
+_UVICORN_LOGGERS = ("uvicorn", "uvicorn.error", "uvicorn.access")
+
+
 def configure_logging(level: str = "INFO") -> None:
     root = logging.getLogger()
     root.handlers.clear()
@@ -60,6 +66,11 @@ def configure_logging(level: str = "INFO") -> None:
     handler.setFormatter(JsonFormatter())
     root.addHandler(handler)
     root.setLevel(level)
+    for name in _UVICORN_LOGGERS:
+        uvicorn_logger = logging.getLogger(name)
+        uvicorn_logger.handlers.clear()
+        uvicorn_logger.propagate = True
+    # The middleware writes its own http_request line for every request.
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("zeroconf").setLevel(logging.WARNING)

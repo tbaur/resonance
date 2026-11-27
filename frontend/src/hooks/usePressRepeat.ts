@@ -7,7 +7,7 @@
  * Runs an action on press, then repeats it while the button is held.
  */
 
-import { useEffect, useRef, type MouseEvent, type PointerEvent } from 'react';
+import { useCallback, useEffect, useRef, type MouseEvent, type PointerEvent } from 'react';
 
 type PressRepeatHandlers = {
   onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
@@ -20,44 +20,61 @@ type PressRepeatHandlers = {
 /**
  * Fire `action` immediately, then repeat while held.
  * Uses a ref so rapid steps always see the latest external state.
+ *
+ * A button that turns `disabled` mid-press (at 0 or 100, or while a write is
+ * pending) may never get its own pointerup, so the repeat also stops when
+ * `disabled` turns true and on any pointerup, pointercancel, or blur in the window.
  */
 export function usePressRepeat(
   action: () => void,
-  { initialDelayMs = 320, repeatMs = 55 }: { initialDelayMs?: number; repeatMs?: number } = {},
+  {
+    initialDelayMs = 320,
+    repeatMs = 55,
+    disabled = false,
+  }: { initialDelayMs?: number; repeatMs?: number; disabled?: boolean } = {},
 ): PressRepeatHandlers {
   const actionRef = useRef(action);
   const delayRef = useRef<number | undefined>(undefined);
   const repeatRef = useRef<number | undefined>(undefined);
+  const releaseRef = useRef<(() => void) | undefined>(undefined);
 
   useEffect(() => {
     actionRef.current = action;
   }, [action]);
 
-  useEffect(
-    () => () => {
-      if (delayRef.current) window.clearTimeout(delayRef.current);
-      if (repeatRef.current) window.clearInterval(repeatRef.current);
-    },
-    [],
-  );
-
-  const stop = () => {
-    if (delayRef.current) {
+  const stop = useCallback(() => {
+    if (delayRef.current !== undefined) {
       window.clearTimeout(delayRef.current);
       delayRef.current = undefined;
     }
-    if (repeatRef.current) {
+    if (repeatRef.current !== undefined) {
       window.clearInterval(repeatRef.current);
       repeatRef.current = undefined;
     }
-  };
+    releaseRef.current?.();
+    releaseRef.current = undefined;
+  }, []);
+
+  useEffect(() => stop, [stop]);
+
+  useEffect(() => {
+    if (disabled) stop();
+  }, [disabled, stop]);
 
   const start = (event: PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0) return;
     event.preventDefault();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    event.currentTarget.setPointerCapture(event.pointerId);
     stop();
     actionRef.current();
+    window.addEventListener('pointerup', stop);
+    window.addEventListener('pointercancel', stop);
+    window.addEventListener('blur', stop);
+    releaseRef.current = () => {
+      window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
+      window.removeEventListener('blur', stop);
+    };
     delayRef.current = window.setTimeout(() => {
       delayRef.current = undefined;
       repeatRef.current = window.setInterval(() => {
@@ -71,6 +88,8 @@ export function usePressRepeat(
     onPointerUp: stop,
     onPointerLeave: stop,
     onPointerCancel: stop,
-    onContextMenu: (event) => event.preventDefault(),
+    onContextMenu: (event) => {
+      event.preventDefault();
+    },
   };
 }

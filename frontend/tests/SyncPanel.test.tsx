@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SyncPanel } from '@/components/SyncPanel';
 import type { PlayerStatus, SyncState } from '@/api/types';
 import { useFleetStore } from '@/store/fleetStore';
+import { must } from './must';
 
 const syncEnable = vi.fn();
 const syncAdd = vi.fn();
@@ -20,10 +21,10 @@ const syncRemove = vi.fn();
 
 vi.mock('@/api/client', () => ({
   api: {
-    syncEnable: (...args: unknown[]) => syncEnable(...args),
-    syncAdd: (...args: unknown[]) => syncAdd(...args),
-    syncBreak: (...args: unknown[]) => syncBreak(...args),
-    syncRemove: (...args: unknown[]) => syncRemove(...args),
+    syncEnable: (...args: unknown[]): unknown => syncEnable(...args),
+    syncAdd: (...args: unknown[]): unknown => syncAdd(...args),
+    syncBreak: (...args: unknown[]): unknown => syncBreak(...args),
+    syncRemove: (...args: unknown[]): unknown => syncRemove(...args),
   },
 }));
 
@@ -97,10 +98,10 @@ describe('SyncPanel', () => {
     useFleetStore.setState({
       devices,
       sync,
-      control: vi.fn(async (_id, action) => {
+      control: vi.fn(async (_id: string, action: () => Promise<unknown>) => {
         await action();
       }),
-      reloadStatus: vi.fn(async () => undefined),
+      reloadStatus: vi.fn(() => Promise.resolve()),
       setSync: vi.fn(),
       patchDevice: vi.fn(),
       holdSync: vi.fn(),
@@ -181,12 +182,14 @@ describe('SyncPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '+ Bravo' }));
 
     const state = useFleetStore.getState();
-    await waitFor(() => expect(syncAdd).toHaveBeenCalledWith('a', 'b'));
-    await waitFor(() =>
+    await waitFor(() => {
+      expect(syncAdd).toHaveBeenCalledWith('a', 'b');
+    });
+    await waitFor(() => {
       expect(state.reloadStatus).toHaveBeenCalledWith({
         ensureLink: { primaryId: 'a', slaveId: 'b' },
-      }),
-    );
+      });
+    });
     expect(state.setSync).toHaveBeenCalledWith({
       groups: [expect.objectContaining({ primary_id: 'a', slave_ids: ['b'] })],
       standalone_ids: ['c'],
@@ -222,7 +225,7 @@ describe('SyncPanel', () => {
       render(<SyncPanel />);
       const members = screen.getByRole('list', { name: 'Alpha group' });
       const items = within(members).getAllByRole('listitem');
-      expect(items.map((item) => item.textContent?.replace('×', '').trim())).toEqual([
+      expect(items.map((item) => item.textContent.replace('×', '').trim())).toEqual([
         'Alpha',
         'Bravo',
         'Charlie',
@@ -239,7 +242,7 @@ describe('SyncPanel', () => {
           player({ id: 'd', name: 'Delta', ip: '10.0.0.4' }),
         ],
         sync: {
-          ...useFleetStore.getState().sync!,
+          ...must(useFleetStore.getState().sync, 'sync state'),
           standalone_ids: ['d'],
         },
       });
@@ -253,7 +256,9 @@ describe('SyncPanel', () => {
     it('removes one follower and keeps the rest of the group', async () => {
       render(<SyncPanel />);
       fireEvent.click(screen.getByRole('button', { name: 'Remove Bravo from the group' }));
-      await waitFor(() => expect(syncRemove).toHaveBeenCalledWith('a', 'b'));
+      await waitFor(() => {
+        expect(syncRemove).toHaveBeenCalledWith('a', 'b');
+      });
       expect(useFleetStore.getState().setSync).toHaveBeenCalledWith({
         groups: [expect.objectContaining({ slave_ids: ['c'], slave_names: ['Charlie'] })],
         standalone_ids: ['b'],
@@ -263,10 +268,30 @@ describe('SyncPanel', () => {
     it('ungroups every follower of one group', async () => {
       render(<SyncPanel />);
       fireEvent.click(screen.getByRole('button', { name: 'Ungroup' }));
-      await waitFor(() => expect(syncRemove).toHaveBeenCalledTimes(2));
+      await waitFor(() => {
+        expect(syncRemove).toHaveBeenCalledTimes(2);
+      });
       expect(useFleetStore.getState().setSync).toHaveBeenCalledWith({
         groups: [],
         standalone_ids: ['a', 'b', 'c'],
+      });
+    });
+
+    it('paints the followers that left and reloads when one removal fails', async () => {
+      syncRemove.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('busy'));
+      useFleetStore.setState({
+        control: vi.fn(async (_id: string, action: () => Promise<unknown>) => {
+          await action().catch(() => undefined);
+        }),
+      });
+      render(<SyncPanel />);
+      fireEvent.click(screen.getByRole('button', { name: 'Ungroup' }));
+      await waitFor(() => {
+        expect(useFleetStore.getState().reloadStatus).toHaveBeenCalled();
+      });
+      expect(useFleetStore.getState().setSync).toHaveBeenCalledWith({
+        groups: [expect.objectContaining({ slave_ids: ['c'] })],
+        standalone_ids: ['b'],
       });
     });
 
@@ -282,9 +307,9 @@ describe('SyncPanel', () => {
       expect(syncBreak).not.toHaveBeenCalled();
 
       fireEvent.click(screen.getByRole('button', { name: 'Ungroup all' }));
-      await waitFor(() =>
-        expect(useFleetStore.getState().setToast).toHaveBeenCalledWith('Ungrouped 1; 1 failed'),
-      );
+      await waitFor(() => {
+        expect(useFleetStore.getState().setToast).toHaveBeenCalledWith('Ungrouped 1; 1 failed');
+      });
       confirm.mockRestore();
     });
   });

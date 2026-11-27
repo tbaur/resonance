@@ -56,7 +56,9 @@ export function AdvancedPanel(props: AdvancedPanelProps) {
   return (
     <details
       className="panel panel-collapse"
-      onToggle={(event) => onOpenChange(event.currentTarget.open)}
+      onToggle={(event) => {
+        onOpenChange(event.currentTarget.open);
+      }}
     >
       <summary>
         <h2>Advanced</h2>
@@ -105,7 +107,9 @@ function QueueSection({ device, queue, setQueue, onMoveQueue, onControl }: Advan
                   className="btn btn-compact"
                   disabled={index === 0}
                   aria-label={`Move ${item.title} up`}
-                  onClick={() => onMoveQueue(index, index - 1)}
+                  onClick={() => {
+                    onMoveQueue(index, index - 1);
+                  }}
                 >
                   ↑
                 </button>
@@ -114,7 +118,9 @@ function QueueSection({ device, queue, setQueue, onMoveQueue, onControl }: Advan
                   className="btn btn-compact"
                   disabled={index >= queue.items.length - 1}
                   aria-label={`Move ${item.title} down`}
-                  onClick={() => onMoveQueue(index, index + 1)}
+                  onClick={() => {
+                    onMoveQueue(index, index + 1);
+                  }}
                 >
                   ↓
                 </button>
@@ -123,6 +129,12 @@ function QueueSection({ device, queue, setQueue, onMoveQueue, onControl }: Advan
           ))}
         </ul>
       )}
+      {queue && queue.items.length < queue.count ? (
+        // The server reads the first 500 tracks of a longer queue.
+        <p className="card-meta">
+          Showing the first {queue.items.length} of {queue.count} tracks.
+        </p>
+      ) : null}
       <button
         type="button"
         className="btn btn-danger"
@@ -157,12 +169,12 @@ function InputsSection({ device, inputs, setInputs, onControl }: AdvancedPanelPr
               type="button"
               className={input.selected ? 'btn btn-primary' : 'btn'}
               disabled={input.selected}
-              onClick={() =>
+              onClick={() => {
                 onControl(async () => {
                   await api.setInput(device.id, input.id || input.name);
                   setInputs(await api.getInputs(device.id));
-                })
-              }
+                });
+              }}
             >
               {input.selected ? 'In use' : 'Select'}
             </button>
@@ -191,7 +203,9 @@ function PresetsSection({
               <button
                 type="button"
                 className="btn"
-                onClick={() => onControl(() => api.playPreset(device.id, preset.id))}
+                onClick={() => {
+                  onControl(() => api.playPreset(device.id, preset.id));
+                }}
               >
                 Play
               </button>
@@ -214,12 +228,12 @@ function BluetoothSection({ device, bluetooth, applyBluetooth, onControl }: Adva
             key={mode}
             type="button"
             className={bluetooth.mode === label ? 'btn btn-primary' : 'btn'}
-            onClick={() =>
+            onClick={() => {
               onControl(async () => {
                 await api.setBluetooth(device.id, mode);
                 applyBluetooth(await api.getBluetooth(device.id));
-              })
-            }
+              });
+            }}
           >
             {label}
           </button>
@@ -244,8 +258,12 @@ function MaintenanceSection({ device, upgrade, setUpgrade, onControl }: Advanced
     void api
       .getUpgrade(device.id)
       .then(setUpgrade)
-      .catch(() => setUpgrade(failedUpgrade(device)))
-      .finally(() => setBusy(false));
+      .catch(() => {
+        setUpgrade(failedUpgrade(device));
+      })
+      .finally(() => {
+        setBusy(false);
+      });
   };
   const reboot = () => {
     if (window.confirm(`Reboot ${device.name}? Playback will stop until it comes back.`)) {

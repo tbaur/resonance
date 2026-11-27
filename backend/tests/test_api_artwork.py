@@ -14,7 +14,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.config import Settings, get_settings
 from app.models import PlayerStatus
-from tests.helpers import app_with_players
+from tests.helpers import API_BASE, API_HEADERS, app_with_players
 
 _LEAD_ART = "https://m.media-amazon.com/images/I/lead._SL500_.jpg"
 _MEMBER_ART = "https://images.example.com/member.jpg"
@@ -60,7 +60,9 @@ async def test_art_route_marks_images_that_a_player_reported(
     fetch = AsyncMock(return_value=(b"\xff\xd8\xff", "image/jpeg"))
     client.fetch_artwork = fetch  # type: ignore[method-assign]
     poller.interrupt = AsyncMock()  # type: ignore[method-assign]
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url=API_BASE, headers=API_HEADERS
+    ) as http:
         response = await http.get("/api/v1/devices/lead/art", params={"image": image})
     assert response.status_code == 200
     assert response.headers["content-type"] == "image/jpeg"
@@ -76,8 +78,31 @@ async def test_art_route_is_404_when_the_cover_is_refused(
     app, client, _, poller = await app_with_players(settings, monkeypatch, players=_players())
     client.fetch_artwork = AsyncMock(return_value=None)  # type: ignore[method-assign]
     poller.interrupt = AsyncMock()  # type: ignore[method-assign]
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url=API_BASE, headers=API_HEADERS
+    ) as http:
         response = await http.get("/api/v1/devices/lead/art", params={"image": _LEAD_ART})
     assert response.status_code == 404
     assert response.json()["code"] == "artwork_not_found"
+    await client.aclose()
+
+
+@pytest.mark.parametrize(
+    ("image", "interrupts"),
+    [("/Artwork?id=1", True), ("http://192.168.1.20:11000/images/a.jpg", True), (_LEAD_ART, False)],
+)
+@pytest.mark.asyncio
+async def test_only_a_cover_on_the_player_interrupts_its_long_poll(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch, image: str, interrupts: bool
+) -> None:
+    """An internet cover does not use the player, so its status hold stays open."""
+    app, client, _, poller = await app_with_players(settings, monkeypatch, players=_players())
+    client.fetch_artwork = AsyncMock(return_value=(b"\xff\xd8\xff", "image/jpeg"))  # type: ignore[method-assign]
+    poller.interrupt = AsyncMock()  # type: ignore[method-assign]
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url=API_BASE, headers=API_HEADERS
+    ) as http:
+        response = await http.get("/api/v1/devices/lead/art", params={"image": image})
+    assert response.status_code == 200
+    assert poller.interrupt.await_count == (1 if interrupts else 0)
     await client.aclose()

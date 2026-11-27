@@ -20,6 +20,7 @@ from app.models import PlayerStatus, SyncRole
 from app.services.events import EventBus
 from app.services.poller import StatusPoller
 from app.state import AppState
+from tests.helpers import API_BASE, API_HEADERS
 
 
 @pytest.fixture
@@ -51,7 +52,6 @@ async def test_sync_remove_stops_slave_and_empty_primary(
         return self._snapshot
 
     monkeypatch.setattr(DiscoveryService, "refresh", seeded)
-    monkeypatch.setattr(DiscoveryService, "get_devices", seeded)
 
     app = create_app()
     client = BluOSClient(settings)
@@ -97,7 +97,7 @@ async def test_sync_remove_stops_slave_and_empty_primary(
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post(
             "/api/v1/sync/remove",
             json={"master_id": "primary", "slave_id": "slave"},
@@ -122,7 +122,6 @@ async def test_sync_remove_keeps_primary_playing_when_slaves_remain(
         return self._snapshot
 
     monkeypatch.setattr(DiscoveryService, "refresh", seeded)
-    monkeypatch.setattr(DiscoveryService, "get_devices", seeded)
 
     app = create_app()
     client = BluOSClient(settings)
@@ -176,7 +175,7 @@ async def test_sync_remove_keeps_primary_playing_when_slaves_remain(
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post(
             "/api/v1/sync/remove",
             json={"master_id": "primary", "slave_id": "slave"},
@@ -194,7 +193,6 @@ async def test_sync_break_does_not_stop_primary_when_all_removals_fail(
         return self._snapshot
 
     monkeypatch.setattr(DiscoveryService, "refresh", seeded)
-    monkeypatch.setattr(DiscoveryService, "get_devices", seeded)
 
     app = create_app()
     client = BluOSClient(settings)
@@ -230,7 +228,7 @@ async def test_sync_break_does_not_stop_primary_when_all_removals_fail(
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/sync/break")
     assert response.status_code == 502
     client.stop.assert_not_awaited()
@@ -247,7 +245,6 @@ async def test_sync_break_does_not_stop_primary_when_one_slave_remains(
         return self._snapshot
 
     monkeypatch.setattr(DiscoveryService, "refresh", seeded)
-    monkeypatch.setattr(DiscoveryService, "get_devices", seeded)
 
     app = create_app()
     client = BluOSClient(settings)
@@ -305,7 +302,7 @@ async def test_sync_break_does_not_stop_primary_when_one_slave_remains(
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with AsyncClient(transport=transport, base_url=API_BASE, headers=API_HEADERS) as http:
         response = await http.post("/api/v1/sync/break")
     assert response.status_code == 200
     body = response.json()

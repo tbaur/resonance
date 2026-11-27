@@ -8,11 +8,14 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -33,10 +36,25 @@ from app.state import AppState
 logger = logging.getLogger(__name__)
 
 
-def _resolve_static_dir(settings: Settings) -> Path:
+def _resolve_static_dir(settings: Settings) -> Path | None:
+    """The built UI to serve, or None for an API-only server.
+
+    Only an explicit RESONANCE_STATIC_DIR serves a UI. Falling back to the
+    repo's frontend/dist would make the development API serve whatever build
+    is left there, which is usually older than the code.
+    """
     if settings.static_dir:
         return Path(settings.static_dir)
-    return Path(__file__).resolve().parents[2] / "frontend" / "dist"
+    return None
+
+
+def _error_body(code: str, message: str, request_id: str | None = None) -> dict[str, str]:
+    return {
+        "error": code,
+        "message": message,
+        "code": code,
+        "request_id": request_id if request_id is not None else request_id_var.get("-"),
+    }
 
 
 def _ui_origin(settings: Settings) -> str:
@@ -66,7 +84,7 @@ def warn_if_open_to_network(settings: Settings) -> bool:
 
 def _api_home_html(settings: Settings) -> str:
     """Small landing page when the SPA dist is not mounted (typical local API-only)."""
-    ui = _ui_origin(settings)
+    ui = html.escape(_ui_origin(settings), quote=True)
     docs_link = (
         '<a class="btn btn-quiet" href="/api/docs">API docs</a>'
         if settings.openapi_enabled()
@@ -200,7 +218,7 @@ def _api_home_html(settings: Settings) -> str:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     configure_logging(settings.log_level)
     warn_if_open_to_network(settings)
@@ -216,11 +234,13 @@ async def lifespan(app: FastAPI):
         poller=poller,
     )
     discovery.mdns.start()
-    poller.start()
+    # Discover first, then start the poller. Started earlier, the poller finds
+    # no fresh result and runs a second full discovery right behind this one.
     try:
         await discovery.refresh()
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — startup continues; the poller retries discovery
         logger.exception("initial_discovery_failed")
+    poller.start()
     logger.info("app_started host=%s port=%s", settings.host, settings.port)
     loop = asyncio.get_running_loop()
     restore_signals = on_exit_signal(lambda: loop.call_soon_threadsafe(events.close))
@@ -255,45 +275,44 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
 
     @app.exception_handler(AppError)
-    async def app_error_handler(_request: Request, exc: AppError):
+    async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
         detail = (
-            exc.detail
-            if isinstance(exc.detail, dict)
-            else {
-                "error": "error",
-                "message": str(exc.detail),
-                "code": "error",
-                "request_id": request_id_var.get("-"),
-            }
+            exc.detail if isinstance(exc.detail, dict) else _error_body("error", str(exc.detail))
         )
         return JSONResponse(status_code=exc.status_code, content=detail)
 
     @app.exception_handler(HTTPException)
-    async def http_exception_handler(_request: Request, exc: HTTPException):
+    async def http_exception_handler(_request: Request, exc: HTTPException) -> JSONResponse:
         if isinstance(exc.detail, dict) and "code" in exc.detail:
             return JSONResponse(status_code=exc.status_code, content=exc.detail)
         return JSONResponse(
             status_code=exc.status_code,
-            content={
-                "error": "http_error",
-                "message": str(exc.detail),
-                "code": "http_error",
-                "request_id": request_id_var.get("-"),
-            },
+            content=_error_body("http_error", str(exc.detail)),
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error_handler(
+        _request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        # Same envelope as every other error, so the UI can show the message and
+        # request id. Only the field locations and messages go back, never the input.
+        problems = "; ".join(
+            f"{'.'.join(str(part) for part in error.get('loc', ()) if part != 'body')}: "
+            f"{error.get('msg', 'invalid')}"
+            for error in exc.errors()
+        )
+        return JSONResponse(
+            status_code=422,
+            content=_error_body("validation_error", problems or "Request is not valid"),
         )
 
     @app.exception_handler(Exception)
-    async def unhandled_exception_handler(request: Request, exc: Exception):
+    async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         logger.exception("unhandled_error")
         request_id = getattr(request.state, "request_id", "-")
         return JSONResponse(
             status_code=500,
-            content={
-                "error": "internal_error",
-                "message": "An unexpected error occurred",
-                "code": "internal_error",
-                "request_id": request_id,
-            },
+            content=_error_body("internal_error", "An unexpected error occurred", request_id),
         )
 
     app.include_router(router)
@@ -304,7 +323,9 @@ def create_app() -> FastAPI:
         return RedirectResponse(url="/api/v1/healthz", status_code=307)
 
     static_dir = _resolve_static_dir(settings)
-    index_html = static_dir / "index.html" if static_dir.is_dir() else None
+    index_html = (
+        static_dir / "index.html" if static_dir is not None and static_dir.is_dir() else None
+    )
 
     @app.get("/", response_model=None)
     async def root() -> FileResponse | HTMLResponse:
@@ -313,7 +334,7 @@ def create_app() -> FastAPI:
             return FileResponse(index_html)
         return HTMLResponse(_api_home_html(settings))
 
-    if static_dir.is_dir():
+    if static_dir is not None and static_dir.is_dir():
         assets = static_dir / "assets"
         if assets.is_dir():
             app.mount("/assets", StaticFiles(directory=assets), name="assets")
@@ -323,7 +344,7 @@ def create_app() -> FastAPI:
             path = static_dir / name
             if path.is_file():
                 return FileResponse(path, media_type=media_type)
-            return JSONResponse(status_code=404, content={"error": "not_found"})
+            return JSONResponse(status_code=404, content=_error_body("not_found", "Not found"))
 
         @app.get("/favicon.ico", include_in_schema=False, response_model=None)
         async def favicon_ico() -> FileResponse | JSONResponse:
@@ -341,13 +362,18 @@ def create_app() -> FastAPI:
         async def web_manifest() -> FileResponse | JSONResponse:
             return _public_file("manifest.webmanifest", media_type="application/manifest+json")
 
-        @app.get("/{full_path:path}")
-        async def spa_fallback(full_path: str):
+        @app.get("/{full_path:path}", response_model=None)
+        async def spa_fallback(full_path: str) -> FileResponse | JSONResponse:
             if full_path.startswith("api/"):
-                return JSONResponse(status_code=404, content={"error": "not_found"})
+                return JSONResponse(
+                    status_code=404, content=_error_body("not_found", "No such API route")
+                )
             if index_html is not None and index_html.is_file():
                 return FileResponse(index_html)
-            return JSONResponse(status_code=404, content={"error": "ui_not_built"})
+            return JSONResponse(
+                status_code=404,
+                content=_error_body("ui_not_built", "The UI has not been built"),
+            )
 
     return app
 

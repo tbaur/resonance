@@ -39,7 +39,9 @@ describe('ValenceLink', () => {
   ])('shows nothing for %s', async (_case, answer) => {
     links.mockImplementation(answer);
     const { container } = render(<ValenceLink />);
-    await waitFor(() => expect(links).toHaveBeenCalled());
+    await waitFor(() => {
+      expect(links).toHaveBeenCalled();
+    });
     expect(container).toBeEmptyDOMElement();
   });
 });
